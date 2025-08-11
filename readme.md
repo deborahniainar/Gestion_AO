@@ -97,12 +97,6 @@ Gestion_AO/
 │   ├── package.json
 │   └── Dockerfile
 │
-├── scripts/                       # Outils de dev
-│   ├── install_dependencies.sh
-│   ├── run_backend.sh
-│   ├── run_frontend.sh
-│   └── init_db.sh
-│
 ├── docker-compose.yml             # Orchestration (backend, frontend, db, redis)
 ├── .env                           # Variables d’environnement
 └── readme.md
@@ -129,7 +123,14 @@ Gestion_AO/
 Depuis la racine du projet:
 
 ```bash
-./scripts/install_dependencies.sh
+# Backend (Python)
+python -m pip install --upgrade pip
+pip install -r backend/requirements.txt
+
+# Frontend (Node)
+cd frontend
+npm ci
+cd ..
 ```
 
 Variables d’environnement (fichier `.env` à la racine):
@@ -145,17 +146,23 @@ JWT_SECRET=change-me
 
 Backend (FastAPI):
 ```bash
-./scripts/run_backend.sh
+cd backend
+export PYTHONPATH="$(pwd)"
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Frontend (React):
 ```bash
-./scripts/run_frontend.sh
+cd frontend
+npm run dev -- --host
 ```
 
-Base de données (création des tables simples d’exemple):
+Base de données (création des tables d’exemple):
 ```bash
-./scripts/init_db.sh
+# depuis la racine du projet
+cd backend
+export PYTHONPATH="$(pwd)"
+python -c "from app.db.base import Base; from app.db.session import engine; Base.metadata.create_all(bind=engine); print('Tables créées (si non existantes).')"
 ```
 
 ### Docker (optionnel)
