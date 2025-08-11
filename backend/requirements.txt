@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+databases[postgresql]
+psycopg2-binary
+python-multipart          # pour upload fichiers
+PyMuPDF                   # extraction PDF
+pytesseract               # OCR
+spacy
+transformers
+python-docx
+reportlab
+celery
+redis
