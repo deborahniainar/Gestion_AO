@@ -1,7 +1,24 @@
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@db:5432/postgres")
-engine = create_engine(DATABASE_URL, future=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+from ..core.config import settings
+
+# Configuration pour SQLite
+if "sqlite" in settings.database_url:
+    engine = create_engine(
+        settings.database_url,
+        connect_args={"check_same_thread": False}, 
+        echo=True  
+    )
+else:
+    engine = create_engine(settings.database_url)
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
