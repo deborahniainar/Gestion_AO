@@ -1,0 +1,15 @@
+/* Styles supplémentaires pour coller au design de la maquette */
+.dao-header-shadow {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+.dropzone-dark {
+  background: #E6E6E6;
+  border-radius: 12px;
+}
+
+.badge-step {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
