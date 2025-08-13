@@ -11,3 +11,5 @@ class Settings(BaseSettings):
     # Base de données SQLite
     DATABASE_URL: str = "sqlite:///./dev.db"
 
+settings = Settings()
+

@@ -4,14 +4,14 @@ from sqlalchemy.orm import sessionmaker
 from ..core.config import settings
 
 # Configuration pour SQLite
-if "sqlite" in settings.database_url:
+if "sqlite" in settings.DATABASE_URL:
     engine = create_engine(
-        settings.database_url,
+        settings.DATABASE_URL,
         connect_args={"check_same_thread": False}, 
         echo=True  
     )
 else:
-    engine = create_engine(settings.database_url)
+    engine = create_engine(settings.DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
