@@ -1,4 +1,6 @@
 from sqlalchemy import Column, String, Date, DateTime, Numeric, Integer, BigInteger, ForeignKey, Table
+from sqlalchemy import Enum as SAEnum
+from enum import Enum as PyEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .base import Base
@@ -10,6 +12,19 @@ soumission_documents = Table(
     Column("id_document", BigInteger, ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True),
     Column("id_soumission", BigInteger, ForeignKey("soumissions.id", ondelete="CASCADE"), primary_key=True),
 )
+
+
+appeloffre_documents = Table(
+    "appeloffre_documents",
+    Base.metadata,
+    Column("id_document", BigInteger, ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True),
+    Column("id_appel_offre", BigInteger, ForeignKey("appels_offre.id", ondelete="CASCADE"), primary_key=True),
+)
+class AppelOffreStatus(PyEnum):
+    EN_COURS = "en_cours"
+    SOUMIS = "soumis"
+    ATTRIBUE = "attribue"
+    PERDU = "perdu"
 
 
 class User(Base):
@@ -41,13 +56,14 @@ class AppelOffre(Base):
     reference = Column(String(100), nullable=False, index=True)
     objet = Column(String(100), nullable=True)
     date_limite = Column(Date, nullable=True)
-    status = Column(String(20), nullable=True)
+    status = Column(SAEnum(AppelOffreStatus, name="appels_offre_status"), nullable=False, default=AppelOffreStatus.EN_COURS)
     id_client = Column(BigInteger, ForeignKey("client.id"), nullable=True, index=True)
     id_user = Column(BigInteger, ForeignKey("user.id"), nullable=True, index=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     client = relationship("Client", back_populates="appels_offre")
     user = relationship("User", back_populates="appels_offre")
     soumissions = relationship("Soumission", back_populates="appel_offre")
+    documents = relationship("Document", secondary=appeloffre_documents, back_populates="appels_offre")
 
 
 class Specialite(Base):
@@ -144,4 +160,5 @@ class Document(Base):
     expire_at = Column(Date, nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     soumissions = relationship("Soumission", secondary=soumission_documents, back_populates="documents")
+    appels_offre = relationship("AppelOffre", secondary=appeloffre_documents, back_populates="documents")
 

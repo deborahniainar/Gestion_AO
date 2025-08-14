@@ -1,1 +1,4 @@
 venv
+backend/dev.db
+config.bat
+node_modules
