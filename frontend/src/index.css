@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Vos styles personnalisés peuvent aller ici */
+
+/* Variables CSS globales */
+:root {
+    --primary-color: #ff6b35;
+    --secondary-color: #f7931e;
+    --accent-color: #ffd700;
+    --text-dark: #333;
+    --text-muted: #D9D9D9;
+    --border-radius: 20px;
+    --shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    --bg-color: #536976;
+  }
+  
+  /* Styles globaux */
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    background-color: #E6E6E6;
+  }
+  
