@@ -1,41 +1,37 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import './index.css'
+import { ThemeProvider } from './contexts/ThemeContext';
+import Login from './pages/Login'
+import NotFound from './pages/NotFound'
 import Home from './pages/Home'
-import Login from './pages/login/Login';
-import DAO from './pages/gestion_dao/DAO';
-import Soumission from './pages/soumission/Soumission'
-import Marche from './pages/marche/Marche';
-import Personnel from './pages/personnel/Personnel';
-import Materiel from './pages/materiel/Materiel';
-import Dashboard from './pages/dashboard/Dashboard';
-
-import './App.css';
-import NotFound from './pages/NotFound';
+import DAO from './pages/DAO'
+import Personnels from './pages/Personnels'
+import Materiels from './pages/Materiels'
 
 function App() {
   return (
-    <Router>
-      <div className="App">
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/home" element={<Home />} />
-          <Route path="/gestion_dao" element={<DAO />} />
-          <Route path="/soumission" element={<Soumission />} />
-          <Route path="/marche" element={<Marche />} />        
-          <Route path="/personnel" element={<Personnel />} />
-          <Route path="/materiel" element={<Materiel />} />       
-          <Route path="/dashboard" element={<Dashboard />} />       
+    <ThemeProvider>
+      <Router>
+        <div className="App">
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/home" element={<Home />} />
+            <Route path="/gestion_dao" element={<DAO />} />
+            <Route path="/personnels" element={<Personnels />} />   
+            <Route path="/materiels" element={<Materiels />} />       
+            {/* <Route path="/price" element={<Price />} />        */}
+            {/* <Route path="/soumission" element={<Soumission />} />        */}
+            {/* <Route path="/dashboard" element={<Dashboard />} />        */}
 
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          {/* Ajoutez d'autres routes ici plus tard */}
-
-
-          {/* Route 404 */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </div>
-    </Router>
+            {/* Route 404 */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
+      </Router>
+    </ThemeProvider>
   );
 }
 

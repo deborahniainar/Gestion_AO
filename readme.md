@@ -62,16 +62,15 @@ Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d
 
 ## Modules et sous-fonctionnalités
 
-| Module        | Sous-fonctions                                                        |
-|---------------|-----------------------------------------------------------------------|
-| Gestion DAO   | Upload, analyse PDF, résumé, extraction automatique                   |
-| Soumission    | Lettre, fiche, bordereau, validation, export                          |
-| Marchés       | Suivi par statut, date, client, classement documents                  |
-| Matériels     | Inventaire, état, localisation, historique par chantier               |
-| Personnels    | Fiches, spécialité, affectation chantier                              |
-| Prix          | PU par tâche, salaires, marges, estimation rapide                     |
-| Docs admin    | Archivage, alertes de validité, accès rapide                          |
-| Dashboard     | Vue globale, historique AO, taux de succès                            |
+| Module           | Sous-fonctions                                                        |
+|------------------|-----------------------------------------------------------------------|
+| Gestion DAO      | Upload, analyse PDF, résumé, extraction automatique                   |
+| Matériels        | Inventaire, état, localisation, historique par chantier               |
+| Personnels       | Fiches, spécialité, affectation chantier                              |
+| Prix             | PU par tâche, salaires, marges, estimation rapide                     |
+| Docs admin       | Archivage, alertes de validité, accès rapide                          |
+| Soumission       | Lettre, fiche, bordereau, validation, export                          |
+| Dashboard        | Vue globale, historique AO, taux de succès                            |
 | Authentification | Login, JWT, protection des routes                                    |
 
 ---
