@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 class SoumissionBase(BaseModel):
     delai_validite: Optional[date] = None
     id_appel_offre: Optional[int] = None
-    id_user: Optional[int] = None
+    id_admin: Optional[int] = None
 
 
 class SoumissionCreate(SoumissionBase):
@@ -17,7 +17,7 @@ class SoumissionCreate(SoumissionBase):
 class SoumissionUpdate(BaseModel):
     delai_validite: Optional[date] = None
     id_appel_offre: Optional[int] = None
-    id_user: Optional[int] = None
+    id_admin: Optional[int] = None
 
 
 class SoumissionRead(SoumissionBase):
