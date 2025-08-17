@@ -10,6 +10,7 @@ const Login = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const [error, setError] = useState('');
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -17,6 +18,7 @@ const Login = () => {
       ...prev,
       [name]: value
     }));
+    if (error) setError('');
   };
 
   const handleSubmit = async (e) => {
@@ -24,16 +26,27 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      // Simulation de connexion - à remplacer par la logique d'API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Stockage du token (à remplacer par la logique)
-      localStorage.setItem('token', 'demo-token');
-      
-      // Redirection vers le home
-      navigate('/home');
-    } catch (error) {
-      console.error('Erreur de connexion:', error);
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams(formData)
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        setError(err.detail || 'Une erreur est survenue. Veuillez réessayer.');
+        return;
+      }
+      const data = await response.json();
+      if (!data.success) {
+        setError(data.message);
+        return;
+      }
+      localStorage.setItem('token', data.access_token);
+      navigate('/gestion_dao');
+    } catch {
+      setError('Impossible de se connecter. Vérifiez votre connexion réseau.');
     } finally {
       setIsLoading(false);
     }
@@ -68,7 +81,7 @@ const Login = () => {
                   <input
                     type="text"
                     name="username"
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200"
+                    className={`block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 focus:bg-white ${error ? 'is-invalid' : ''}`}
                     placeholder="Nom d'utilisateur"
                     value={formData.username}
                     onChange={handleInputChange}
@@ -85,7 +98,7 @@ const Login = () => {
                   <input
                     type="password"
                     name="password"
-                    className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200"
+                    className={`block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 focus:bg-white ${error ? 'is-invalid' : ''}`}
                     placeholder="Mot de passe"
                     value={formData.password}
                     onChange={handleInputChange}
@@ -111,6 +124,12 @@ const Login = () => {
                   </>
                 )}
               </button>
+              {error && (
+                <div className="border border-red-600 text-red-600 rounded-xl p-3 mb-3 flex items-center gap-2">
+                  <i className="bi bi-exclamation-triangle-fill"></i>
+                  <span>{error}</span>
+                </div>
+              )}
             </form>
           </div>
         </div>
