@@ -18,7 +18,7 @@ class AppelOffreBase(BaseModel):
     date_limite: Optional[date] = None
     status: AOStatus = AOStatus.en_cours
     id_client: Optional[int] = None
-    id_user: Optional[int] = None
+    id_admin: Optional[int] = None
 
 
 class AppelOffreCreate(AppelOffreBase):
@@ -31,7 +31,7 @@ class AppelOffreUpdate(BaseModel):
     date_limite: Optional[date] = None
     status: Optional[AOStatus] = None
     id_client: Optional[int] = None
-    id_user: Optional[int] = None
+    id_admin: Optional[int] = None
 
 
 class AppelOffreRead(AppelOffreBase):
