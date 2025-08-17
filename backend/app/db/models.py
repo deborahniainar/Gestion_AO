@@ -20,6 +20,14 @@ appeloffre_documents = Table(
     Column("id_document", Integer, ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True),
     Column("id_appel_offre", Integer, ForeignKey("appels_offre.id", ondelete="CASCADE"), primary_key=True),
 )
+
+# Association documents ↔ personnels
+personnel_documents = Table(
+    "personnel_documents",
+    Base.metadata,
+    Column("id_document", Integer, ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True),
+    Column("id_personnel", Integer, ForeignKey("personnels.id", ondelete="CASCADE"), primary_key=True),
+)
 class AppelOffreStatus(PyEnum):
     EN_COURS = "en_cours"
     SOUMIS = "soumis"
@@ -75,9 +83,21 @@ class Personnel(Base):
     __tablename__ = "personnels"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     nom = Column(String(200), nullable=False)
-    disponibilite = Column(Date, nullable=True)
-    id_specialite = Column(Integer, ForeignKey("specialites.id"), nullable=True, index=True)
-    specialite = relationship("Specialite", back_populates="personnels")
+    prenom = Column(String(200), nullable=False)
+    fonction = Column(String(100), nullable=True)
+    experience_annees = Column(Integer, nullable=True)
+    formation = Column(String(255), nullable=True)
+    nationalite = Column(String(100), nullable=True)
+    date_naissance = Column(Date, nullable=True)
+    salaire_mensuel = Column(Numeric(19, 2), nullable=True)
+    contact = Column(String(50), nullable=True)
+    genre = Column(String(20), nullable=True)
+    status = Column(String(50), nullable=True)
+    # disponibilite = Column(Date, nullable=True)
+    # id_specialite = Column(Integer, ForeignKey("specialites.id"), nullable=True, index=True)
+    # specialite = relationship("Specialite", back_populates="personnels")
+    # Pièces jointes
+    documents = relationship("Document", secondary=personnel_documents, back_populates="personnels")
 
 
 class Poste(Base):
@@ -159,4 +179,5 @@ class Document(Base):
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     soumissions = relationship("Soumission", secondary=soumission_documents, back_populates="documents")
     appels_offre = relationship("AppelOffre", secondary=appeloffre_documents, back_populates="documents")
+    personnels = relationship("Personnel", secondary=personnel_documents, back_populates="documents")
 
