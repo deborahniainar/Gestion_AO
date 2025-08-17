@@ -1,4 +1,6 @@
 fastapi
+pydantic
+pydantic-settings
 uvicorn[standard]
 sqlalchemy
 databases[postgresql]
@@ -13,3 +15,5 @@ reportlab
 celery
 redis
 email-validator
+python-jose[cryptography]
+passlib[bcrypt]

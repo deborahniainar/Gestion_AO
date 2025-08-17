@@ -9,6 +9,7 @@ const Login = () => {
     password: ''
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleInputChange = (e) => {
@@ -17,6 +18,7 @@ const Login = () => {
       ...prev,
       [name]: value
     }));
+    if (error) setError('');
   };
 
   const handleSubmit = async (e) => {
@@ -24,16 +26,27 @@ const Login = () => {
     setIsLoading(true);
     
     try {
-      // Simulation de connexion - à remplacer par la logique d'API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Stockage du token (à remplacer par la logique)
-      localStorage.setItem('token', 'demo-token');
-      
-      // Redirection vers le home
-      navigate('/home');
-    } catch (error) {
-      console.error('Erreur de connexion:', error);
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams(formData)
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        setError(err.detail || 'Une erreur est survenue. Veuillez réessayer.');
+        return;
+      }
+      const data = await response.json();
+      if (!data.success) {
+        setError(data.message);
+        return;
+      }
+      localStorage.setItem('token', data.access_token);
+      navigate('/dashboard');
+    } catch {
+      setError('Impossible de se connecter. Vérifiez votre connexion réseau.');
     } finally {
       setIsLoading(false);
     }
@@ -67,7 +80,7 @@ const Login = () => {
                         <input
                           type="text"
                           name="username"
-                          className="form-control border-start-0"
+                          className={`form-control border-start-0 ${error ? 'is-invalid' : ''}`}
                           placeholder="Nom d'utilisateur"
                           value={formData.username}
                           onChange={handleInputChange}
@@ -84,7 +97,7 @@ const Login = () => {
                         <input
                           type="password"
                           name="password"
-                          className="form-control border-start-0"
+                          className={`form-control border-start-0 ${error ? 'is-invalid' : ''}`}
                           placeholder="Mot de passe"
                           value={formData.password}
                           onChange={handleInputChange}
@@ -107,6 +120,12 @@ const Login = () => {
                         'Se connecter'
                       )}
                     </button>
+                    {error && (
+                      <div className="border border-danger text-danger rounded-3 p-3 mb-3 d-flex align-items-center gap-2">
+                        <i className="bi bi-exclamation-triangle-fill"></i>
+                        <span>{error}</span>
+                      </div>
+                    )}
                   </form>
                   
                   <div className="text-center mt-4">
