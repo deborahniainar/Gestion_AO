@@ -258,6 +258,11 @@ const Personnels = () => {
     e.preventDefault();
 
     try {
+      // Validation minimale côté client pour éviter 422 côté serveur
+      if (!formData.nom || !formData.nom.trim()) {
+        alert('Le nom est requis');
+        return;
+      }
       const token = localStorage.getItem('token');
 
       // Mode édition: PUT JSON (sans gestion de fichiers pour l'instant)
@@ -286,7 +291,11 @@ const Personnels = () => {
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || 'Erreur lors de la mise à jour du personnel');
+          const detail = err?.detail;
+          const message = Array.isArray(detail)
+            ? detail.map(d => d?.msg || JSON.stringify(d)).join(' | ')
+            : (detail || 'Erreur lors de la mise à jour du personnel');
+          throw new Error(message);
         }
         const updated = await res.json();
         const mapped = {
@@ -334,7 +343,11 @@ const Personnels = () => {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Erreur lors de la création du personnel');
+        const detail = err?.detail;
+        const message = Array.isArray(detail)
+          ? detail.map(d => d?.msg || JSON.stringify(d)).join(' | ')
+          : (detail || 'Erreur lors de la création du personnel');
+        throw new Error(message);
       }
 
       const created = await res.json();

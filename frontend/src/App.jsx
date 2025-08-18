@@ -8,6 +8,10 @@ import Home from './pages/Home'
 import DAO from './pages/DAO'
 import Personnels from './pages/Personnels'
 import Materiels from './pages/Materiels'
+import Prices from './pages/Prices'
+import Documents from './pages/Documents'
+import Soumissions from './pages/Soumissions'
+import Dashboard from './pages/Dashboard'
 
 function App() {
   return (
@@ -21,11 +25,10 @@ function App() {
             <Route path="/gestion_dao" element={<DAO />} />
             <Route path="/personnels" element={<Personnels />} />   
             <Route path="/materiels" element={<Materiels />} />       
-            {/* <Route path="/price" element={<Price />} />        */}
-            {/* <Route path="/soumission" element={<Soumission />} />        */}
-            {/* <Route path="/dashboard" element={<Dashboard />} />        */}
-
-
+            <Route path="/prices" element={<Prices />} />       
+            <Route path="/doc_admin" element={<Documents />} />       
+            <Route path="/soumissions" element={<Soumissions />} />       
+            <Route path="/dashboard" element={<Dashboard />} />       
             {/* Route 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>

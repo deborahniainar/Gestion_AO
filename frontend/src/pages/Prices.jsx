@@ -9,7 +9,7 @@ import {
   Delete
 } from "@mui/icons-material";
 
-const Dashboard = () => {
+const Prices = () => {
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
       <Sidebar />   
@@ -18,7 +18,7 @@ const Dashboard = () => {
         {/* Header */}
         <header className="flex justify-between items-center px-6 py-4 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
             <h5 className="text-xl font-bold text-secondary m-0">
-            Tableau de bord et historique
+            Gestion des Prix
           </h5>
           <div className="flex gap-3">
             <button className="p-2 text-primary hover:text-accent transition-colors duration-200">
@@ -34,4 +34,4 @@ const Dashboard = () => {
   )
 }
 
-export default Dashboard
+export default Prices
