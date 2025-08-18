@@ -5,6 +5,7 @@ import {
   LocalShippingOutlined,
   PeopleAltOutlined, 
   AttachMoneyOutlined, 
+  InventoryOutlined,
   BarChartOutlined, 
   DarkModeOutlined, 
   LightModeOutlined,
@@ -109,6 +110,20 @@ export default function Sidebar() {
         </NavLink>
 
         <NavLink 
+          to="/doc_admin" 
+          className={`relative flex items-center gap-3 py-2 px-3 rounded-lg transition-all duration-200 ${
+            location.pathname === "/doc_admin" 
+              ? "text-secondary font-semibold" 
+              : "text-primary dark:text-main hover:bg-muted dark:hover:bg-accent"
+          }`}
+          title="Documents"
+        >
+          <ActiveMark active={location.pathname === "/doc_admin"} />
+          <InventoryOutlined className="h-5 w-5" />
+          {!collapsed && <span>Documents Administratifs</span>}
+        </NavLink>
+
+        <NavLink 
           to="/soumissions" 
           className={`relative flex items-center gap-3 py-2 px-3 rounded-lg transition-all duration-200 ${
             location.pathname === "/soumissions" 
@@ -117,7 +132,7 @@ export default function Sidebar() {
           }`}
           title="Soumissions"
         >
-          <ActiveMark active={location.pathname === "/soumission"} />
+          <ActiveMark active={location.pathname === "/soumissions"} />
           <DescriptionOutlined className="h-5 w-5" />
           {!collapsed && <span>Soumissions</span>}
         </NavLink>
