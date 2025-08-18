@@ -76,7 +76,7 @@ class Specialite(Base):
     __tablename__ = "specialites"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     nom = Column(String(100), nullable=False)
-    personnels = relationship("Personnel", back_populates="specialite")
+    # personnels = relationship("Personnel", back_populates="specialite")
 
 
 class Personnel(Base):
@@ -84,6 +84,7 @@ class Personnel(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     nom = Column(String(200), nullable=False)
     prenom = Column(String(200), nullable=False)
+    profile_image = Column(String(255), nullable=True)
     fonction = Column(String(100), nullable=True)
     experience_annees = Column(Integer, nullable=True)
     formation = Column(String(255), nullable=True)
