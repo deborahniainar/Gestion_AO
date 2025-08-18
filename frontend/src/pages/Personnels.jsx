@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import Sidebar from '../components/Sidebar'
-import { jsPDF } from "jspdf";
+import ConfirmModal from '../components/ConfirmModal'
 import {
   CloudDownload,
   Help,
@@ -17,23 +17,7 @@ import {
 } from "@mui/icons-material";
 
 const Personnels = () => {
-  const [personnels] = useState([
-    {
-      id: 1,
-      nom: "Dupont",
-      prenom: "Jean",
-      fonction: "Ingénieur",
-      experience: "5 ans",
-      formation: "Master en Génie Civil",
-      profileImage: null,
-      dateNaissance: "1990-05-15",
-      salaire: "150000",
-      nationalite: "Française",
-      contact: "+261 34 12 345 67",
-      genre: "M",
-      status: "actif"
-    }
-  ]);
+  const [personnels, setPersonnels] = useState([]);
 
   const [showForm, setShowForm] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -57,10 +41,47 @@ const Personnels = () => {
   const [profileImage, setProfileImage] = useState(null);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [imagePreview, setImagePreview] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
   // Références pour les inputs de fichiers
   const imageInputRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    const loadPersonnels = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/personnels/', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Erreur lors du chargement des personnels');
+        }
+        const items = await res.json();
+        const mapped = items.map(p => ({
+          id: p.id,
+          nom: p.nom,
+          prenom: p.prenom ?? '',
+          fonction: p.fonction ?? '',
+          formation: p.formation ?? '',
+          dateNaissance: p.date_naissance ?? '',
+          salaire: p.salaire_mensuel ?? '',
+          nationalite: p.nationalite ?? '',
+          experience: p.experience_annees ?? '',
+          contact: p.contact ?? '',
+          genre: p.genre ?? '',
+          status: p.status ?? '',
+          profileImage: p.profile_image ? `/api/uploads/personnels/${p.profile_image}` : null
+        }));
+        setPersonnels(mapped);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    loadPersonnels();
+  }, []);
 
   const handleOpenForm = (personnel = null) => {
     if (personnel) {
@@ -125,6 +146,42 @@ const Personnels = () => {
   const handleCloseDetails = () => {
     setShowDetails(false);
     setSelectedPersonnel(null);
+  };
+
+  const handleDeletePersonnel = async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/personnels/${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Erreur lors de la suppression');
+      }
+      setPersonnels(prev => prev.filter(p => p.id !== id));
+      if (selectedPersonnel?.id === id) {
+        setShowDetails(false);
+        setSelectedPersonnel(null);
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message);
+    }
+  };
+
+  const handleDeleteClick = (id) => {
+    setPendingDeleteId(id);
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    const id = pendingDeleteId;
+    setConfirmOpen(false);
+    setPendingDeleteId(null);
+    if (id != null) {
+      await handleDeletePersonnel(id);
+    }
   };
 
   const handleInputChange = (e) => {
@@ -197,62 +254,111 @@ const Personnels = () => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Créer un FormData pour envoyer les fichiers
-    const submitData = new FormData();
-    
-    // Ajouter les données du formulaire
-    Object.keys(formData).forEach(key => {
-      submitData.append(key, formData[key]);
-    });
-    
-    // Ajouter l'image de profil
-    if (profileImage) {
-      submitData.append('profileImage', profileImage);
-    }
-    
-    // Ajouter les fichiers joints
-    attachedFiles.forEach((file, index) => {
-      submitData.append(`attachedFile_${index}`, file);
-    });
 
-    // Logique pour suavegarder les données
-    if (editingPersonnel) {
-      console.log('Modification du personnel:', formData);
-      console.log('Image de profil:', profileImage);
-      console.log('Fichiers joints:', attachedFiles);
-      
-      // Mettre à jour le personnel existant dans la liste
-      const updatedPersonnels = personnels.map(p => 
-        p.id === editingPersonnel.id 
-          ? { 
-              ...p, 
-              ...formData, 
-              profileImage: imagePreview || p.profileImage 
-            }
-          : p
-      );
-      // Etat global à envoyer au serveur
-      console.log('Personnel mis à jour:', updatedPersonnels);
-      
-    } else {
-      console.log('Ajout d\'un nouveau personnel:', formData);
-      console.log('Image de profil:', profileImage);
-      console.log('Fichiers joints:', attachedFiles);
-      
-      // Créer un nouveau personnel
-      const newPersonnel = {
-        id: Date.now(), // ID temporaire
-        ...formData,
-        profileImage: imagePreview
+    try {
+      const token = localStorage.getItem('token');
+
+      // Mode édition: PUT JSON (sans gestion de fichiers pour l'instant)
+      if (editingPersonnel) {
+        const payload = {
+          nom: formData.nom || '',
+          prenom: formData.prenom || '',
+          fonction: formData.fonction || null,
+          formation: formData.formation || null,
+          nationalite: formData.nationalite || null,
+          date_naissance: formData.dateNaissance || null,
+          salaire_mensuel: formData.salaire !== '' && formData.salaire != null ? Number(formData.salaire) : null,
+          experience_annees: formData.experience !== '' && formData.experience != null ? Number(formData.experience) : null,
+          contact: formData.contact || null,
+          genre: formData.genre || null,
+          status: formData.status || null,
+        };
+
+        const res = await fetch(`/api/personnels/${editingPersonnel.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Erreur lors de la mise à jour du personnel');
+        }
+        const updated = await res.json();
+        const mapped = {
+          id: updated.id,
+          nom: updated.nom,
+          prenom: updated.prenom ?? '',
+          fonction: updated.fonction ?? '',
+          formation: updated.formation ?? '',
+          dateNaissance: updated.date_naissance ?? '',
+          salaire: updated.salaire_mensuel ?? '',
+          nationalite: updated.nationalite ?? '',
+          experience: updated.experience_annees ?? '',
+          contact: updated.contact ?? '',
+          genre: updated.genre ?? '',
+          status: updated.status ?? '',
+          profileImage: imagePreview || null,
+        };
+        setPersonnels(prev => prev.map(p => p.id === mapped.id ? mapped : p));
+        handleCloseForm();
+        return;
+      }
+
+      const fd = new FormData();
+      if (formData.nom) fd.append('nom', formData.nom);
+      if (formData.prenom) fd.append('prenom', formData.prenom);
+      if (formData.fonction) fd.append('fonction', formData.fonction);
+      if (formData.formation) fd.append('formation', formData.formation);
+      if (formData.nationalite) fd.append('nationalite', formData.nationalite);
+      if (formData.dateNaissance) fd.append('date_naissance', formData.dateNaissance); // YYYY-MM-DD
+      if (formData.salaire !== '' && formData.salaire != null) fd.append('salaire_mensuel', String(formData.salaire));
+      if (formData.experience !== '' && formData.experience != null) fd.append('experience_annees', String(formData.experience));
+      if (formData.contact) fd.append('contact', formData.contact);
+      if (formData.genre) fd.append('genre', formData.genre);
+      if (formData.status) fd.append('status', formData.status);
+
+      // Fichiers: image de profil séparée + pièces jointes
+      if (profileImage) fd.append('profile_image', profileImage);
+      attachedFiles.forEach((file) => fd.append('files', file));
+
+      const res = await fetch('/api/personnels/with-files', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Erreur lors de la création du personnel');
+      }
+
+      const created = await res.json();
+      const mapped = {
+        id: created.id,
+        nom: created.nom,
+        prenom: created.prenom ?? '',
+        fonction: created.fonction ?? '',
+        formation: created.formation ?? '',
+        dateNaissance: created.date_naissance ?? '',
+        salaire: created.salaire_mensuel ?? '',
+        nationalite: created.nationalite ?? '',
+        experience: created.experience_annees ?? '',
+        contact: created.contact ?? '',
+        genre: created.genre ?? '',
+        status: created.status ?? '',
+        profileImage: imagePreview || null,
       };
-      // Etat global à envoyer au serveur
-      console.log('Nouveau personnel:', newPersonnel);
+      setPersonnels(prev => [mapped, ...prev]);
+      handleCloseForm();
+    } catch (err) {
+      console.error('Erreur soumission personnel:', err);
+      alert(err.message);
     }
-    
-    handleCloseForm();
   };
 
   // Fonction pour afficher l'image du profil
@@ -377,12 +483,12 @@ const Personnels = () => {
                                 </td>
                                 <td className="px-6 py-4 border-b border-gray-200 dark:border-gray-600">
                                     <span className="text-gray-700 dark:text-gray-300">
-                                        {personnel.experience}
+                                        {personnel.experience + " ans"}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 border-b border-gray-200 dark:border-gray-600">
                                     <span className="text-gray-700 dark:text-gray-300">
-                                        {personnel.formation}
+                                        {personnel.formation}  
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 border-b border-gray-200 dark:border-gray-600">
@@ -394,7 +500,11 @@ const Personnels = () => {
                                         >
                                             <Edit className="h-4 w-4" />
                                         </button>
-                                        <button className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200" title="Supprimer">
+                                        <button 
+                                            onClick={() => handleDeleteClick(personnel.id)}
+                                            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200" 
+                                            title="Supprimer"
+                                        >
                                             <Delete className="h-4 w-4" />
                                         </button>
                                     </div>
@@ -822,6 +932,16 @@ const Personnels = () => {
                 </div>
             )}
         </main> 
+        <ConfirmModal
+          open={confirmOpen}
+          title="Confirmer la suppression"
+          message="Voulez-vous vraiment supprimer ce personnel ? "
+          confirmLabel="Supprimer"
+          cancelLabel="Annuler"
+          destructive
+          onConfirm={handleConfirmDelete}
+          onCancel={() => { setConfirmOpen(false); setPendingDeleteId(null); }}
+        />
     </div>
   )
 }
