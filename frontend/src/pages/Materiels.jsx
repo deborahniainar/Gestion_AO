@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react'
 import Sidebar from '../components/Sidebar'
+import useNotifications from '../hooks/useNotifications'
 import {
   CloudDownload,
   Help,
@@ -47,6 +48,16 @@ const Materiel = () => {
   // Référence pour l'input de fichiers
   const fileInputRef = useRef(null);
 
+  const { 
+    showSuccess, 
+    showError, 
+    showInfo, 
+    showWarning,
+    showCreateSuccess,
+    showUpdateSuccess,
+    showDeleteSuccess
+  } = useNotifications();
+
   const handleOpenForm = (materiel = null) => {
     if (materiel) {
       setEditingMateriel(materiel);
@@ -64,6 +75,7 @@ const Materiel = () => {
         type: piece.type,
         id: piece.id
       })) : []);
+      showInfo(`Édition de ${materiel.designation} ${materiel.marque}`);
     } else {
       setEditingMateriel(null);
       setFormData({
@@ -74,6 +86,7 @@ const Materiel = () => {
         annee: ''
       });
       setAttachedFiles([]);
+      showInfo("Ajout d'un nouveau matériel");
     }
     setShowForm(true);
   };
@@ -139,6 +152,7 @@ const Materiel = () => {
       const updatedMateriel = Materiel.filter(m => m.id !== materielId);
       setMateriel(updatedMateriel);
       console.log('Matériel supprimé:', materielId);
+      showDeleteSuccess(`Matériel supprimé: ${Materiel.find(m => m.id === materielId)?.designation}`);
     }
   };
 
@@ -166,6 +180,7 @@ const Materiel = () => {
       });
       setMateriel(updatedMateriel);
       console.log('Pièce jointe supprimée:', pieceId);
+      showDeleteSuccess(`Pièce jointe supprimée: ${Materiel.find(m => m.id === materielId)?.piecesJointes.find(p => p.id === pieceId)?.nom}`);
     }
   };
 
@@ -223,6 +238,7 @@ const Materiel = () => {
       );
       setMateriel(updatedMateriel);
       console.log('Matériel modifié:', { ...formData, piecesJointes });
+      showUpdateSuccess(`Matériel modifié: ${formData.designation} ${formData.marque}`);
     } else {
       // Ajout d'un nouveau matériel
       const newMateriel = {
@@ -232,6 +248,7 @@ const Materiel = () => {
       };
       setMateriel(prev => [...prev, newMateriel]);
       console.log('Nouveau matériel ajouté:', newMateriel);
+      showCreateSuccess(`Nouveau matériel ajouté: ${formData.designation} ${formData.marque}`);
     }
     
     handleCloseForm();

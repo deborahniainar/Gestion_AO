@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import Sidebar from '../components/Sidebar'
 import ConfirmModal from '../components/ConfirmModal'
+import useNotifications from '../hooks/useNotifications'
 import {
   CloudDownload,
   Help,
@@ -23,6 +24,20 @@ const Personnels = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [selectedPersonnel, setSelectedPersonnel] = useState(null);
   const [editingPersonnel, setEditingPersonnel] = useState(null);
+
+  const { 
+    showSuccess, 
+    showError, 
+    showInfo, 
+    showWarning,
+    showCreateSuccess,
+    showUpdateSuccess,
+    showDeleteSuccess,
+    showFetchSuccess,
+    showFetchError,
+    showLoading,
+    updateLoading
+  } = useNotifications();
   const [formData, setFormData] = useState({
     nom: '',
     prenom: '',
@@ -50,6 +65,7 @@ const Personnels = () => {
 
   useEffect(() => {
     const loadPersonnels = async () => {
+      const loadingToast = showLoading("Chargement des personnels...");
       try {
         const token = localStorage.getItem('token');
         const res = await fetch('/api/personnels/', {
@@ -76,7 +92,11 @@ const Personnels = () => {
           profileImage: p.profile_image ? `/api/uploads/personnels/${p.profile_image}` : null
         }));
         setPersonnels(mapped);
+        updateLoading(loadingToast, `${mapped.length} personnels chargés`, "success");
+        showFetchSuccess();
       } catch (e) {
+        updateLoading(loadingToast, "Erreur lors du chargement", "error");
+        showFetchError(e.message);
         console.error(e);
       }
     };
@@ -107,6 +127,7 @@ const Personnels = () => {
         setProfileImage(null);
         setImagePreview(null);
       }
+      showInfo(`Édition de ${personnel.nom} ${personnel.prenom}`);
     } else {
       setEditingPersonnel(null);
       setFormData({
@@ -149,6 +170,7 @@ const Personnels = () => {
   };
 
   const handleDeletePersonnel = async (id) => {
+    const loadingToast = showLoading("Suppression en cours...");
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/personnels/${id}`, {
@@ -164,13 +186,20 @@ const Personnels = () => {
         setShowDetails(false);
         setSelectedPersonnel(null);
       }
+      updateLoading(loadingToast, "Personnel supprimé avec succès", "success");
+      showDeleteSuccess();
     } catch (e) {
+      updateLoading(loadingToast, "Erreur lors de la suppression", "error");
+      showError(e.message);
       console.error(e);
-      alert(e.message);
     }
   };
 
   const handleDeleteClick = (id) => {
+    const personnel = personnels.find(p => p.id === id);
+    if (personnel) {
+      showWarning(`Êtes-vous sûr de vouloir supprimer ${personnel.nom} ${personnel.prenom} ?`);
+    }
     setPendingDeleteId(id);
     setConfirmOpen(true);
   };
