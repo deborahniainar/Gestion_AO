@@ -10,6 +10,7 @@ import {
   Check
 } from "@mui/icons-material";
 import Sidebar from "../components/Sidebar";
+import useNotifications from "../hooks/useNotifications";
 import Image1 from "../assets/Image1.png";
 import Image2 from "../assets/Image2.png";
 import Image3 from "../assets/Image3.png";
@@ -25,6 +26,18 @@ export default function GestionDAO() {
   const [summary, setSummary] = useState("Le présent Appel d'Offre concerne .............");
   const [editingSummary, setEditingSummary] = useState(false);
 
+  const { 
+    showSuccess, 
+    showError, 
+    showInfo, 
+    showWarning,
+    showUploadSuccess,
+    showUploadError,
+    showDownloadSuccess,
+    showLoading,
+    updateLoading
+  } = useNotifications();
+
   const handleUpload = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -39,9 +52,11 @@ export default function GestionDAO() {
     const hasValidExt = allowedExts.some((ext) => f.name.toLowerCase().endsWith(ext));
 
     if (!(hasValidMime || hasValidExt)) {
-      setUploadError("Formats autorisés : PDF (.pdf) ou Word (.docx)");
+      const errorMessage = "Formats autorisés : PDF (.pdf) ou Word (.docx)";
+      setUploadError(errorMessage);
       setFile(null);
       e.target.value = "";
+      showError(errorMessage);
       return;
     }
 
@@ -50,6 +65,7 @@ export default function GestionDAO() {
     setUploadConfirmed(false);
     setKeywordsSubmitted(false);
     setShowList(false);
+    showSuccess(`Fichier "${f.name}" sélectionné avec succès`);
   };
 
   const getCurrentStep = () => {
@@ -71,31 +87,62 @@ export default function GestionDAO() {
   ];
 
   const handleSubmitKeywords = () => {
-    if (!keywords.trim()) return;
+    if (!keywords.trim()) {
+      showWarning("Veuillez saisir des mots-clés");
+      return;
+    }
     setKeywordsSubmitted(true);
+    showSuccess("Mots-clés soumis avec succès");
   };
 
   const handleShowList = () => {
     setShowList(true);
+    showInfo("Liste des documents générée");
   };
 
   const handleDownloadPDF = () => {
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const margin = 40;
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const maxWidth = pageWidth - margin * 2;
+    const loadingToast = showLoading("Génération du PDF en cours...");
+    
+    try {
+      const doc = new jsPDF({ unit: "pt", format: "a4" });
+      const margin = 40;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const maxWidth = pageWidth - margin * 2;
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(20);
-    doc.setTextColor(92, 114, 132); // #5C7284
-    doc.text("Résumé du DAO", margin, 60);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(20);
+      doc.setTextColor(92, 114, 132); // #5C7284
+      doc.text("Résumé du DAO", margin, 60);
 
-    doc.setFontSize(12);
-    doc.setTextColor(60, 68, 83); // #3c4453
-    const lines = doc.splitTextToSize(summary || "", maxWidth);
-    doc.text(lines, margin, 100, { maxWidth });
+      doc.setFontSize(12);
+      doc.setTextColor(60, 68, 83); // #3c4453
+      const lines = doc.splitTextToSize(summary || "", maxWidth);
+      doc.text(lines, margin, 100, { maxWidth });
 
-    doc.save("resume_dao.pdf");
+      doc.save("resume_dao.pdf");
+      
+      updateLoading(loadingToast, "PDF généré avec succès", "success");
+      showDownloadSuccess();
+    } catch (error) {
+      updateLoading(loadingToast, "Erreur lors de la génération du PDF", "error");
+      showError("Erreur lors de la génération du PDF");
+    }
+  };
+
+  const handleConfirmUpload = () => {
+    if (!file) {
+      showError("Aucun fichier sélectionné");
+      return;
+    }
+    
+    const loadingToast = showLoading("Téléversement en cours...");
+    
+    // Simuler le téléversement
+    setTimeout(() => {
+      setUploadConfirmed(true);
+      updateLoading(loadingToast, "Fichier téléversé avec succès", "success");
+      showUploadSuccess();
+    }, 2000);
   };
 
   return (
@@ -168,7 +215,7 @@ export default function GestionDAO() {
 
                   <button
                     className="mt-4 px-6 py-3 bg-primary text-main font-semibold rounded-lg hover:bg-accent transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    onClick={() => setUploadConfirmed(true)}
+                    onClick={handleConfirmUpload}
                     disabled={!file || !!uploadError}
                   >
                     Téléverser
@@ -254,7 +301,10 @@ export default function GestionDAO() {
                         <button
                           className="p-0 hover:text-secondary-50 transition-colors duration-200"
                           title="Valider"
-                          onClick={() => setEditingSummary(false)}
+                          onClick={() => {
+                            setEditingSummary(false);
+                            showSuccess("Résumé mis à jour avec succès");
+                          }}
                         >
                           <Check className="h-6 w-6" />
                         </button>
@@ -262,7 +312,10 @@ export default function GestionDAO() {
                         <button
                           className="p-0 hover:text-secondary-50 transition-colors duration-200"
                           title="Éditer"
-                          onClick={() => setEditingSummary(true)}
+                          onClick={() => {
+                            setEditingSummary(true);
+                            showInfo("Mode édition activé");
+                          }}
                         >
                           <Edit className="h-5 w-5" />
                         </button>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Person, Lock, Login as LoginIcon } from '@mui/icons-material';
 import Background from '../assets/Background.png';
+import useNotifications from '../hooks/useNotifications';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -11,6 +12,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const [error, setError] = useState('');
+  const { showLoginSuccess, showLoginError, showLoading, updateLoading } = useNotifications();
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -25,6 +27,9 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
     
+    // Afficher une notification de chargement
+    const loadingToast = showLoading('Connexion en cours...');
+    
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -33,20 +38,38 @@ const Login = () => {
         },
         body: new URLSearchParams(formData)
       });
+      
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        setError(err.detail || 'Une erreur est survenue. Veuillez réessayer.');
+        const errorMessage = err.detail || 'Une erreur est survenue. Veuillez réessayer.';
+        setError(errorMessage);
+        updateLoading(loadingToast, errorMessage, 'error');
+        showLoginError(errorMessage);
         return;
       }
+      
       const data = await response.json();
       if (!data.success) {
         setError(data.message);
+        updateLoading(loadingToast, data.message, 'error');
+        showLoginError(data.message);
         return;
       }
+      
       localStorage.setItem('token', data.access_token);
-      navigate('/gestion_dao');
-    } catch {
-      setError('Impossible de se connecter. Vérifiez votre connexion réseau.');
+      updateLoading(loadingToast, 'Connexion réussie !', 'success');
+      showLoginSuccess();
+      
+      // Redirection après un court délai pour laisser le temps de voir la notification
+      setTimeout(() => {
+        navigate('/gestion_dao');
+      }, 1000);
+      
+    } catch (error) {
+      const errorMessage = 'Impossible de se connecter. Vérifiez votre connexion réseau.';
+      setError(errorMessage);
+      updateLoading(loadingToast, errorMessage, 'error');
+      showLoginError(errorMessage);
     } finally {
       setIsLoading(false);
     }
