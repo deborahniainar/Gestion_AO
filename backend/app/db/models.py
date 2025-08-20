@@ -21,6 +21,14 @@ appeloffre_documents = Table(
     Column("id_appel_offre", Integer, ForeignKey("appels_offre.id", ondelete="CASCADE"), primary_key=True),
 )
 
+# Association documents ↔ materiels
+materiel_documents = Table(
+    "materiel_documents",
+    Base.metadata,
+    Column("id_document", Integer, ForeignKey("documents.id", ondelete="CASCADE"), primary_key=True),
+    Column("id_materiel", Integer, ForeignKey("materiels.id", ondelete="CASCADE"), primary_key=True),
+)
+
 # Association documents ↔ personnels
 personnel_documents = Table(
     "personnel_documents",
@@ -121,19 +129,22 @@ class Fournisseur(Base):
     ville = Column(String(255), nullable=True)
     pays = Column(String(255), nullable=True)
     note = Column(String(255), nullable=True)
-    materiels = relationship("Materiel", back_populates="fournisseur")
+    # materiels = relationship("Materiel", back_populates="fournisseur")
     prix_references = relationship("PrixReference", back_populates="fournisseur")
 
 
 class Materiel(Base):
     __tablename__ = "materiels"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    reference = Column(String(100), nullable=False)
-    quantite = Column(Integer, nullable=False, default=0)
-    localisation = Column(String(100), nullable=True)
-    etat = Column(String(100), nullable=True)
-    id_fournisseur = Column(Integer, ForeignKey("fournisseurs.id"), nullable=True, index=True)
-    fournisseur = relationship("Fournisseur", back_populates="materiels")
+    designation = Column(String(255), nullable=False)
+    nombre = Column(Integer, nullable=False, default=0)
+    marque = Column(String(100), nullable=True)
+    modele = Column(String(100), nullable=True)
+    annee = Column(Integer, nullable=True)
+    qualite = Column(String(100), nullable=True)
+    # id_fournisseur = Column(Integer, ForeignKey("fournisseurs.id"), nullable=True, index=True)
+    # fournisseur = relationship("Fournisseur", back_populates="materiels")
+    documents = relationship("Document", secondary=materiel_documents, back_populates="materiels")
 
 
 class PrixReference(Base):
@@ -181,4 +192,5 @@ class Document(Base):
     soumissions = relationship("Soumission", secondary=soumission_documents, back_populates="documents")
     appels_offre = relationship("AppelOffre", secondary=appeloffre_documents, back_populates="documents")
     personnels = relationship("Personnel", secondary=personnel_documents, back_populates="documents")
+    materiels = relationship("Materiel", secondary=materiel_documents, back_populates="documents")
 
