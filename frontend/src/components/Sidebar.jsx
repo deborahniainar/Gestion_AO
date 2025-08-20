@@ -106,7 +106,7 @@ export default function Sidebar() {
         >
           <ActiveMark active={location.pathname === "/prices"} />
           <AttachMoneyOutlined className="h-5 w-5" />
-          {!collapsed && <span>Prices</span>}
+          {!collapsed && <span>Prix</span>}
         </NavLink>
 
         <NavLink 
