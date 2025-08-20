@@ -20,7 +20,7 @@ def list_soumissions(db: Session = Depends(get_db)):
 
 @router.get("/{soumission_id}", response_model=SoumissionRead)
 def get_soumission(soumission_id: int, db: Session = Depends(get_db)):
-    soum = db.query(Soumission).get(soumission_id)
+    soum = db.get(Soumission, soumission_id)
     if not soum:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Soumission introuvable")
     return soum
@@ -37,7 +37,7 @@ def create_soumission(payload: SoumissionCreate, db: Session = Depends(get_db)):
 
 @router.put("/{soumission_id}", response_model=SoumissionRead)
 def update_soumission(soumission_id: int, payload: SoumissionUpdate, db: Session = Depends(get_db)):
-    soum = db.query(Soumission).get(soumission_id)
+    soum = db.get(Soumission, soumission_id)
     if not soum:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Soumission introuvable")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -49,7 +49,7 @@ def update_soumission(soumission_id: int, payload: SoumissionUpdate, db: Session
 
 @router.delete("/{soumission_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_soumission(soumission_id: int, db: Session = Depends(get_db)):
-    soum = db.query(Soumission).get(soumission_id)
+    soum = db.get(Soumission, soumission_id)
     if not soum:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Soumission introuvable")
     db.delete(soum)

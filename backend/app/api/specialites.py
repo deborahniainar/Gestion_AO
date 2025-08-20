@@ -16,7 +16,7 @@ def list_specialites(db: Session = Depends(get_db)):
 
 @router.get("/{specialite_id}", response_model=SpecialiteRead)
 def get_specialite(specialite_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Specialite).get(specialite_id)
+    obj = db.get(Specialite, specialite_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spécialité introuvable")
     return obj
@@ -33,7 +33,7 @@ def create_specialite(payload: SpecialiteCreate, db: Session = Depends(get_db)):
 
 @router.put("/{specialite_id}", response_model=SpecialiteRead)
 def update_specialite(specialite_id: int, payload: SpecialiteUpdate, db: Session = Depends(get_db)):
-    obj = db.query(Specialite).get(specialite_id)
+    obj = db.get(Specialite, specialite_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spécialité introuvable")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -45,7 +45,7 @@ def update_specialite(specialite_id: int, payload: SpecialiteUpdate, db: Session
 
 @router.delete("/{specialite_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_specialite(specialite_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Specialite).get(specialite_id)
+    obj = db.get(Specialite, specialite_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Spécialité introuvable")
     db.delete(obj)

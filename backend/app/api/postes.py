@@ -16,7 +16,7 @@ def list_postes(db: Session = Depends(get_db)):
 
 @router.get("/{poste_id}", response_model=PosteRead)
 def get_poste(poste_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Poste).get(poste_id)
+    obj = db.get(Poste, poste_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poste introuvable")
     return obj
@@ -33,7 +33,7 @@ def create_poste(payload: PosteCreate, db: Session = Depends(get_db)):
 
 @router.put("/{poste_id}", response_model=PosteRead)
 def update_poste(poste_id: int, payload: PosteUpdate, db: Session = Depends(get_db)):
-    obj = db.query(Poste).get(poste_id)
+    obj = db.get(Poste, poste_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poste introuvable")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -45,7 +45,7 @@ def update_poste(poste_id: int, payload: PosteUpdate, db: Session = Depends(get_
 
 @router.delete("/{poste_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_poste(poste_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Poste).get(poste_id)
+    obj = db.get(Poste, poste_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Poste introuvable")
     db.delete(obj)

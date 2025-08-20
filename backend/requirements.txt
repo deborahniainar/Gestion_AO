@@ -17,3 +17,6 @@ redis
 email-validator
 python-jose[cryptography]
 passlib[bcrypt]
+requests
+Pillow
+openai>=1.37.0

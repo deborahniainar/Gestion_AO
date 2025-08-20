@@ -14,14 +14,17 @@ import Prices from './pages/Prices'
 import Documents from './pages/Documents' 
 import Soumissions from './pages/Soumissions' 
 import Dashboard from './pages/Dashboard'
+import WordEditor from './pages/WordEditor';
 
 import PrivateRoute from './hooks/PrivateRoute';
 import { AuthProvider } from './contexts/AuthContext';
+import { DaoProvider } from './contexts/DaoContext';
 
 function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <DaoProvider>
         <Router>
           <div className="App">
             <Routes>
@@ -37,6 +40,7 @@ function App() {
                 <Route path="/doc_admin" element={<Documents />} />       
                 <Route path="/soumissions" element={<Soumissions />} />       
                 <Route path="/dashboard" element={<Dashboard />} />  
+                <Route path="/word-editor" element={<WordEditor />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
@@ -56,6 +60,7 @@ function App() {
             />
           </div>
         </Router>
+        </DaoProvider>
       </AuthProvider>
 
     </ThemeProvider>

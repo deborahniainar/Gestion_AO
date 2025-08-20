@@ -12,6 +12,7 @@ from .fournisseurs import router as fournisseurs_router
 from .soumission_details import router as soumission_details_router
 from .dashboard import router as dashboard_router
 from .auth import router as auth_router
+from .dao import router as dao_router
 
 routers = [
     soumissions_router,
@@ -28,5 +29,6 @@ routers = [
     soumission_details_router,
     dashboard_router,
     auth_router,
+    dao_router,
 ]
 

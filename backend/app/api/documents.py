@@ -16,7 +16,7 @@ def list_documents(db: Session = Depends(get_db)):
 
 @router.get("/{document_id}", response_model=DocumentRead)
 def get_document(document_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Document).get(document_id)
+    obj = db.get(Document, document_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable")
     return obj
@@ -33,7 +33,7 @@ def create_document(payload: DocumentCreate, db: Session = Depends(get_db)):
 
 @router.put("/{document_id}", response_model=DocumentRead)
 def update_document(document_id: int, payload: DocumentUpdate, db: Session = Depends(get_db)):
-    obj = db.query(Document).get(document_id)
+    obj = db.get(Document, document_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -45,7 +45,7 @@ def update_document(document_id: int, payload: DocumentUpdate, db: Session = Dep
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document(document_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Document).get(document_id)
+    obj = db.get(Document, document_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable")
     db.delete(obj)

@@ -16,7 +16,7 @@ def list_clients(db: Session = Depends(get_db)):
 
 @router.get("/{client_id}", response_model=ClientRead)
 def get_client(client_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Client).get(client_id)
+    obj = db.get(Client, client_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client introuvable")
     return obj
@@ -33,7 +33,7 @@ def create_client(payload: ClientCreate, db: Session = Depends(get_db)):
 
 @router.put("/{client_id}", response_model=ClientRead)
 def update_client(client_id: int, payload: ClientUpdate, db: Session = Depends(get_db)):
-    obj = db.query(Client).get(client_id)
+    obj = db.get(Client, client_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client introuvable")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -45,7 +45,7 @@ def update_client(client_id: int, payload: ClientUpdate, db: Session = Depends(g
 
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_client(client_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Client).get(client_id)
+    obj = db.get(Client, client_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Client introuvable")
     db.delete(obj)

@@ -17,7 +17,7 @@ def list_admins(db: Session = Depends(get_db)):
 
 @router.get("/{admin_id}", response_model=AdminRead)
 def get_admin(admin_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Admin).get(admin_id)
+    obj = db.get(Admin, admin_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin introuvable")
     return obj
@@ -37,7 +37,7 @@ def create_admin(payload: AdminCreate, db: Session = Depends(get_db)):
 
 @router.put("/{admin_id}", response_model=AdminRead)
 def update_admin(admin_id: int, payload: AdminUpdate, db: Session = Depends(get_db)):
-    obj = db.query(Admin).get(admin_id)
+    obj = db.get(Admin, admin_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin introuvable")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -51,7 +51,7 @@ def update_admin(admin_id: int, payload: AdminUpdate, db: Session = Depends(get_
 
 @router.delete("/{admin_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_admin(admin_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Admin).get(admin_id)
+    obj = db.get(Admin, admin_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin introuvable")
     db.delete(obj)

@@ -16,7 +16,7 @@ def list_fournisseurs(db: Session = Depends(get_db)):
 
 @router.get("/{fournisseur_id}", response_model=FournisseurRead)
 def get_fournisseur(fournisseur_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Fournisseur).get(fournisseur_id)
+    obj = db.get(Fournisseur, fournisseur_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fournisseur introuvable")
     return obj
@@ -33,7 +33,7 @@ def create_fournisseur(payload: FournisseurCreate, db: Session = Depends(get_db)
 
 @router.put("/{fournisseur_id}", response_model=FournisseurRead)
 def update_fournisseur(fournisseur_id: int, payload: FournisseurUpdate, db: Session = Depends(get_db)):
-    obj = db.query(Fournisseur).get(fournisseur_id)
+    obj = db.get(Fournisseur, fournisseur_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fournisseur introuvable")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -45,7 +45,7 @@ def update_fournisseur(fournisseur_id: int, payload: FournisseurUpdate, db: Sess
 
 @router.delete("/{fournisseur_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_fournisseur(fournisseur_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Fournisseur).get(fournisseur_id)
+    obj = db.get(Fournisseur, fournisseur_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fournisseur introuvable")
     db.delete(obj)

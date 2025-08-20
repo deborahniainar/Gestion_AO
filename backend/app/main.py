@@ -1,14 +1,19 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 from .api import routers as api_routers
 from .db.base import Base
 from .db.session import engine
+from .dependencies import get_current_admin
 app = FastAPI(title="Gestion AO")
 
 for r in api_routers:
-    app.include_router(r)
+    # Appliquer l'authentification par défaut sauf pour le routeur d'auth
+    if getattr(r, "prefix", None) == "/auth":
+        app.include_router(r)
+    else:
+        app.include_router(r, dependencies=[Depends(get_current_admin)])
 
 
 @app.on_event("startup")
@@ -18,10 +23,15 @@ def on_startup() -> None:
 # CORS pour le front en dev
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
 # Fichiers statiques: servir les uploads sous /uploads
