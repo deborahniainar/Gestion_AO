@@ -16,12 +16,12 @@ import Soumissions from './pages/Soumissions'
 import Dashboard from './pages/Dashboard'
 
 import PrivateRoute from './hooks/PrivateRoute';
-import { AuthProvider } from './contexts/AuthContext'; // <- nouveau
+import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
   return (
     <ThemeProvider>
-      <AuthProvider> {/* <-- Entoure tout ton app */}
+      <AuthProvider>
         <Router>
           <div className="App">
             <Routes>
