@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import Sidebar from '../components/Sidebar'
 import ConfirmModal from '../components/ConfirmModal'
 import useNotifications from '../hooks/useNotifications'
@@ -11,6 +11,7 @@ import {
   Close,
   AttachFile,
   Description,
+  Visibility,
 } from "@mui/icons-material";
 
 const Materiel = () => {
@@ -36,6 +37,10 @@ const Materiel = () => {
   // États pour la confirmation de suppression
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  
+  // États pour la confirmation de suppression de pièce jointe
+  const [confirmDeletePieceOpen, setConfirmDeletePieceOpen] = useState(false);
+  const [pendingDeletePiece, setPendingDeletePiece] = useState(null);
 
   // Référence pour l'input de fichiers
   const fileInputRef = useRef(null);
@@ -43,6 +48,7 @@ const Materiel = () => {
   const { 
     showError, 
     showInfo, 
+    showWarning,
     showCreateSuccess,
     showUpdateSuccess,
     showDeleteSuccess,
@@ -52,62 +58,69 @@ const Materiel = () => {
     showFetchError
   } = useNotifications();
 
-  // Charger les matériels depuis l'API
-  useEffect(() => {
-    const loadMateriels = async () => {
-      const loadingToast = showLoading("Chargement des matériels...");
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('/api/materiels/', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || 'Erreur lors du chargement des matériels');
-        }
-        const items = await res.json();
-        const mapped = await Promise.all(items.map(async (m) => {
-          let piecesJointes = [];
-          try {
-            const docsRes = await fetch(`/api/materiels/${m.id}/documents`, {
-              headers: token ? { Authorization: `Bearer ${token}` } : {}
-            });
-            if (docsRes.ok) {
-              const documents = await docsRes.json();
-              piecesJointes = documents.map(doc => ({
-                id: doc.id,
-                nom: doc.filename,
-                type: doc.filename.split('.').pop().toLowerCase(),
-                taille: "N/A",
-                url: `/uploads/materiels/${doc.filename}`
-              }));
-            }
-          } catch (e) {
-            console.warn(`Erreur lors du chargement des documents pour le matériel ${m.id}:`, e);
+  const loadMateriels = useCallback(async (showToast = true) => {
+    const loadingToast = showToast ? showLoading("Chargement des matériels...") : null;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/materiels/', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Erreur lors du chargement des matériels');
+      }
+      const items = await res.json();
+      const mapped = await Promise.all(items.map(async (m) => {
+        let piecesJointes = [];
+        try {
+          const docsRes = await fetch(`/api/materiels/${m.id}/documents`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (docsRes.ok) {
+            const documents = await docsRes.json();
+            piecesJointes = documents.map(doc => ({
+              id: doc.id,
+              nom: doc.filename,
+              filename: doc.filename,
+              type: doc.filename.split('.').pop().toLowerCase(),
+              taille: "N/A",
+              url: `/uploads/materiels/${doc.filename}`
+            }));
           }
+        } catch (e) {
+          console.warn(`Erreur lors du chargement des documents pour le matériel ${m.id}:`, e);
+        }
 
-          return {
-            id: m.id,
-            designation: m.designation,
-            nombre: m.nombre,
-            marque: m.marque || '',
-            modele: m.modele || '',
-            annee: m.annee || '',
-            qualite: m.qualite || '',
-            piecesJointes: piecesJointes
-          };
-        }));
-        setMateriel(mapped);
+        return {
+          id: m.id,
+          designation: m.designation,
+          nombre: m.nombre,
+          marque: m.marque || '',
+          modele: m.modele || '',
+          annee: m.annee || '',
+          qualite: m.qualite || '',
+          piecesJointes: piecesJointes
+        };
+      }));
+      setMateriel(mapped);
+      if (showToast && loadingToast) {
         updateLoading(loadingToast, `${mapped.length} matériels chargés`, "success");
         showFetchSuccess();
-      } catch (e) {
+      }
+      return mapped;
+    } catch (e) {
+      if (showToast && loadingToast) {
         updateLoading(loadingToast, "Erreur lors du chargement", "error");
         showFetchError(e.message);
-        console.error(e);
       }
-    };
-    loadMateriels();
+      console.error(e);
+      throw e;
+    }
   }, [showLoading, updateLoading, showFetchSuccess, showFetchError]);
+
+  useEffect(() => {
+    loadMateriels();
+  }, [loadMateriels]);
 
   const handleOpenForm = (materiel = null) => {
     if (materiel) {
@@ -120,12 +133,12 @@ const Materiel = () => {
         annee: materiel.annee || '',
         qualite: materiel.qualite || ''
       });
-      // Charger les pièces jointes existantes
       setAttachedFiles(materiel.piecesJointes ? materiel.piecesJointes.map(piece => ({
         name: piece.nom,
         size: piece.taille,
         type: piece.type,
-        id: piece.id
+        id: piece.id,
+        isExisting: true
       })) : []);
       showInfo(`Édition de ${materiel.designation} ${materiel.marque}`);
     } else {
@@ -202,11 +215,42 @@ const Materiel = () => {
   // Fonction pour télécharger une pièce jointe
   const handleDownloadPiece = (piece) => {
     const link = document.createElement('a');
-    link.href = piece.url || `/uploads/materiels/${piece.nom}`;
+    const url = piece.url || (piece.filename ? `/uploads/materiels/${piece.filename}` : `/uploads/materiels/${piece.nom}`);
+    link.href = url;
     link.download = piece.nom;
     link.target = '_blank'; 
     link.click();
-    console.log('Téléchargement de:', piece.nom);
+    console.log('Téléchargement de:', piece.nom, 'URL:', url);
+  };
+
+  const handleViewPiece = (piece) => {
+    const url = piece.url || (piece.filename ? `/uploads/materiels/${piece.filename}` : `/uploads/materiels/${piece.nom}`);
+    const extension = piece.type?.toLowerCase() || piece.nom.split('.').pop().toLowerCase();
+    
+    const previewableTypes = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'txt'];
+    
+    console.log('Visualisation - Piece:', piece);
+    console.log('Visualisation - URL construite:', url);
+    console.log('Visualisation - Extension:', extension);
+    
+    if (previewableTypes.includes(extension)) {
+      fetch(url, { method: 'HEAD' })
+        .then(response => {
+          if (response.ok) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+            showInfo(`Ouverture de ${piece.nom}`);
+          } else {
+            throw new Error(`Fichier non trouvé (${response.status})`);
+          }
+        })
+        .catch(error => {
+          console.error('Erreur lors de la vérification du fichier:', error);
+          showError(`Impossible d'ouvrir le fichier : ${error.message}`);
+        });
+    } else {
+      showWarning(`Le type de fichier ${extension.toUpperCase()} ne peut pas être visualisé directement. Téléchargement en cours...`);
+      handleDownloadPiece(piece);
+    }
   };
 
   const handleDeleteClick = (id) => {
@@ -248,9 +292,20 @@ const Materiel = () => {
     }
   };
 
-  // Fonction pour supprimer une pièce jointe
-  const handleDeletePiece = (materielId, pieceId) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette pièce jointe ?')) {
+  const handleDeletePieceClick = (materielId, pieceId) => {
+    setPendingDeletePiece({ materielId, pieceId });
+    setConfirmDeletePieceOpen(true);
+  };
+
+  const handleConfirmDeletePiece = () => {
+    setConfirmDeletePieceOpen(false);
+    
+    if (pendingDeletePiece) {
+      const { materielId, pieceId } = pendingDeletePiece;
+      
+      const materiel = Materiel.find(m => m.id === materielId);
+      const piece = materiel?.piecesJointes.find(p => p.id === pieceId);
+      
       const updatedMateriel = Materiel.map(m => {
         if (m.id === materielId) {
           return {
@@ -262,8 +317,12 @@ const Materiel = () => {
       });
       setMateriel(updatedMateriel);
       console.log('Pièce jointe supprimée:', pieceId);
-      showDeleteSuccess(`Pièce jointe supprimée: ${Materiel.find(m => m.id === materielId)?.piecesJointes.find(p => p.id === pieceId)?.nom}`);
+      showDeleteSuccess(`Pièce jointe supprimée: ${piece?.nom || 'Fichier'}`);
+      
+      handleClosePiecesJointes();
     }
+    
+    setPendingDeletePiece(null);
   };
 
   // Fonction de validation
@@ -301,7 +360,7 @@ const Materiel = () => {
     if (!validateForm()) {
       return;
     }
-
+    
     const loadingToast = showLoading(editingMateriel ? "Modification en cours..." : "Ajout en cours...");
     
     try {
@@ -318,14 +377,37 @@ const Materiel = () => {
 
       let res;
       if (editingMateriel) {
-        res = await fetch(`/api/materiels/${editingMateriel.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify(payload),
-        });
+        if (attachedFiles.some(file => file instanceof File)) {
+          const fd = new FormData();
+          if (formData.designation) fd.append('designation', formData.designation);
+          if (formData.nombre) fd.append('nombre', String(parseInt(formData.nombre) || 0));
+          if (formData.marque) fd.append('marque', formData.marque);
+          if (formData.modele) fd.append('modele', formData.modele);
+          if (formData.annee) fd.append('annee', String(parseInt(formData.annee)));
+          if (formData.qualite) fd.append('qualite', formData.qualite);
+
+          attachedFiles.forEach((file) => {
+            if (file instanceof File) {
+              fd.append('files', file);
+            }
+          });
+
+          res = await fetch(`/api/materiels/${editingMateriel.id}/with-files`, {
+            method: 'PUT',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: fd,
+          });
+        } else {
+          // Modification sans nouveaux fichiers
+          res = await fetch(`/api/materiels/${editingMateriel.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify(payload),
+          });
+        }
       } else {
         if (attachedFiles.length > 0) {
           const fd = new FormData();
@@ -368,7 +450,7 @@ const Materiel = () => {
 
       // Charger les documents du matériel pour l'affichage
       let piecesJointes = [];
-      if (attachedFiles.length > 0 && !editingMateriel) {
+      if (attachedFiles.length > 0) {
         try {
           const docsRes = await fetch(`/api/materiels/${savedMateriel.id}/documents`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -378,6 +460,7 @@ const Materiel = () => {
             piecesJointes = documents.map(doc => ({
               id: doc.id,
               nom: doc.filename,
+              filename: doc.filename,
               type: doc.filename.split('.').pop().toLowerCase(),
               taille: "N/A", 
               url: `/uploads/materiels/${doc.filename}`
@@ -385,7 +468,8 @@ const Materiel = () => {
           }
         } catch (e) {
           console.warn('Erreur lors du chargement des documents:', e);
-          piecesJointes = attachedFiles.map((file, index) => ({
+          const newFiles = attachedFiles.filter(file => file instanceof File);
+          piecesJointes = newFiles.map((file, index) => ({
             id: Date.now() + index,
             nom: file.name,
             type: file.name.split('.').pop().toLowerCase(),
@@ -393,10 +477,27 @@ const Materiel = () => {
           }));
         }
       } else if (editingMateriel) {
-        piecesJointes = editingMateriel.piecesJointes || [];
+        try {
+          const docsRes = await fetch(`/api/materiels/${savedMateriel.id}/documents`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (docsRes.ok) {
+            const documents = await docsRes.json();
+            piecesJointes = documents.map(doc => ({
+              id: doc.id,
+              nom: doc.filename,
+              filename: doc.filename,
+              type: doc.filename.split('.').pop().toLowerCase(),
+              taille: "N/A", 
+              url: `/uploads/materiels/${doc.filename}`
+            }));
+          }
+        } catch (e) {
+          console.warn('Erreur lors du chargement des documents:', e);
+          piecesJointes = editingMateriel.piecesJointes || [];
+        }
       }
       
-      // Mapper la réponse API vers le format frontend
       const mappedMateriel = {
         id: savedMateriel.id,
         designation: savedMateriel.designation,
@@ -409,16 +510,16 @@ const Materiel = () => {
       };
 
       if (editingMateriel) {
-        setMateriel(prev => prev.map(m => m.id === mappedMateriel.id ? mappedMateriel : m));
         updateLoading(loadingToast, "Matériel modifié avec succès", "success");
         showUpdateSuccess(`Matériel modifié: ${formData.designation} ${formData.marque}`);
+        handleCloseForm();
+        await loadMateriels(false);
       } else {
         setMateriel(prev => [...prev, mappedMateriel]);
         updateLoading(loadingToast, "Matériel ajouté avec succès", "success");
         showCreateSuccess(`Nouveau matériel ajouté: ${formData.designation} ${formData.marque}`);
-      }
-      
       handleCloseForm();
+      }
       
     } catch (e) {
       updateLoading(loadingToast, `Erreur lors de ${editingMateriel ? 'la modification' : 'l\'ajout'}`, "error");
@@ -615,6 +716,13 @@ const Materiel = () => {
                                             </div>
                                             <div className="flex gap-2">
                                                 <button 
+                                                    onClick={() => handleViewPiece(piece)}
+                                                    className="p-2 text-primary hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors duration-200" 
+                                                    title="Visualiser"
+                                                >
+                                                    <Visibility className="h-4 w-4" />
+                                                </button>
+                                                <button 
                                                     onClick={() => handleDownloadPiece(piece)}
                                                     className="p-2 text-info hover:text-info-600 hover:bg-info-50 dark:hover:bg-info-900/20 rounded transition-colors duration-200" 
                                                     title="Télécharger"
@@ -622,7 +730,7 @@ const Materiel = () => {
                                                     <CloudDownload className="h-4 w-4" />
                                                 </button>
                                                 <button 
-                                                    onClick={() => handleDeletePiece(selectedMateriel.id, piece.id)}
+                                                    onClick={() => handleDeletePieceClick(selectedMateriel.id, piece.id)}
                                                     className="p-2 text-danger hover:text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded transition-colors duration-200" 
                                                     title="Supprimer"
                                                 >
@@ -819,7 +927,7 @@ const Materiel = () => {
                                     <div className="mt-4 space-y-2">
                                         <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Fichiers sélectionnés :</h4>
                                         {attachedFiles.map((file, index) => (
-                                            <div key={file.id || index} className="flex items-center justify-between p-3 bg-neutral-100 dark:bg-neutral-700 rounded-lg">
+                                            <div key={file.id || index} className={`flex items-center justify-between p-3 rounded-lg ${file.isExisting ? 'bg-blue-100 dark:bg-blue-900/20' : 'bg-neutral-100 dark:bg-neutral-700'}`}>
                                                 <div className="flex items-center gap-3">
                                                     <AttachFile className="h-5 w-5 text-neutral-500" />
                                                     <span className="text-sm text-neutral-700 dark:text-neutral-300">
@@ -828,11 +936,17 @@ const Materiel = () => {
                                                     <span className="text-xs text-neutral-500">
                                                         ({file.size || file.taille})
                                                     </span>
+                                                    {file.isExisting && (
+                                                        <span className="text-xs bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
+                                                            Existant
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <button
                                                     type="button"
                                                     onClick={() => removeAttachedFile(index)}
                                                     className="p-1 text-danger hover:text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded"
+                                                    title={file.isExisting ? "Retirer de la liste (ne supprime pas le fichier)" : "Supprimer le fichier"}
                                                 >
                                                     <Close className="h-4 w-4" />
                                                 </button>
@@ -866,6 +980,17 @@ const Materiel = () => {
           destructive
           onConfirm={handleConfirmDelete}
           onCancel={() => { setConfirmOpen(false); setPendingDeleteId(null); }}
+        />
+        
+        <ConfirmModal
+          open={confirmDeletePieceOpen}
+          title="Confirmer la suppression"
+          message={pendingDeletePiece ? `Voulez-vous vraiment supprimer la pièce jointe "${Materiel.find(m => m.id === pendingDeletePiece?.materielId)?.piecesJointes.find(p => p.id === pendingDeletePiece?.pieceId)?.nom}" ?` : "Voulez-vous vraiment supprimer cette pièce jointe ?"}
+          confirmLabel="Supprimer"
+          cancelLabel="Annuler"
+          destructive
+          onConfirm={handleConfirmDeletePiece}
+          onCancel={() => { setConfirmDeletePieceOpen(false); setPendingDeletePiece(null); }}
         />
     </div>
   )
