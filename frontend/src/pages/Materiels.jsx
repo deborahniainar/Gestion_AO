@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import Sidebar from '../components/Sidebar'
+import ConfirmModal from '../components/ConfirmModal'
 import useNotifications from '../hooks/useNotifications'
 import {
   CloudDownload,
@@ -13,21 +14,7 @@ import {
 } from "@mui/icons-material";
 
 const Materiel = () => {
-  const [Materiel, setMateriel] = useState([
-    {
-      id: 1,
-      nombre: 1,
-      designation: "Pick Up",
-      marque: "Mitsubishi",
-      modele: "L 200",
-      annee: 2016,
-      piecesJointes: [
-        { id: 1, nom: "Facture.pdf", type: "pdf", taille: "245 KB" },
-        { id: 2, nom: "Contrat.docx", type: "docx", taille: "156 KB" },
-        { id: 3, nom: "Photo.jpg", type: "jpg", taille: "1.2 MB" }
-      ]
-    }
-  ]);
+  const [Materiel, setMateriel] = useState([]);
 
   const [showForm, setShowForm] = useState(false);
   const [editingMateriel, setEditingMateriel] = useState(null);
@@ -38,25 +25,89 @@ const Materiel = () => {
     designation:'',
     marque:'',
     modele: '',
-    annee: ''
+    annee: '',
+    qualite: ''
   });
 
   // États pour les fichiers
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [formErrors, setFormErrors] = useState({});
+  
+  // États pour la confirmation de suppression
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
   // Référence pour l'input de fichiers
   const fileInputRef = useRef(null);
 
   const { 
-    showSuccess, 
     showError, 
     showInfo, 
-    showWarning,
     showCreateSuccess,
     showUpdateSuccess,
-    showDeleteSuccess
+    showDeleteSuccess,
+    showLoading,
+    updateLoading,
+    showFetchSuccess,
+    showFetchError
   } = useNotifications();
+
+  // Charger les matériels depuis l'API
+  useEffect(() => {
+    const loadMateriels = async () => {
+      const loadingToast = showLoading("Chargement des matériels...");
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/materiels/', {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Erreur lors du chargement des matériels');
+        }
+        const items = await res.json();
+        const mapped = await Promise.all(items.map(async (m) => {
+          let piecesJointes = [];
+          try {
+            const docsRes = await fetch(`/api/materiels/${m.id}/documents`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
+            if (docsRes.ok) {
+              const documents = await docsRes.json();
+              piecesJointes = documents.map(doc => ({
+                id: doc.id,
+                nom: doc.filename,
+                type: doc.filename.split('.').pop().toLowerCase(),
+                taille: "N/A",
+                url: `/uploads/materiels/${doc.filename}`
+              }));
+            }
+          } catch (e) {
+            console.warn(`Erreur lors du chargement des documents pour le matériel ${m.id}:`, e);
+          }
+
+          return {
+            id: m.id,
+            designation: m.designation,
+            nombre: m.nombre,
+            marque: m.marque || '',
+            modele: m.modele || '',
+            annee: m.annee || '',
+            qualite: m.qualite || '',
+            piecesJointes: piecesJointes
+          };
+        }));
+        setMateriel(mapped);
+        updateLoading(loadingToast, `${mapped.length} matériels chargés`, "success");
+        showFetchSuccess();
+      } catch (e) {
+        updateLoading(loadingToast, "Erreur lors du chargement", "error");
+        showFetchError(e.message);
+        console.error(e);
+      }
+    };
+    loadMateriels();
+  }, [showLoading, updateLoading, showFetchSuccess, showFetchError]);
 
   const handleOpenForm = (materiel = null) => {
     if (materiel) {
@@ -66,7 +117,8 @@ const Materiel = () => {
         designation: materiel.designation || '',
         marque: materiel.marque || '',
         modele: materiel.modele || '',
-        annee: materiel.annee || ''
+        annee: materiel.annee || '',
+        qualite: materiel.qualite || ''
       });
       // Charger les pièces jointes existantes
       setAttachedFiles(materiel.piecesJointes ? materiel.piecesJointes.map(piece => ({
@@ -83,7 +135,8 @@ const Materiel = () => {
         designation: '',
         marque: '',
         modele: '',
-        annee: ''
+        annee: '',
+        qualite: ''
       });
       setAttachedFiles([]);
       showInfo("Ajout d'un nouveau matériel");
@@ -146,24 +199,53 @@ const Materiel = () => {
     setAttachedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Fonction pour supprimer un matériel
-  const handleDeleteMateriel = (materielId) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce matériel ?')) {
-      const updatedMateriel = Materiel.filter(m => m.id !== materielId);
-      setMateriel(updatedMateriel);
-      console.log('Matériel supprimé:', materielId);
-      showDeleteSuccess(`Matériel supprimé: ${Materiel.find(m => m.id === materielId)?.designation}`);
+  // Fonction pour télécharger une pièce jointe
+  const handleDownloadPiece = (piece) => {
+    const link = document.createElement('a');
+    link.href = piece.url || `/uploads/materiels/${piece.nom}`;
+    link.download = piece.nom;
+    link.target = '_blank'; 
+    link.click();
+    console.log('Téléchargement de:', piece.nom);
+  };
+
+  const handleDeleteClick = (id) => {
+    const materiel = Materiel.find(m => m.id === id);
+    if (materiel) {
+      setPendingDeleteId(id);
+      setConfirmOpen(true);
     }
   };
 
-  // Fonction pour télécharger une pièce jointe
-  const handleDownloadPiece = (piece) => {
-    // Créer un lien temporaire pour le téléchargement
-    const link = document.createElement('a');
-    link.href = `#`; // Ici vous mettriez l'URL réelle du fichier
-    link.download = piece.nom;
-    link.click();
-    console.log('Téléchargement de:', piece.nom);
+  const handleConfirmDelete = async () => {
+    const id = pendingDeleteId;
+    setConfirmOpen(false);
+    setPendingDeleteId(null);
+    
+    if (id != null) {
+      const materiel = Materiel.find(m => m.id === id);
+      if (!materiel) return;
+
+      const loadingToast = showLoading("Suppression en cours...");
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/materiels/${id}`, {
+          method: 'DELETE',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Erreur lors de la suppression');
+        }
+        setMateriel(prev => prev.filter(m => m.id !== id));
+        updateLoading(loadingToast, "Matériel supprimé avec succès", "success");
+        showDeleteSuccess(`Matériel supprimé: ${materiel.designation}`);
+      } catch (e) {
+        updateLoading(loadingToast, "Erreur lors de la suppression", "error");
+        showError(e.message);
+        console.error(e);
+      }
+    }
   };
 
   // Fonction pour supprimer une pièce jointe
@@ -213,45 +295,136 @@ const Materiel = () => {
   };
 
   // Fonction pour ajouter un nouveau matériel ou modifier un existant
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Valider le formulaire avant soumission
     if (!validateForm()) {
       return;
     }
-    
-    // Convertir les fichiers joints en format compatible
-    const piecesJointes = attachedFiles.map((file, index) => ({
-      id: file.id || Date.now() + index,
-      nom: file.name || file.nom,
-      type: (file.name || file.nom).split('.').pop().toLowerCase(),
-      taille: file.size || file.taille || `${(file.size || 0 / 1024).toFixed(1)} KB`
-    }));
 
-    if (editingMateriel) {
-      // Modification du matériel existant
-      const updatedMateriel = Materiel.map(m => 
-        m.id === editingMateriel.id 
-          ? { ...m, ...formData, piecesJointes }
-          : m
-      );
-      setMateriel(updatedMateriel);
-      console.log('Matériel modifié:', { ...formData, piecesJointes });
-      showUpdateSuccess(`Matériel modifié: ${formData.designation} ${formData.marque}`);
-    } else {
-      // Ajout d'un nouveau matériel
-      const newMateriel = {
-        id: Date.now(),
-        ...formData,
-        piecesJointes
-      };
-      setMateriel(prev => [...prev, newMateriel]);
-      console.log('Nouveau matériel ajouté:', newMateriel);
-      showCreateSuccess(`Nouveau matériel ajouté: ${formData.designation} ${formData.marque}`);
-    }
+    const loadingToast = showLoading(editingMateriel ? "Modification en cours..." : "Ajout en cours...");
     
-    handleCloseForm();
+    try {
+      const token = localStorage.getItem('token');
+    
+      const payload = {
+        designation: formData.designation,
+        nombre: parseInt(formData.nombre) || 0,
+        marque: formData.marque || null,
+        modele: formData.modele || null,
+        annee: formData.annee ? parseInt(formData.annee) : null,
+        qualite: formData.qualite || null
+      };
+
+      let res;
+      if (editingMateriel) {
+        res = await fetch(`/api/materiels/${editingMateriel.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        if (attachedFiles.length > 0) {
+          const fd = new FormData();
+          if (formData.designation) fd.append('designation', formData.designation);
+          if (formData.nombre) fd.append('nombre', String(parseInt(formData.nombre) || 0));
+          if (formData.marque) fd.append('marque', formData.marque);
+          if (formData.modele) fd.append('modele', formData.modele);
+          if (formData.annee) fd.append('annee', String(parseInt(formData.annee)));
+          if (formData.qualite) fd.append('qualite', formData.qualite);
+
+          attachedFiles.forEach((file) => fd.append('files', file));
+
+          res = await fetch('/api/materiels/with-files', {
+            method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            body: fd,
+          });
+        } else {
+          res = await fetch('/api/materiels/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify(payload),
+          });
+        }
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const detail = err?.detail;
+        const message = Array.isArray(detail)
+          ? detail.map(d => d?.msg || JSON.stringify(d)).join(' | ')
+          : (detail || `Erreur lors de ${editingMateriel ? 'la modification' : 'l\'ajout'} du matériel`);
+        throw new Error(message);
+      }
+
+      const savedMateriel = await res.json();
+
+      // Charger les documents du matériel pour l'affichage
+      let piecesJointes = [];
+      if (attachedFiles.length > 0 && !editingMateriel) {
+        try {
+          const docsRes = await fetch(`/api/materiels/${savedMateriel.id}/documents`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {}
+          });
+          if (docsRes.ok) {
+            const documents = await docsRes.json();
+            piecesJointes = documents.map(doc => ({
+              id: doc.id,
+              nom: doc.filename,
+              type: doc.filename.split('.').pop().toLowerCase(),
+              taille: "N/A", 
+              url: `/uploads/materiels/${doc.filename}`
+            }));
+          }
+        } catch (e) {
+          console.warn('Erreur lors du chargement des documents:', e);
+          piecesJointes = attachedFiles.map((file, index) => ({
+            id: Date.now() + index,
+            nom: file.name,
+            type: file.name.split('.').pop().toLowerCase(),
+            taille: `${(file.size / 1024).toFixed(1)} KB`
+          }));
+        }
+      } else if (editingMateriel) {
+        piecesJointes = editingMateriel.piecesJointes || [];
+      }
+      
+      // Mapper la réponse API vers le format frontend
+      const mappedMateriel = {
+        id: savedMateriel.id,
+        designation: savedMateriel.designation,
+        nombre: savedMateriel.nombre,
+        marque: savedMateriel.marque || '',
+        modele: savedMateriel.modele || '',
+        annee: savedMateriel.annee || '',
+        qualite: savedMateriel.qualite || '',
+        piecesJointes: piecesJointes
+      };
+
+      if (editingMateriel) {
+        setMateriel(prev => prev.map(m => m.id === mappedMateriel.id ? mappedMateriel : m));
+        updateLoading(loadingToast, "Matériel modifié avec succès", "success");
+        showUpdateSuccess(`Matériel modifié: ${formData.designation} ${formData.marque}`);
+      } else {
+        setMateriel(prev => [...prev, mappedMateriel]);
+        updateLoading(loadingToast, "Matériel ajouté avec succès", "success");
+        showCreateSuccess(`Nouveau matériel ajouté: ${formData.designation} ${formData.marque}`);
+      }
+      
+      handleCloseForm();
+      
+    } catch (e) {
+      updateLoading(loadingToast, `Erreur lors de ${editingMateriel ? 'la modification' : 'l\'ajout'}`, "error");
+      showError(e.message);
+      console.error(e);
+    }
   };
 
   // Fonction pour ouvrir le modal des pièces jointes
@@ -381,7 +554,7 @@ const Materiel = () => {
                                             <Edit className="h-4 w-4" />
                                         </button>
                                         <button 
-                                            onClick={() => handleDeleteMateriel(materiel.id)}
+                                            onClick={() => handleDeleteClick(materiel.id)}
                                             className="p-2 text-danger hover:text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded-lg transition-colors duration-200" 
                                             title="Supprimer"
                                         >
@@ -542,6 +715,8 @@ const Materiel = () => {
                                         <input
                                             type="text"
                                             name="qualite"
+                                            value={formData.qualite}
+                                            onChange={handleInputChange}
                                             className="w-full px-4 py-3 bg-neutral-100 dark:bg-neutral-700 border border-border-light dark:border-border-dark rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent"
                                             placeholder="Qualité"
                                         />
@@ -681,6 +856,17 @@ const Materiel = () => {
                 </div>
             )}
         </main> 
+        
+        <ConfirmModal
+          open={confirmOpen}
+          title="Confirmer la suppression"
+          message={pendingDeleteId ? `Voulez-vous vraiment supprimer le matériel "${Materiel.find(m => m.id === pendingDeleteId)?.designation}" ?` : "Voulez-vous vraiment supprimer ce matériel ?"}
+          confirmLabel="Supprimer"
+          cancelLabel="Annuler"
+          destructive
+          onConfirm={handleConfirmDelete}
+          onCancel={() => { setConfirmOpen(false); setPendingDeleteId(null); }}
+        />
     </div>
   )
 }
