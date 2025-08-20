@@ -1,0 +1,85 @@
+{
+  "api": {
+    "base": "/api/personnels",
+    "createWithFiles": "/api/personnels/with-files",
+    "uploadsBase": "/api/uploads/personnels"
+  },
+  "files": {
+    "allowedMimeTypes": [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "image/jpeg",
+      "image/png",
+      "image/gif"
+    ],
+    "acceptExtensions": [
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".xls",
+      ".xlsx",
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif"
+    ]
+  },
+  "enums": {
+    "genreLabels": {
+      "M": "Masculin",
+      "F": "Féminin"
+    },
+    "statusLabels": {
+      "actif": "Actif",
+      "inactif": "Inactif",
+      "en_conge": "En congé"
+    }
+  },
+  "fields": {
+    "id": { "back": "id", "front": "id", "label": "ID", "type": "integer" },
+    "nom": { "back": "nom", "front": "nom", "label": "Noms & Prénoms", "required": true, "type": "string" },
+    "prenom": { "back": "prenom", "front": "prenom", "label": "Prénom", "type": "string" },
+    "fonction": { "back": "fonction", "front": "fonction", "label": "Fonction", "type": "string" },
+    "formation": { "back": "formation", "front": "formation", "label": "Formation", "type": "string" },
+    "dateNaissance": { "back": "date_naissance", "front": "dateNaissance", "label": "Date de naissance", "type": "date" },
+    "salaire": { "back": "salaire_mensuel", "front": "salaire", "label": "Salaire mensuel", "type": "number" },
+    "nationalite": { "back": "nationalite", "front": "nationalite", "label": "Nationalité", "type": "string" },
+    "experience": { "back": "experience_annees", "front": "experience", "label": "Année d'expérience", "type": "integer" },
+    "contact": { "back": "contact", "front": "contact", "label": "Contact", "type": "string" },
+    "genre": { "back": "genre", "front": "genre", "label": "Genre", "type": "enum", "optionsRef": "enums.genreLabels" },
+    "status": { "back": "status", "front": "status", "label": "Status", "type": "enum", "optionsRef": "enums.statusLabels" },
+    "profileImage": { "back": "profile_image", "front": "profileImage", "label": "Photo de profil", "type": "image" }
+  },
+  "placeholders": {
+    "nom": "Nom et prénom",
+    "prenom": "Prénom",
+    "formation": "Formation",
+    "dateNaissance": "",
+    "salaire": "Salaire en KMF",
+    "fonction": "Fonction",
+    "nationalite": "Nationalité",
+    "experience": "Expérience",
+    "contact": "Numéro de téléphone"
+  },
+  "tableColumns": [
+    { "field": "nom", "label": "Noms & Prénoms" },
+    { "field": "fonction", "label": "Fonction" },
+    { "field": "experience", "label": "Expérience" },
+    { "field": "formation", "label": "Formation" }
+  ],
+  "formOrder": [
+    "nom",
+    "formation",
+    "dateNaissance",
+    "salaire",
+    "fonction",
+    "nationalite",
+    "experience",
+    "contact",
+    "genre",
+    "status"
+  ]
+}

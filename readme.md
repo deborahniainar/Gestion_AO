@@ -20,42 +20,37 @@ Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d
    - Générateur de réponse modifiable (lettre, fiches, bordereau, etc.)
    - Assistant de remplissage (UI interactive pour personnaliser les données)
 
-2) Gestion des marchés
-   - Enregistrement des AO (référence, client, objet, date limite)
-   - Ajout et classement des documents reçus
-   - Suivi de l'état (en cours, soumis, attribué, perdu)
-
-3) Suivi des matériels
+2) Suivi des matériels
    - Inventaire, disponibilité, localisation, état
    - Historique des utilisations par chantier
 
-4) Gestion des personnels
+3) Gestion des personnels
    - Fiches personnels, spécialités
    - Disponibilité, affectation par projet/chantier
    - Historique de participation
 
-5) Base de prix interne
+4) Base de prix interne
    - Historique des prix unitaires par type de tâche/poste
    - Mise à jour manuelle ou automatisée
    - Salaires journaliers (homme-jour), marges bénéficiaires
    - Aide à la tarification rapide pour les soumissions
 
-6) Gestion des documents administratifs
+5) Gestion des documents administratifs
    - Archivage des documents légaux
    - Alertes de renouvellement (expiration)
    - Téléchargement rapide pour chaque soumission
 
-7) Préparation des soumissions
+6) Préparation des soumissions
    - Création de soumissions liées à un AO
    - Calcul des totaux
    - Export de tous les documents en PDF/Word (prêts à imprimer/télécharger)
 
-8) Tableau de bord et historique
+7) Tableau de bord et historique
    - Vue des AO en cours et passés
    - Historique des soumissions et résultats
    - Statistiques de rentabilité et taux de réussite
 
-9) Authentification et sécurité
+8) Authentification et sécurité
    - Connexion sécurisée (JWT)
    - Protection des routes sensibles
    - Gestion des sessions utilisateur
