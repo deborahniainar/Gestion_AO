@@ -4,11 +4,13 @@ from pydantic import BaseModel, ConfigDict
 
 
 class MaterielBase(BaseModel):
-    reference: str
-    quantite: int
-    localisation: Optional[str] = None
-    etat: Optional[str] = None
-    id_fournisseur: Optional[int] = None
+    designation: str
+    nombre: int
+    marque: Optional[str] = None
+    modele: Optional[str] = None
+    annee: Optional[int] = None
+    qualite: Optional[str] = None
+    # id_fournisseur: Optional[int] = None
 
 
 class MaterielCreate(MaterielBase):
@@ -16,11 +18,13 @@ class MaterielCreate(MaterielBase):
 
 
 class MaterielUpdate(BaseModel):
-    reference: Optional[str] = None
-    quantite: Optional[int] = None
-    localisation: Optional[str] = None
-    etat: Optional[str] = None
-    id_fournisseur: Optional[int] = None
+    designation: Optional[str] = None
+    nombre: Optional[int] = None
+    marque: Optional[str] = None
+    modele: Optional[str] = None
+    annee: Optional[int] = None
+    qualite: Optional[str] = None
+    # id_fournisseur: Optional[int] = None
 
 
 class MaterielRead(MaterielBase):
