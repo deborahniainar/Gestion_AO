@@ -65,7 +65,6 @@ const Personnels = () => {
 
   useEffect(() => {
     const loadPersonnels = async () => {
-      const loadingToast = showLoading("Chargement des personnels...");
       try {
         const token = localStorage.getItem('token');
         const res = await fetch('/api/personnels/', {
@@ -92,7 +91,6 @@ const Personnels = () => {
           profileImage: p.profile_image ? `/api/uploads/personnels/${p.profile_image}` : null
         }));
         setPersonnels(mapped);
-        updateLoading(loadingToast, `${mapped.length} personnels chargés`, "success");
         showFetchSuccess();
       } catch (e) {
         updateLoading(loadingToast, "Erreur lors du chargement", "error");
@@ -186,7 +184,6 @@ const Personnels = () => {
         setShowDetails(false);
         setSelectedPersonnel(null);
       }
-      updateLoading(loadingToast, "Personnel supprimé avec succès", "success");
       showDeleteSuccess();
     } catch (e) {
       updateLoading(loadingToast, "Erreur lors de la suppression", "error");

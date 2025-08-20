@@ -11,20 +11,29 @@ import {
 } from "@mui/icons-material";
 import Sidebar from "../components/Sidebar";
 import useNotifications from "../hooks/useNotifications";
+import { apiWithNotifications } from "../services/api";
+import { useDao } from "../contexts/DaoContext";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import Image1 from "../assets/Image1.png";
 import Image2 from "../assets/Image2.png";
 import Image3 from "../assets/Image3.png";
 import Image4 from "../assets/Image4.png";
 
 export default function GestionDAO() {
-  const [file, setFile] = useState(null);
-  const [keywords, setKeywords] = useState("");
+  const {
+    file, setFile,
+    daoDocId, setDaoDocId,
+    keywords, setKeywords,
+    uploadConfirmed, setUploadConfirmed,
+    keywordsSubmitted, setKeywordsSubmitted,
+    showList, setShowList,
+    summary, setSummary,
+    editingSummary, setEditingSummary,
+    requiredDocs, setRequiredDocs,
+    resetDaoProcess,
+  } = useDao();
   const [uploadError, setUploadError] = useState("");
-  const [uploadConfirmed, setUploadConfirmed] = useState(false);
-  const [keywordsSubmitted, setKeywordsSubmitted] = useState(false);
-  const [showList, setShowList] = useState(false);
-  const [summary, setSummary] = useState("Le présent Appel d'Offre concerne .............");
-  const [editingSummary, setEditingSummary] = useState(false);
 
   const { 
     showSuccess, 
@@ -76,6 +85,20 @@ export default function GestionDAO() {
     return 4;
   };
 
+  const handleEditInWord = async (e) => {
+    if (e?.preventDefault) e.preventDefault();
+    if (!daoDocId) return;
+    const resp = await apiWithNotifications.post("/dao/generate_docx", {
+      document_id: daoDocId,
+      content_markdown: summary, // votre table markdown
+    });
+    const path = resp.data.file_path;
+    // Navigation SPA pour éviter un reload qui purge potentiellement l'état
+    const q = new URLSearchParams({ path, title: "DAO.docx" }).toString();
+    window.history.pushState({}, "", `/word-editor?${q}`);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
+
   const currentStep = getCurrentStep();
   const progressPercent = currentStep * 25;
 
@@ -86,18 +109,37 @@ export default function GestionDAO() {
     "4 Documents à soumettre",
   ];
 
-  const handleSubmitKeywords = () => {
+  const handleSubmitKeywords = async () => {
     if (!keywords.trim()) {
       showWarning("Veuillez saisir des mots-clés");
       return;
     }
-    setKeywordsSubmitted(true);
-    showSuccess("Mots-clés soumis avec succès");
+    if (!daoDocId) {
+      showError("Aucun document DAO téléversé");
+      return;
+    }
+    try {
+      const { data } = await apiWithNotifications.post("/dao/extract_summary", {
+        document_id: daoDocId,
+        keywords,
+      });
+      setSummary((data.table_markdown && data.table_markdown.trim()) ? data.table_markdown : (data.summary || ""));
+      setKeywordsSubmitted(true);
+      showSuccess("Résumé généré");
+    } catch {}
   };
 
-  const handleShowList = () => {
-    setShowList(true);
-    showInfo("Liste des documents générée");
+  const handleShowList = async () => {
+    if (!daoDocId) {
+      showError("Aucun document DAO téléversé");
+      return;
+    }
+    try {
+      const { data } = await apiWithNotifications.get(`/dao/${daoDocId}/required_documents`);
+      setRequiredDocs(data || []);
+      setShowList(true);
+      showInfo("Liste des documents générée");
+    } catch {}
   };
 
   const handleDownloadPDF = () => {
@@ -129,20 +171,23 @@ export default function GestionDAO() {
     }
   };
 
-  const handleConfirmUpload = () => {
+  const handleConfirmUpload = async () => {
     if (!file) {
       showError("Aucun fichier sélectionné");
       return;
     }
-    
-    const loadingToast = showLoading("Téléversement en cours...");
-    
-    // Simuler le téléversement
-    setTimeout(() => {
+
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const resp = await apiWithNotifications.post("/dao/upload", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const data = resp.data || {};
+      setDaoDocId(data.document_id);
       setUploadConfirmed(true);
-      updateLoading(loadingToast, "Fichier téléversé avec succès", "success");
       showUploadSuccess();
-    }, 2000);
+    } catch {}
   };
 
   return (
@@ -227,7 +272,7 @@ export default function GestionDAO() {
         </div>
 
         {/* Section 2: Extraction */}
-        {uploadConfirmed && (
+        {uploadConfirmed && file && (
           <div className="rounded-lg">
             <div className="flex">
               <div className="flex-1 text-center">
@@ -237,7 +282,7 @@ export default function GestionDAO() {
               <div className="flex-1 p-6">
                 <div>
                   <h3 className="font-bold text-xl text-secondary mb-4">
-                    Extraction du fichier {file.name}
+                    Extraction du fichier {file?.name || ""}
                   </h3>
 
                   <p className="text-gray-600 mb-4 text-sm">
@@ -289,7 +334,11 @@ export default function GestionDAO() {
                         onChange={(e) => setSummary(e.target.value)}
                       />
                     ) : (
-                      <p className="text-gray-800 text-sm">{summary}</p>
+                      <div className="prose prose-sm max-w-none text-gray-800">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+{summary}
+                        </ReactMarkdown>
+                      </div>
                     )}
 
                     <div className="absolute right-4 bottom-3 flex items-center gap-3 text-gray-800">
@@ -311,11 +360,8 @@ export default function GestionDAO() {
                       ) : (
                         <button
                           className="p-0 hover:text-secondary-50 transition-colors duration-200"
-                          title="Éditer"
-                          onClick={() => {
-                            setEditingSummary(true);
-                            showInfo("Mode édition activé");
-                          }}
+                          title="Éditer dans Word"
+                          onClick={handleEditInWord}
                         >
                           <Edit className="h-5 w-5" />
                         </button>
@@ -359,6 +405,21 @@ export default function GestionDAO() {
                   <h3 className="font-bold text-xl text-secondary">
                     Liste des documents à soumettre
                   </h3>
+                  <ul className="mt-4 space-y-2">
+                    {requiredDocs.map((d, idx) => (
+                      <li key={idx} className="flex items-start gap-2 bg-white rounded-md p-3">
+                        <span className={`mt-1 h-2 w-2 rounded-full ${d.obligatoire ? 'bg-red-500' : 'bg-gray-400'}`}></span>
+                        <div>
+                          <div className="font-semibold text-gray-800">{d.type}</div>
+                          <div className="text-sm text-gray-600">{d.description}</div>
+                          {d.obligatoire && <div className="text-xs text-red-600">Obligatoire</div>}
+                        </div>
+                      </li>
+                    ))}
+                    {requiredDocs.length === 0 && (
+                      <li className="text-sm text-gray-600">Aucun élément</li>
+                    )}
+                  </ul>
                 </div>
               </div>
             </div>

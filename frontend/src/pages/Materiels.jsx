@@ -55,7 +55,6 @@ const Materiel = () => {
   // Charger les matériels depuis l'API
   useEffect(() => {
     const loadMateriels = async () => {
-      const loadingToast = showLoading("Chargement des matériels...");
       try {
         const token = localStorage.getItem('token');
         const res = await fetch('/api/materiels/', {
@@ -98,7 +97,6 @@ const Materiel = () => {
           };
         }));
         setMateriel(mapped);
-        updateLoading(loadingToast, `${mapped.length} matériels chargés`, "success");
         showFetchSuccess();
       } catch (e) {
         updateLoading(loadingToast, "Erreur lors du chargement", "error");

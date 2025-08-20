@@ -20,7 +20,7 @@ def list_appels_offre(db: Session = Depends(get_db)):
 
 @router.get("/{ao_id}", response_model=AppelOffreRead)
 def get_appel_offre(ao_id: int, db: Session = Depends(get_db)):
-    obj = db.query(AppelOffre).get(ao_id)
+    obj = db.get(AppelOffre, ao_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AO introuvable")
     return obj
@@ -37,7 +37,7 @@ def create_appel_offre(payload: AppelOffreCreate, db: Session = Depends(get_db))
 
 @router.put("/{ao_id}", response_model=AppelOffreRead)
 def update_appel_offre(ao_id: int, payload: AppelOffreUpdate, db: Session = Depends(get_db)):
-    obj = db.query(AppelOffre).get(ao_id)
+    obj = db.get(AppelOffre, ao_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AO introuvable")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -49,7 +49,7 @@ def update_appel_offre(ao_id: int, payload: AppelOffreUpdate, db: Session = Depe
 
 @router.delete("/{ao_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_appel_offre(ao_id: int, db: Session = Depends(get_db)):
-    obj = db.query(AppelOffre).get(ao_id)
+    obj = db.get(AppelOffre, ao_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AO introuvable")
     db.delete(obj)
@@ -70,10 +70,10 @@ def list_documents_for_ao(ao_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{ao_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 def attach_document_to_ao(ao_id: int, document_id: int, db: Session = Depends(get_db)):
-    ao = db.query(AppelOffre).get(ao_id)
+    ao = db.get(AppelOffre, ao_id)
     if not ao:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AO introuvable")
-    doc = db.query(Document).get(document_id)
+    doc = db.get(Document, document_id)
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable")
     if doc not in ao.documents:
@@ -84,10 +84,10 @@ def attach_document_to_ao(ao_id: int, document_id: int, db: Session = Depends(ge
 
 @router.delete("/{ao_id}/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 def detach_document_from_ao(ao_id: int, document_id: int, db: Session = Depends(get_db)):
-    ao = db.query(AppelOffre).get(ao_id)
+    ao = db.get(AppelOffre, ao_id)
     if not ao:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="AO introuvable")
-    doc = db.query(Document).get(document_id)
+    doc = db.get(Document, document_id)
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable")
     if doc in ao.documents:

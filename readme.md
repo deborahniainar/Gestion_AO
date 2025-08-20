@@ -82,13 +82,18 @@ Gestion_AO/
 │   │   ├── core/                  # Config globale (config, security, logging)
 │   │   ├── crud/                  # Fonctions CRUD (à compléter)
 │   │   ├── db/                    # Base models + session SQLAlchemy
+│   │   ├── schemas/              
 │   │   ├── services/              # PDF/NLP/Doc generation/Notifications
+│   │   ├── sql/                   
 │   │   ├── tasks/                 # Celery (optionnel)
 │   │   ├── main.py                # Entrée FastAPI
 │   │   └── dependencies.py        # Dépendances (auth, DB, etc.)
-│   ├── requirements.txt
-│   ├── create_user.py             # Script création utilisateur par défaut
-│   └── Dockerfile
+│   ├── files
+│   ├── venv
+│   ├── alembic.ini
+│   ├── dev.db
+│   ├── Dockerfile          
+│   └── requirements.txt
 │
 ├── frontend/                      # Frontend React + Vite (JavaScript)
 │   ├── public/
@@ -145,7 +150,6 @@ Gestion_AO/
 
 Depuis la racine du projet:
 
-### Linux/macOS
 ```bash
 # Backend (Python)
 python -m pip install --upgrade pip
@@ -156,19 +160,6 @@ cd frontend
 npm ci
 cd ..
 ```
-
-### Windows (PowerShell/CMD)
-```powershell
-# Backend (Python)
-python -m pip install --upgrade pip
-pip install -r backend\requirements.txt
-
-# Frontend (Node.js)
-cd frontend
-npm ci
-cd ..
-```
-
 Variables d'environnement (fichier `.env` à la racine):
 
 ```env
@@ -189,27 +180,11 @@ VITE_APP_NAME=Gestion AO
 
 ### 1. Initialisation de la base de données
 
-#### Linux/macOS
 ```bash
 cd backend
 export PYTHONPATH="$(pwd)"
 python -c "from app.db.base import Base; from app.db.session import engine; Base.metadata.create_all(bind=engine); print('Tables créées (si non existantes).')"
 ```
-
-#### Windows (PowerShell)
-```powershell
-cd backend
-$env:PYTHONPATH = "$(Get-Location)"
-python -c "from app.db.base import Base; from app.db.session import engine; Base.metadata.create_all(bind=engine); print('Tables créées (si non existantes).')"
-```
-
-#### Windows (CMD)
-```cmd
-cd backend
-set PYTHONPATH=%cd%
-python -c "from app.db.base import Base; from app.db.session import engine; Base.metadata.create_all(bind=engine); print('Tables créées (si non existantes).')"
-```
-
 ### 2. Création de l'utilisateur par défaut
 
 
@@ -218,37 +193,15 @@ python -c "from app.db.base import Base; from app.db.session import engine; Base
 
 #### Backend (FastAPI)
 
-**Linux/macOS:**
 ```bash
 cd backend
 export PYTHONPATH="$(pwd)"
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Windows (PowerShell):**
-```powershell
-cd backend
-$env:PYTHONPATH = "$(Get-Location)"
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-**Windows (CMD):**
-```cmd
-cd backend
-set PYTHONPATH=%cd%
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
 #### Frontend (React + Vite)
 
-**Linux/macOS:**
 ```bash
-cd frontend
-npm run dev
-```
-
-**Windows:**
-```powershell
 cd frontend
 npm run dev
 ```
@@ -257,9 +210,5 @@ Le frontend sera accessible sur `http://localhost:5173` (port par défaut de Vit
 
 ### Docker (optionnel)
 ```bash
-# Linux/macOS
 docker compose up --build
-
-# Windows
-docker-compose up --build
 ```

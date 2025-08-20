@@ -20,7 +20,7 @@ def list_soumission_details(db: Session = Depends(get_db)):
 
 @router.get("/{detail_id}", response_model=SoumissionDetailRead)
 def get_soumission_detail(detail_id: int, db: Session = Depends(get_db)):
-    obj = db.query(SoumissionDetail).get(detail_id)
+    obj = db.get(SoumissionDetail, detail_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Détail introuvable")
     return obj
@@ -37,7 +37,7 @@ def create_soumission_detail(payload: SoumissionDetailCreate, db: Session = Depe
 
 @router.put("/{detail_id}", response_model=SoumissionDetailRead)
 def update_soumission_detail(detail_id: int, payload: SoumissionDetailUpdate, db: Session = Depends(get_db)):
-    obj = db.query(SoumissionDetail).get(detail_id)
+    obj = db.get(SoumissionDetail, detail_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Détail introuvable")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -49,7 +49,7 @@ def update_soumission_detail(detail_id: int, payload: SoumissionDetailUpdate, db
 
 @router.delete("/{detail_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_soumission_detail(detail_id: int, db: Session = Depends(get_db)):
-    obj = db.query(SoumissionDetail).get(detail_id)
+    obj = db.get(SoumissionDetail, detail_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Détail introuvable")
     db.delete(obj)

@@ -18,11 +18,8 @@ def hash_password(plain_password: str) -> str:
     return password_context.hash(plain_password)
 
 
-def verify_password(plain_password: str, hashed_or_plain_password: str) -> bool:
-    # Support both hashed and legacy plain-text passwords
-    if hashed_or_plain_password.startswith("$2b$") or hashed_or_plain_password.startswith("$2a$"):
-        return password_context.verify(plain_password, hashed_or_plain_password)
-    return plain_password == hashed_or_plain_password
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return password_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(subject: str | int, expires_delta: Optional[timedelta] = None, extra_claims: Optional[dict[str, Any]] = None) -> str:

@@ -21,7 +21,7 @@ def list_personnels(db: Session = Depends(get_db)):
 
 @router.get("/{personnel_id}", response_model=PersonnelRead)
 def get_personnel(personnel_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Personnel).get(personnel_id)
+    obj = db.get(Personnel, personnel_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personnel introuvable")
     return obj
@@ -102,7 +102,7 @@ def create_personnel_with_files(
 
 @router.put("/{personnel_id}", response_model=PersonnelRead)
 def update_personnel(personnel_id: int, payload: PersonnelUpdate, db: Session = Depends(get_db)):
-    obj = db.query(Personnel).get(personnel_id)
+    obj = db.get(Personnel, personnel_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personnel introuvable")
     for key, value in payload.model_dump(exclude_unset=True).items():
@@ -114,7 +114,7 @@ def update_personnel(personnel_id: int, payload: PersonnelUpdate, db: Session = 
 
 @router.delete("/{personnel_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_personnel(personnel_id: int, db: Session = Depends(get_db)):
-    obj = db.query(Personnel).get(personnel_id)
+    obj = db.get(Personnel, personnel_id)
     if not obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Personnel introuvable")
     upload_root = os.path.join(os.getcwd(), "files", "uploads", "personnels")
