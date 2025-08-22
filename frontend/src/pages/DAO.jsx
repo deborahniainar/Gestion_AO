@@ -15,10 +15,6 @@ import { apiWithNotifications } from "../services/api";
 import { useDao } from "../contexts/DaoContext";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import Image1 from "../assets/Image1.png";
-import Image2 from "../assets/Image2.png";
-import Image3 from "../assets/Image3.png";
-import Image4 from "../assets/Image4.png";
 
 export default function GestionDAO() {
   const {
@@ -191,24 +187,14 @@ export default function GestionDAO() {
   };
 
   return (
-    <div className="flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out">
-      <Sidebar />
+    <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
+      <Sidebar />   
 
-      <main className="flex-1 p-4 lg:ml-64 ml-16">
-        {/* Header */}
-        <header className="flex justify-between items-center px-6 py-4 bg-muted border-b border-muted-50 rounded-lg mb-6 shadow-md">
+      <main className='flex-1 p-4 lg:ml-64 ml-16'>
+        <header className="flex justify-between items-center px-6 py-6 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
           <h5 className="text-xl font-bold text-secondary m-0">
             Gestion des documents d'Appel d'Offre
           </h5>
-
-          <div className="flex gap-3">
-            <button className="p-2 text-primary hover:text-accent transition-colors duration-200">
-              <CloudDownload className="h-10 w-10" />
-            </button>
-            <button className="p-2 text-primary hover:text-accent transition-colors duration-200">
-              <Help className="h-8 w-8" />
-            </button>
-          </div>
         </header>
 
         {/* Progress Bar + Step Indicator */}
@@ -236,9 +222,6 @@ export default function GestionDAO() {
         {/* Section 1: Upload */}
         <div className="bg-muted rounded-lg">
           <div className="flex">
-            <div className="flex-1 text-center">
-              <img src={Image1} alt="Upload du DAO" className="w-full h-full object-cover rounded-l-lg" />
-            </div>
 
             <div className="flex-1 p-6">
               <h3 className="font-bold text-2xl text-primary mb-4">Upload du DAO</h3>
@@ -275,9 +258,6 @@ export default function GestionDAO() {
         {uploadConfirmed && file && (
           <div className="rounded-lg">
             <div className="flex">
-              <div className="flex-1 text-center">
-                <img src={Image2} alt="Extraction du fichier" className="w-full h-full object-cover rounded-l-lg" />
-              </div>
 
               <div className="flex-1 p-6">
                 <div>
@@ -317,9 +297,6 @@ export default function GestionDAO() {
         {keywordsSubmitted && (
           <div className="bg-muted rounded-lg">
             <div className="flex">
-              <div className="flex-1 text-center">
-                <img src={Image3} alt="Résumé du fichier" className="w-full h-full object-cover rounded-l-lg" />
-              </div>
 
               <div className="flex-1 p-6">
                 <div>
@@ -336,7 +313,7 @@ export default function GestionDAO() {
                     ) : (
                       <div className="prose prose-sm max-w-none text-gray-800">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
-{summary}
+                          {summary}
                         </ReactMarkdown>
                       </div>
                     )}
@@ -396,9 +373,6 @@ export default function GestionDAO() {
         {showList && (
           <div className="bg-gray-200 rounded-lg">
             <div className="flex">
-              <div className="flex-1 text-center">
-                <img src={Image4} alt="Liste documents" className="w-full h-full object-cover rounded-l-lg" />
-              </div>
 
               <div className="flex-1 p-6">
                 <div>

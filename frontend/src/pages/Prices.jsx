@@ -13,10 +13,6 @@ import {
 const Prices = () => {
   const { showSuccess, showError, showInfo, showWarning } = useNotifications();
 
-  const handleDownload = () => {
-    showInfo("Téléchargement des prix de référence");
-  };
-
   const handleHelp = () => {
     showInfo("Aide sur la gestion des prix");
   };
@@ -27,24 +23,10 @@ const Prices = () => {
       <main className='flex-1 p-4 lg:ml-64 ml-16'>
         
         {/* Header */}
-        <header className="flex justify-between items-center px-6 py-4 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
+        <header className="flex justify-between items-center px-6 py-6 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
             <h5 className="text-xl font-bold text-secondary m-0">
             Gestion des Prix
           </h5>
-          <div className="flex gap-3">
-            <button 
-              className="p-2 text-primary hover:text-accent transition-colors duration-200"
-              onClick={handleDownload}
-            >
-              <CloudDownload className="h-10 w-10" />
-            </button>
-            <button 
-              className="p-2 text-primary hover:text-accent transition-colors duration-200"
-              onClick={handleHelp}
-            >
-              <Help className="h-8 w-8" />
-            </button>
-          </div>
         </header>
 
         {/* Section de démonstration des notifications */}

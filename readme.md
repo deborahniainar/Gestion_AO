@@ -66,7 +66,7 @@ Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d
 | Docs admin       | Archivage, alertes de validité, accès rapide                          |
 | Soumission       | Lettre, fiche, bordereau, validation, export                          |
 | Dashboard        | Vue globale, historique AO, taux de succès                            |
-| Authentification | Login, JWT, protection des routes                                    |
+| Authentification | Login, JWT, protection des routes                                     |
 
 ---
 
@@ -207,8 +207,3 @@ npm run dev
 ```
 
 Le frontend sera accessible sur `http://localhost:5173` (port par défaut de Vite).
-
-### Docker (optionnel)
-```bash
-docker compose up --build
-```
