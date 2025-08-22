@@ -562,19 +562,10 @@ const Materiel = () => {
         <Sidebar />   
         <main className='flex-1 p-4 lg:ml-64 ml-16'>
             {/* Header */}
-            <header className="flex justify-between items-center px-6 py-4 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
+            <header className="flex justify-between items-center px-6 py-6 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
                 <h5 className="text-xl font-bold text-secondary m-0">
                     Gestion des Materiels
                 </h5>
-
-                <div className="flex gap-3">
-                    <button className="p-2 text-primary dark:text-muted hover:text-accent dark:hover:text-surface-dark transition-colors duration-200">
-                        <CloudDownload className="h-10 w-10" />
-                    </button>
-                    <button className="p-2 text-primary dark:text-muted hover:text-accent dark:hover:text-surface-dark transition-colors duration-200">
-                        <Help className="h-8 w-8" />
-                    </button>
-                </div>
             </header>
 
             {/* Tableau des Materiels */}
