@@ -10,4 +10,8 @@ VALUES (
   CURRENT_TIMESTAMP
 );
 
+-- Ajouter les champs original_name et original_filename
+ALTER TABLE documents ADD COLUMN original_name VARCHAR(255);  
+ALTER TABLE documents ADD COLUMN original_filename VARCHAR(255);
+
 
