@@ -187,6 +187,8 @@ class Document(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     type = Column(String(100), nullable=False)
     filename = Column(String(100), nullable=False)
+    original_name = Column(String(255), nullable=True)  # Nom donné par l'utilisateur
+    original_filename = Column(String(255), nullable=True)  # Nom original du fichier uploadé
     expire_at = Column(Date, nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
     soumissions = relationship("Soumission", secondary=soumission_documents, back_populates="documents")

@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict
 class DocumentBase(BaseModel):
     type: str
     filename: str
+    original_name: Optional[str] = None
+    original_filename: Optional[str] = None
     expire_at: Optional[date] = None
 
 
@@ -17,6 +19,8 @@ class DocumentCreate(DocumentBase):
 class DocumentUpdate(BaseModel):
     type: Optional[str] = None
     filename: Optional[str] = None
+    original_name: Optional[str] = None
+    original_filename: Optional[str] = None
     expire_at: Optional[date] = None
 
 
