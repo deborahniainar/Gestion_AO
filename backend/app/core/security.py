@@ -4,7 +4,7 @@ from typing import Any, Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-from .config import JWT_SECRET
+from .config import settings
 
 
 ALGORITHM = "HS256"
@@ -29,13 +29,13 @@ def create_access_token(subject: str | int, expires_delta: Optional[timedelta] =
     to_encode: dict[str, Any] = {"sub": str(subject), "exp": expire}
     if extra_claims:
         to_encode.update(extra_claims)
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=ALGORITHM)
     return encoded_jwt
 
 
 def decode_access_token(token: str) -> Optional[dict[str, Any]]:
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[ALGORITHM])
         return payload
     except JWTError:
         return None

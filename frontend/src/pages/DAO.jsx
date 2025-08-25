@@ -1,20 +1,25 @@
 import { useState } from "react";
 import { jsPDF } from "jspdf";
 import {
-  CloudDownload,
   Help,
   CloudUpload,
   ChecklistOutlined,
   Edit,
   Download,
-  Check
+  Check,
+  Settings,
+  AutoAwesome,
+  Psychology,
+  Search
 } from "@mui/icons-material";
 import Sidebar from "../components/Sidebar";
 import useNotifications from "../hooks/useNotifications";
 import { apiWithNotifications } from "../services/api";
 import { useDao } from "../contexts/DaoContext";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Editor } from "@tinymce/tinymce-react";
+
+// Get TinyMCE API key from environment variables
+const TINYMCE_API_KEY = import.meta.env.VITE_TINYMCE_API_KEY;
 
 export default function GestionDAO() {
   const {
@@ -30,6 +35,9 @@ export default function GestionDAO() {
     resetDaoProcess,
   } = useDao();
   const [uploadError, setUploadError] = useState("");
+  const [extractionMode, setExtractionMode] = useState("smart");
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionProgress, setExtractionProgress] = useState(0);
 
   const { 
     showSuccess, 
@@ -84,15 +92,10 @@ export default function GestionDAO() {
   const handleEditInWord = async (e) => {
     if (e?.preventDefault) e.preventDefault();
     if (!daoDocId) return;
-    const resp = await apiWithNotifications.post("/dao/generate_docx", {
-      document_id: daoDocId,
-      content_markdown: summary, // votre table markdown
-    });
-    const path = resp.data.file_path;
-    // Navigation SPA pour éviter un reload qui purge potentiellement l'état
-    const q = new URLSearchParams({ path, title: "DAO.docx" }).toString();
-    window.history.pushState({}, "", `/word-editor?${q}`);
-    window.dispatchEvent(new PopStateEvent("popstate"));
+    
+    // For TinyMCE, we'll just allow editing in place
+    setEditingSummary(true);
+    showInfo("Vous pouvez maintenant éditer le résumé directement");
   };
 
   const currentStep = getCurrentStep();
@@ -106,23 +109,84 @@ export default function GestionDAO() {
   ];
 
   const handleSubmitKeywords = async () => {
-    if (!keywords.trim()) {
-      showWarning("Veuillez saisir des mots-clés");
-      return;
-    }
     if (!daoDocId) {
       showError("Aucun document DAO téléversé");
       return;
     }
+
+    // Validation des mots-clés pour les modes qui les nécessitent
+    if ((extractionMode === "keywords" || extractionMode === "structured") && !keywords.trim()) {
+      showError("Les mots-clés sont obligatoires pour ce mode d'extraction");
+      return;
+    }
+
+    setIsExtracting(true);
+    setExtractionProgress(0);
+
+    // Simulation de progression
+    const progressInterval = setInterval(() => {
+      setExtractionProgress(prev => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 200);
+
     try {
       const { data } = await apiWithNotifications.post("/dao/extract_summary", {
         document_id: daoDocId,
-        keywords,
+        keywords: keywords.trim() || undefined,
+        extraction_mode: extractionMode,
       });
-      setSummary((data.table_markdown && data.table_markdown.trim()) ? data.table_markdown : (data.summary || ""));
+
+      clearInterval(progressInterval);
+      setExtractionProgress(100);
+
+      // Debug logging
+      console.log("API response data:", data);
+      
+      // Utiliser le tableau markdown si disponible, sinon le résumé
+      const content = (data.table_markdown && data.table_markdown.trim())
+        ? data.table_markdown
+        : (data.summary || "");
+
+      // Vérifier si le contenu est vide
+      if (!content.trim()) {
+        console.log("No content generated from extraction");
+        showError("L'extraction n'a pas pu générer de contenu. Veuillez vérifier le document ou réessayer.");
+        setKeywordsSubmitted(false);
+        return;
+      }
+
+      console.log("Setting summary content:", content);
+      setSummary(content);
       setKeywordsSubmitted(true);
-      showSuccess("Résumé généré");
-    } catch {}
+
+      // Message de succès selon le mode
+      const modeMessages = {
+        "smart": "Résumé intelligent généré avec succès",
+        "structured": "Informations structurées extraites avec succès",
+        "keywords": "Extraction basée sur les mots-clés terminée"
+      };
+      showSuccess(modeMessages[extractionMode] || "Résumé généré");
+
+      // Afficher des informations sur l'extraction
+      if (data.text_length) {
+        showInfo(`Document traité : ${data.text_length} caractères extraits`);
+      }
+
+    } catch (error) {
+      clearInterval(progressInterval);
+      setExtractionProgress(0);
+      setKeywordsSubmitted(false);
+      console.error("Error during extraction:", error);
+      showError("Erreur lors de l'extraction du résumé. Veuillez vérifier le document ou réessayer.");
+    } finally {
+      setIsExtracting(false);
+      setTimeout(() => setExtractionProgress(0), 1000);
+    }
   };
 
   const handleShowList = async () => {
@@ -149,11 +213,11 @@ export default function GestionDAO() {
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(20);
-      doc.setTextColor(92, 114, 132); // #5C7284
+      doc.setTextColor(92, 114, 132);
       doc.text("Résumé du DAO", margin, 60);
 
       doc.setFontSize(12);
-      doc.setTextColor(60, 68, 83); // #3c4453
+      doc.setTextColor(60, 68, 83);
       const lines = doc.splitTextToSize(summary || "", maxWidth);
       doc.text(lines, margin, 100, { maxWidth });
 
@@ -186,6 +250,15 @@ export default function GestionDAO() {
     } catch {}
   };
 
+  const getExtractionModeDescription = (mode) => {
+    const descriptions = {
+      "smart": "Utilise ChatGPT pour une summarization intelligente du document",
+      "structured": "Extraction structurée avec ChatGPT + mots-clés obligatoires",
+      "keywords": "Extraction ciblée basée sur les mots-clés saisis (obligatoire)"
+    };
+    return descriptions[mode] || "";
+  };
+
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
       <Sidebar />   
@@ -198,31 +271,41 @@ export default function GestionDAO() {
         </header>
 
         {/* Progress Bar + Step Indicator */}
-        <div className="mb-6">
-          <div className="mb-4 relative">
-            <div className="h-5 w-full bg-muted rounded-full overflow-hidden">
+        <div className="mb-6 flex">
+          <div className="mr-6 relative">
+            <div className="w-5 h-64 bg-muted rounded-full overflow-hidden">
               <div
-                className="h-full bg-primary rounded-full transition-all duration-300 ease-in-out"
-                style={{ width: `${progressPercent}%` }}
+                className="w-full bg-primary rounded-full transition-all duration-300 ease-in-out"
+                style={{ height: `${progressPercent}%` }}
               />
             </div>
-            
           </div>
 
-          <div className="flex items-center">
-            <div className="flex items-center justify-center w-8 h-8 bg-gray-600 rounded-full text-secondary-50 font-bold text-base mr-3">
-              {currentStep}
-            </div>
-            <span className="font-semibold text-secondary-50 text-base">
-              {stepLabels[currentStep - 1]}
-            </span>
+          <div className="flex flex-col justify-between h-64">
+            {stepLabels.map((label, index) => (
+              <div key={index} className="flex items-center">
+                <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-base mr-3 ${
+                  index + 1 <= currentStep 
+                    ? 'bg-primary text-main' 
+                    : 'bg-gray-400 text-gray-600'
+                }`}>
+                  {index + 1}
+                </div>
+                <span className={`font-semibold text-base ${
+                  index + 1 <= currentStep 
+                    ? 'text-primary' 
+                    : 'text-gray-500'
+                }`}>
+                  {label}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Section 1: Upload */}
-        <div className="bg-muted rounded-lg">
+        <div className="bg-muted rounded-lg mb-6">
           <div className="flex">
-
             <div className="flex-1 p-6">
               <h3 className="font-bold text-2xl text-primary mb-4">Upload du DAO</h3>
 
@@ -256,37 +339,101 @@ export default function GestionDAO() {
 
         {/* Section 2: Extraction */}
         {uploadConfirmed && file && (
-          <div className="rounded-lg">
+          <div className="bg-muted rounded-lg mb-6">
             <div className="flex">
-
               <div className="flex-1 p-6">
                 <div>
                   <h3 className="font-bold text-xl text-secondary mb-4">
                     Extraction du fichier {file?.name || ""}
                   </h3>
 
-                  <p className="text-gray-600 mb-4 text-sm">
-                    Entrez des mots clés pour une meilleur résumé
-                  </p>
-
+                  {/* Mode d'extraction */}
                   <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mode d'extraction
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {[
+                        { value: "smart", icon: AutoAwesome, label: "Intelligent", color: "bg-blue-500" },
+                        { value: "structured", icon: Settings, label: "Structuré", color: "bg-green-500" },
+                        { value: "keywords", icon: Search, label: "Mots-clés", color: "bg-purple-500" }
+                      ].map((mode) => (
+                        <button
+                          key={mode.value}
+                          onClick={() => setExtractionMode(mode.value)}
+                          className={`p-3 rounded-lg border-2 transition-all duration-200 ${
+                            extractionMode === mode.value
+                              ? `${mode.color} text-white border-transparent`
+                              : 'bg-white border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <mode.icon className="h-6 w-6 mx-auto mb-2" />
+                          <div className="font-medium">{mode.label}</div>
+                          <div className="text-xs opacity-75">
+                            {getExtractionModeDescription(mode.value)}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Mots-clés */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mots-clés{" "}
+                      {extractionMode === "keywords" || extractionMode === "structured" ? "(obligatoire)" : "(optionnel)"}
+                      <span className="text-xs text-gray-500 ml-2">
+                        Séparez par des virgules pour l'extraction ciblée
+                      </span>
+                    </label>
                     <textarea
                       className="w-full p-4 bg-gray-100 border-none rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-secondary"
-                      rows="6"
+                      rows="4"
                       value={keywords}
                       onChange={(e) => setKeywords(e.target.value)}
-                      placeholder="Ex: date limite, blabla"
+                      placeholder="Ex: date limite, garantie, montant, lots, exigences techniques..."
                     />
                   </div>
 
+                  {/* Bouton d'extraction avec progression */}
                   <div className="text-right">
                     <button
-                      className="px-6 py-2 bg-secondary text-main font-semibold rounded-lg hover:bg-secondary-50 transition-colors duration-200 shadow-md"
+                      className={`px-6 py-3 font-semibold rounded-lg transition-colors duration-200 shadow-md ${
+                        isExtracting
+                          ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                          : 'bg-secondary text-main hover:bg-secondary-50'
+                      }`}
                       onClick={handleSubmitKeywords}
+                      disabled={isExtracting}
                     >
-                      Soumettre
+                      {isExtracting ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Extraction en cours...
+                        </div>
+                      ) : (
+                        <>
+                          <Psychology className="h-5 w-5 mr-2" />
+                          Extraire le résumé
+                        </>
+                      )}
                     </button>
                   </div>
+
+                  {/* Barre de progression */}
+                  {isExtracting && (
+                    <div className="mt-4">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-secondary h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${extractionProgress}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-2 text-center">
+                        {extractionProgress}% - Traitement en cours...
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -295,28 +442,56 @@ export default function GestionDAO() {
 
         {/* Section 3: Résumé */}
         {keywordsSubmitted && (
-          <div className="bg-muted rounded-lg">
+          <div className="bg-muted rounded-lg mb-6">
             <div className="flex">
-
               <div className="flex-1 p-6">
                 <div>
                   <h3 className="font-bold text-xl text-primary mb-4">Résumé du DAO</h3>
 
                   <div className="bg-gray-100 rounded-2xl min-h-64 p-5 relative">
                     {editingSummary ? (
-                      <textarea
-                        className="w-full h-full bg-transparent border-none resize-none p-0 text-gray-800 text-sm focus:outline-none"
-                        rows="6"
-                        value={summary}
-                        onChange={(e) => setSummary(e.target.value)}
-                      />
-                    ) : (
-                      <div className="prose prose-sm max-w-none text-gray-800">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {summary}
-                        </ReactMarkdown>
-                      </div>
-                    )}
+                                          <Editor
+                                            apiKey={TINYMCE_API_KEY}
+                                            value={summary}
+                                            onEditorChange={(content) => setSummary(content)}
+                                            init={{
+                                              height: 500,
+                                              menubar: false,
+                                              plugins: [
+                                                'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                                                'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                                                'insertdatetime', 'media', 'table', 'help', 'wordcount'
+                                              ],
+                                              toolbar: 'undo redo | blocks | ' +
+                                                'bold italic forecolor | alignleft aligncenter ' +
+                                                'alignright alignjustify | bullist numlist outdent indent | ' +
+                                                'removeformat | help',
+                                              content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
+                                              promotion: false, // Disable promotion messages
+                                              branding: false    // Disable branding
+                                            }}
+                                          />
+                                        ) : (
+                                          <Editor
+                                            apiKey={TINYMCE_API_KEY}
+                                            value={summary}
+                                            init={{
+                                              height: 500,
+                                              menubar: false,
+                                              plugins: [
+                                                'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+                                                'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+                                                'insertdatetime', 'media', 'table', 'help', 'wordcount'
+                                              ],
+                                              toolbar: false, // Disable toolbar for read-only mode
+                                              content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
+                                              promotion: false, // Disable promotion messages
+                                              branding: false,   // Disable branding
+                                              readonly: 1,       // Set readonly mode
+                                              toolbar_mode: 'sliding'
+                                            }}
+                                          />
+                                        )}
 
                     <div className="absolute right-4 bottom-3 flex items-center gap-3 text-gray-800">
                       <button className="p-0 hover:text-secondary-50 transition-colors duration-200" title="Mettre en forme">
@@ -337,7 +512,7 @@ export default function GestionDAO() {
                       ) : (
                         <button
                           className="p-0 hover:text-secondary-50 transition-colors duration-200"
-                          title="Éditer dans Word"
+                          title="Éditer"
                           onClick={handleEditInWord}
                         >
                           <Edit className="h-5 w-5" />
@@ -373,7 +548,6 @@ export default function GestionDAO() {
         {showList && (
           <div className="bg-gray-200 rounded-lg">
             <div className="flex">
-
               <div className="flex-1 p-6">
                 <div>
                   <h3 className="font-bold text-xl text-secondary">
@@ -399,6 +573,17 @@ export default function GestionDAO() {
             </div>
           </div>
         )}
+
+        {/* Bouton Aide flottant */}
+        <button
+          className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+          onClick={() => {
+            alert("Aide / Guide utilisateur en cours de développement !");
+          }}
+        >
+          <Help style={{ fontSize: '4rem' }} />
+        </button>
+
       </main>
     </div>
   );
