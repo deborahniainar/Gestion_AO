@@ -1,24 +1,37 @@
 import os
 from pydantic_settings import BaseSettings
 
-APP_NAME = os.getenv("APP_NAME", "Gestion AO")
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@db:5432/postgres")
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
-JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
-
-ONLYOFFICE_URL = os.getenv("ONLYOFFICE_URL", "http://localhost:8082")
-PUBLIC_ONLYOFFICE_URL = os.getenv("PUBLIC_ONLYOFFICE_URL", ONLYOFFICE_URL)
-ONLYOFFICE_JWT = os.getenv("ONLYOFFICE_JWT", JWT_SECRET)
-INTERNAL_BACKEND_URL = os.getenv("INTERNAL_BACKEND_URL", "http://localhost:8000")
-
-# OpenAI / LLM configuration
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
-
 class Settings(BaseSettings):
-    # Base de données SQLite
+    # Application settings
+    APP_NAME: str = "Gestion AO"
+    DATABASE_URL: str = "postgresql://postgres:postgres@db:5432/postgres"
+    REDIS_URL: str = "redis://redis:6379/0"
+    JWT_SECRET: str = "change-me"
+    
+    # OnlyOffice settings
+    ONLYOFFICE_URL: str = "http://localhost:8082"
+    PUBLIC_ONLYOFFICE_URL: str = ""
+    ONLYOFFICE_JWT: str = ""
+    INTERNAL_BACKEND_URL: str = "http://localhost:8000"
+    
+    # OpenAI / LLM configuration
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_BASE_URL: str = "OPENAI_API_KEY=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"
+    
+    # Database settings
     DATABASE_URL: str = "sqlite:///./dev.db"
+    
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
 settings = Settings()
+
+# Set default values for URLs that depend on other settings
+if not settings.PUBLIC_ONLYOFFICE_URL:
+    settings.PUBLIC_ONLYOFFICE_URL = settings.ONLYOFFICE_URL
+    
+if not settings.ONLYOFFICE_JWT:
+    settings.ONLYOFFICE_JWT = settings.JWT_SECRET
 

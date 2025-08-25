@@ -1,7 +1,7 @@
 import os
 import uuid
 import shutil
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from pydantic import BaseModel
@@ -10,53 +10,70 @@ from sqlalchemy.orm import Session
 
 from ..db.session import get_db
 from ..db.models import Document
-from ..services.nlp_processing import summarize as llm_summarize
+from ..services.nlp_processing import summarize as llm_summarize, extract_structured_info, generate_markdown_table, extract_key_phrases
 
 from fastapi import Request
 from jose import jwt
-from ..core.config import ONLYOFFICE_URL, ONLYOFFICE_JWT, INTERNAL_BACKEND_URL
+from ..core.config import settings
 import time, json, requests
+import re
 
 router = APIRouter(prefix="/dao", tags=["DAO"])
 
 class ExtractSummaryRequest(BaseModel):
     document_id: int
     keywords: Optional[str] = None
+    extraction_mode: Optional[str] = "smart"  # "smart", "structured", "keywords"
 
 class GenerateDocxRequest(BaseModel):
     document_id: int
     content_markdown: str | None = None
 
-class OnlyOfficeConfigRequest(BaseModel):
-    file_path: str
-    title: str | None = None
+class RequiredDocumentsResponse(BaseModel):
+    documents: List[Dict[str, Any]]
 
 @router.post("/upload")
 def upload_dao(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    if file is None or not file.filename:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Aucun fichier fourni")
+    """Upload a DAO document (PDF or DOCX)"""
+    if not file.filename:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Nom de fichier manquant")
 
-    allowed_exts = {".pdf", ".docx"}
-    _, ext = os.path.splitext(file.filename)
-    if ext.lower() not in allowed_exts:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Formats autorisés: .pdf, .docx")
+    # Validation des extensions
+    allowed_exts = [".pdf", ".docx"]
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    if file_ext not in allowed_exts:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Format non supporté. Formats autorisés: {', '.join(allowed_exts)}"
+        )
 
-    upload_root = os.path.join(os.getcwd(), "files", "uploads", "dao")
-    os.makedirs(upload_root, exist_ok=True)
+    # Génération d'un nom unique
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    upload_dir = os.path.join(os.getcwd(), "files", "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    file_path = os.path.join(upload_dir, unique_filename)
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de l'enregistrement: {str(e)}"
+        )
 
-    safe_name = f"{uuid.uuid4().hex}{ext.lower()}"
-    dest_path = os.path.join(upload_root, safe_name)
-
-    file.file.seek(0)
-    with open(dest_path, "wb") as out:
-        shutil.copyfileobj(file.file, out)
-
-    doc = Document(type="dao", filename=os.path.join("dao", safe_name))
+    # Enregistrement en base
+    doc = Document(
+        type="dao",  # Type requis par le modèle
+        filename=unique_filename
+    )
     db.add(doc)
     db.commit()
     db.refresh(doc)
 
     return {
+        "message": "Document téléversé avec succès",
         "document_id": doc.id,
         "filename": doc.filename,
         "url": f"/uploads/{doc.filename}",
@@ -65,6 +82,8 @@ def upload_dao(file: UploadFile = File(...), db: Session = Depends(get_db)):
 
 @router.post("/extract_summary")
 def extract_summary(payload: ExtractSummaryRequest, db: Session = Depends(get_db)):
+    """Extract summary and structured information from DAO document"""
+    print(f"Extracting summary for document ID: {payload.document_id}")
     doc = db.get(Document, payload.document_id)
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable")
@@ -73,337 +92,285 @@ def extract_summary(payload: ExtractSummaryRequest, db: Session = Depends(get_db
     if not os.path.exists(full_path):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fichier non trouvé sur le serveur")
 
-    text = ""
-    try:
-        if doc.filename.lower().endswith(".pdf"):
-            import fitz  # PyMuPDF
+    # Extraction du texte selon le mode demandé
+    # Déterminer le type de fichier à partir de l'extension
+    file_ext = os.path.splitext(doc.filename)[1].lower()
+    file_type = file_ext[1:] if file_ext else "pdf"  # Retirer le point, défaut pdf
+    text = extract_text_from_file(full_path, file_type)
+    print(f"Extracted text length: {len(text) if text else 0}")
+    
+    if not text:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Impossible d'extraire le texte du document"
+        )
 
-            with fitz.open(full_path) as pdf:
-                # Parcourir TOUTES les pages du PDF
+    # Initialiser les variables
+    extracted_info = {}
+    table_markdown = ""
+    summary = ""
+    
+    # Traitement selon le mode d'extraction
+    if payload.extraction_mode == "structured":
+        # Extraction structurée complète - les mots-clés sont obligatoires
+        if not payload.keywords:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Les mots-clés sont obligatoires pour le mode structuré"
+            )
+        keywords_list = [k.strip() for k in payload.keywords.split(",") if k.strip()]
+        if not keywords_list:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Les mots-clés sont obligatoires pour le mode structuré"
+            )
+        
+        # Extraction structurée avec ChatGPT
+        extracted_info = extract_structured_info(text)
+        table_markdown = generate_markdown_table(extracted_info)
+        
+        # Extraction basée sur les mots-clés
+        key_phrases = extract_key_phrases(text, keywords_list)
+        keywords_summary = "\n\n".join([f"**{k}:** {p}" for k, p in zip(keywords_list, key_phrases)])
+        
+        # Combiner les deux extractions
+        summary = f"# Extraction Structurée\n\n{table_markdown}\n\n# Extraction par Mots-clés\n\n{keywords_summary}"
+        table_markdown = ""
+        
+    elif payload.extraction_mode == "keywords":
+        # Extraction basée sur les mots-clés - les mots-clés sont obligatoires
+        if not payload.keywords:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Les mots-clés sont obligatoires pour le mode mots-clés"
+            )
+        keywords_list = [k.strip() for k in payload.keywords.split(",") if k.strip()]
+        if not keywords_list:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Les mots-clés sont obligatoires pour le mode mots-clés"
+            )
+            
+        # Extraction basée sur les mots-clés
+        key_phrases = extract_key_phrases(text, keywords_list)
+        summary = "\n\n".join([f"**{k}:** {p}" for k, p in zip(keywords_list, key_phrases)])
+        table_markdown = ""
+        
+    else:
+        # Mode smart (par défaut) - utiliser ChatGPT uniquement pour la summarization
+        summary = llm_summarize(text)
+        table_markdown = ""
+        extracted_info = {}
+
+    # Print debug information
+    print(f"Generated summary length: {len(summary)}")
+    print(f"Generated table_markdown length: {len(table_markdown)}")
+    
+    return {
+        "summary": summary,
+        "table_markdown": table_markdown,
+        "extraction_mode": payload.extraction_mode,
+        "text_length": len(text),
+        "extracted_info": extracted_info if payload.extraction_mode == "structured" else None
+    }
+
+
+def extract_text_from_file(file_path: str, file_type: str) -> str:
+    """Extract text from PDF or DOCX file with improved error handling"""
+    text = ""
+    
+    try:
+        if file_type.lower() == "pdf":
+            import fitz  # PyMuPDF
+            
+            with fitz.open(file_path) as pdf:
+                # Extraction de toutes les pages
                 for i in range(pdf.page_count):
                     page = pdf.load_page(i)
-                    text += page.get_text()
-
-            # Fallback OCR si très peu de texte (PDF scanné)
-            if len(text.strip()) < 500:
-                try:
-                    import pytesseract  # type: ignore
-                    from PIL import Image  # type: ignore
-
-                    ocr_text = []
-                    with fitz.open(full_path) as pdf:
-                        for i in range(pdf.page_count):
-                            page = pdf.load_page(i)
-                            pix = page.get_pixmap(dpi=200)
-                            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                            ocr_text.append(pytesseract.image_to_string(img, lang="fra+eng"))
-                    text = "\n".join(ocr_text)
-                except Exception:
-                    pass
-        else:
-            # .docx: lecture basique si python-docx dispo, sinon stub
+                    page_text = page.get_text()
+                    text += page_text + "\n"
+                
+                # Vérification de la qualité du texte extrait
+                if len(text.strip()) < 500:
+                    # Tentative OCR si peu de texte (PDF scanné)
+                    try:
+                        import pytesseract
+                        from PIL import Image
+                        
+                        ocr_text = []
+                        with fitz.open(file_path) as pdf:
+                            for i in range(pdf.page_count):
+                                page = pdf.load_page(i)
+                                pix = page.get_pixmap(dpi=300)  # Augmentation de la résolution
+                                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                                ocr_text.append(pytesseract.image_to_string(img, lang="fra+eng"))
+                        
+                        text = "\n".join(ocr_text)
+                    except ImportError:
+                        print("Pytesseract non disponible pour l'OCR")
+                    except Exception as e:
+                        print(f"Erreur OCR: {e}")
+                        
+        elif file_type.lower() == "docx":
             try:
-                import docx  # type: ignore
-
-                d = docx.Document(full_path)
-                text = "\n".join(p.text for p in d.paragraphs)
-            except Exception:
-                text = ""
-    except Exception:
-        text = ""
-
-    summary = ""
-    if text:
-        trimmed = text.strip().replace("\r", " ")
-        # Essayer GPT d'abord si dispo
-        llm_summary = llm_summarize(trimmed)
-        if llm_summary:
-            summary = llm_summary
-
-        # Heuristique simple: si keywords fournis, privilégier les phrases contenant un mot-clé
-        if payload.keywords:
-            keys = [k.strip().lower() for k in payload.keywords.split(",") if k.strip()]
-            sentences = [s.strip() for s in trimmed.split(".") if s.strip()]
-            selected = [s for s in sentences if any(k in s.lower() for k in keys)]
-            if selected:
-                summary = ". ".join(selected[:6])
-        if not summary:
-            summary = (trimmed[:1200] + "…") if len(trimmed) > 1200 else trimmed
-    else:
-        summary = "Le présent Appel d'Offre concerne …"  # valeur par défaut si extraction impossible
-
-    # Construire un tableau markdown par rubriques
-    def normalize(s: str) -> str:
-        s = s.lower()
-        s = unicodedata.normalize('NFD', s)
-        s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
-        return s
-
-    # Catégories par défaut et synonymes
-    default_categories: Dict[str, List[str]] = {
-        "répartition": ["repartition", "repartition", "distribution"],
-        "lots": ["lot", "lots"],
-        "garanties": ["garantie", "garanties", "caution", "surete", "sûrete", "bid bond"],
-        "offres": ["offre", "offres", "proposition"],
-        "technique": ["technique", "techniques"],
-        "financière": ["financiere", "financière", "prix", "cout", "coût", "budget"],
-        "personnels": ["personnel", "ressources humaines", "rh"],
-        "materiels": ["materiel", "matériel", "equipement", "équipement"],
-        "dates clés": ["date", "echeance", "échéance", "deadline", "limite", "ouverture"],
-        "estimation": ["estimation", "estimatif", "quantitatif", "dqe", "devis"],
-        "coûts": ["cout", "coût", "couts", "coûts", "montant", "prix"],
-        "travaux": ["travaux", "chantier", "realisation", "réalisation", "execution", "exécution"],
-    }
-
-    # Déterminer les catégories à partir des mots-clés fournis ou utiliser les défauts
-    category_order: List[str]
-    if payload.keywords:
-        provided = [k.strip() for k in payload.keywords.split(",") if k.strip()]
-        category_order = provided
-        # compléter avec défauts si inconnu
-        for cat in provided:
-            key = normalize(cat)
-            if cat not in default_categories and key not in default_categories:
-                default_categories[cat] = [key]
-    else:
-        category_order = list(default_categories.keys())
-
-    # Indexation des phrases et lignes
-    raw_text = (text or "")
-    sentences_orig = [s.strip() for s in raw_text.replace("\n", " ").split(".") if s.strip()]
-    sentences_norm = [normalize(s) for s in sentences_orig]
-    lines_orig = [ln.strip() for ln in raw_text.splitlines() if ln.strip()]
-    lines_norm = [normalize(ln) for ln in lines_orig]
-
-    # Extracteurs dédiés par heuristiques simples
-    import re
-
-    def uniq_top(items, limit=5):
-        seen = set()
-        out = []
-        for it in items:
-            key = it.strip()
-            if not key:
-                continue
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append(key)
-            if len(out) >= limit:
-                break
-        return out
-
-    # Lots: lignes de type "Lot 1: ..." ou "LOT 2 - ..."
-    def extract_lots() -> list[str]:
-        pat = re.compile(r"\b(?:lot)\s*(\d+)\s*[:\-–]\s*(.+)", re.IGNORECASE)
-        matches = []
-        for ln in lines_orig:
-            m = pat.search(ln)
-            if m:
-                num, title = m.group(1), m.group(2)
-                matches.append(f"Lot {num}: {title.strip()}")
-        return uniq_top(matches, 8)
-
-    # Dates clés: lignes contenant un mot-clé de date + motif date
-    date_kw = ["date", "limite", "ouverture", "remise", "validite", "validité", "delai", "délai", "echeance", "échéance", "deadline"]
-    date_pat = re.compile(r"\b(\d{1,2}[\/.\- ](?:\d{1,2}|[A-Za-z]{3,})[\/.\- ]\d{2,4})\b")
-    def extract_dates() -> list[str]:
-        results = []
-        for ln, ln_norm in zip(lines_orig, lines_norm):
-            if any(kw in ln_norm for kw in date_kw):
-                found = date_pat.findall(ln)
-                if found:
-                    results.append(ln)
-        return uniq_top(results, 10)
-
-    # Montants/Pourcentages: garanties / coûts
-    amt_pat = re.compile(r"\b\d{1,3}(?:[ .]\d{3})*(?:,\d+)?\s*(?:MAD|DH|DHS|EUR|FCFA|DA)?\b", re.IGNORECASE)
-    pct_pat = re.compile(r"\b\d+(?:[.,]\d+)?\s*%\b")
-    def extract_garanties() -> list[str]:
-        kws = ["garantie", "garanties", "caution", "surete", "sûrete", "bid bond", "securite", "sécurité"]
-        out = []
-        for ln, ln_norm in zip(lines_orig, lines_norm):
-            if any(k in ln_norm for k in kws):
-                if amt_pat.search(ln) or pct_pat.search(ln):
-                    out.append(ln)
-        return uniq_top(out, 6)
-
-    def extract_costs() -> list[str]:
-        kws = ["cout", "coût", "montant", "prix", "budget", "total", "global"]
-        out = []
-        for ln, ln_norm in zip(lines_orig, lines_norm):
-            if any(k in ln_norm for k in kws):
-                if amt_pat.search(ln) or pct_pat.search(ln):
-                    out.append(ln)
-        return uniq_top(out, 8)
-
-    def extract_offre(section: str) -> list[str]:
-        # section: 'technique' ou 'financiere'
-        kw = normalize(section)
-        out = []
-        for ln, ln_norm in zip(lines_orig, lines_norm):
-            if f"offre {kw}" in ln_norm or kw in ln_norm:
-                out.append(ln)
-        return uniq_top(out, 8)
-
-    def extract_personnels() -> list[str]:
-        kws = ["personnel", "ingenieur", "ingénieur", "chef de projet", "technicien", "cv", "experience", "qualification"]
-        out = []
-        for ln, ln_norm in zip(lines_orig, lines_norm):
-            if any(normalize(k) in ln_norm for k in kws):
-                out.append(ln)
-        return uniq_top(out, 8)
-
-    def extract_materiels() -> list[str]:
-        kws = ["materiel", "matériel", "equipement", "équipement", "camion", "pelle", "grue", "betonniere", "bétonnière"]
-        out = []
-        for ln, ln_norm in zip(lines_orig, lines_norm):
-            if any(normalize(k) in ln_norm for k in kws):
-                out.append(ln)
-        return uniq_top(out, 8)
-
-    rows: List[str] = []
-    rows.append("| Rubrique | Extraits |")
-    rows.append("|---|---|")
-
-    for cat in category_order:
-        synonyms = default_categories.get(cat, default_categories.get(normalize(cat), [normalize(cat)]))
-        matches: List[str] = []
-        cat_norm = normalize(cat)
-        # Extracteurs spécialisés par catégorie
-        if cat_norm in {"lots", "lot"}:
-            matches = extract_lots()
-        elif cat_norm in {"dates cles", "dates clés", "date cles", "date clés", "dates", "date"}:
-            matches = extract_dates()
-        elif cat_norm in {"garanties", "garantie", "caution"}:
-            matches = extract_garanties()
-        elif cat_norm in {"couts", "coûts", "cout", "coût", "estimation"}:
-            matches = extract_costs()
-        elif cat_norm in {"technique"}:
-            matches = extract_offre("technique")
-        elif cat_norm in {"financiere", "financière"}:
-            matches = extract_offre("financiere")
-        elif cat_norm in {"personnels", "personnel"}:
-            matches = extract_personnels()
-        elif cat_norm in {"materiels", "materiel", "matériel"}:
-            matches = extract_materiels()
-
-        # Fallback générique si rien trouvé: phrases contenant les synonymes
-        if not matches:
-            for orig, norm in zip(sentences_orig, sentences_norm):
-                if any(term in norm for term in synonyms):
-                    matches.append(orig)
-                if len(matches) >= 5:
-                    break
-        if matches:
-            cell = " \\n".join(m.strip() for m in matches)
-        else:
-            cell = "—"
-        # Échapper les pipe '|' dans le contenu
-        cell = cell.replace("|", "\|")
-        rows.append(f"| {cat} | {cell} |")
-
-    table_markdown = "\n".join(rows)
-
-    return {"summary": summary, "table_markdown": table_markdown, "sections": rows}
+                import docx
+                
+                doc = docx.Document(file_path)
+                paragraphs = []
+                for p in doc.paragraphs:
+                    if p.text.strip():
+                        paragraphs.append(p.text.strip())
+                
+                # Extraction des tableaux
+                for table in doc.tables:
+                    for row in table.rows:
+                        row_text = []
+                        for cell in row.cells:
+                            if cell.text.strip():
+                                row_text.append(cell.text.strip())
+                        if row_text:
+                            paragraphs.append(" | ".join(row_text))
+                
+                text = "\n".join(paragraphs)
+                
+            except ImportError:
+                print("python-docx non disponible")
+            except Exception as e:
+                print(f"Erreur lecture DOCX: {e}")
+                
+    except Exception as e:
+        print(f"Erreur extraction texte: {e}")
+        return ""
     
-import docx as docxlib
+    # Nettoyage du texte
+    text = text.strip()
+    text = text.replace("\r", "\n")
+    text = re.sub(r'\n{3,}', '\n\n', text)  # Suppression des sauts de ligne multiples
+    
+    return text
 
-def _markdown_to_docx(content: str, out_path: str) -> None:
-    d = docxlib.Document()
-    if not content:
-        d.add_paragraph("Document vide")
-        d.save(out_path)
-        return
-    lines = content.splitlines()
-    table_rows = []
-    for ln in lines:
-        if ln.strip().startswith("|") and ln.strip().endswith("|"):
-            table_rows.append([c.strip() for c in ln.strip().strip("|").split("|")])
-        else:
-            if table_rows:
-                cols = max(len(r) for r in table_rows)
-                t = d.add_table(rows=len(table_rows), cols=cols)
-                t.style = "Table Grid"
-                for i, row in enumerate(table_rows):
-                    for j, cell in enumerate(row):
-                        t.cell(i, j).text = cell
-                table_rows = []
-            d.add_paragraph(ln)
-    if table_rows:
-        cols = max(len(r) for r in table_rows)
-        t = d.add_table(rows=len(table_rows), cols=cols)
-        t.style = "Table Grid"
-        for i, row in enumerate(table_rows):
-            for j, cell in enumerate(row):
-                t.cell(i, j).text = cell
-    d.save(out_path)
-
-@router.post("/generate_docx")
-def generate_docx(payload: GenerateDocxRequest, db: Session = Depends(get_db)):
-    doc_obj = db.get(Document, payload.document_id)
-    if not doc_obj:
-        raise HTTPException(status_code=404, detail="Document introuvable")
-    out_dir = os.path.join(os.getcwd(), "files", "uploads", "dao", "generated")
-    os.makedirs(out_dir, exist_ok=True)
-    out_name = f"{uuid.uuid4().hex}.docx"
-    out_path = os.path.join(out_dir, out_name)
-    _markdown_to_docx(payload.content_markdown or "", out_path)
-    rel_path = os.path.join("dao", "generated", out_name)
-    return {"file_path": rel_path, "url": f"/uploads/{rel_path}"}
-
-@router.post("/onlyoffice/config")
-def onlyoffice_config(payload: OnlyOfficeConfigRequest):
-    file_url = f"{INTERNAL_BACKEND_URL}/uploads/{payload.file_path}"
-    key = f"{payload.file_path}:{int(time.time())}"
-    config = {
-        "document": {
-            "fileType": "docx",
-            "key": key,
-            "title": payload.title or "document.docx",
-            "url": file_url,
-        },
-        "editorConfig": {
-            "callbackUrl": f"{INTERNAL_BACKEND_URL}/dao/onlyoffice/callback?path={payload.file_path}",
-            "lang": "fr",
-            "mode": "edit",
-            "customization": {"autosave": True, "forcesave": True}
-        }
-    }
-    token = jwt.encode(config, ONLYOFFICE_JWT, algorithm="HS256")
-    return {"docServerUrl": ONLYOFFICE_URL, "config": config, "token": token}
-
-@router.post("/onlyoffice/callback")
-async def onlyoffice_callback(request: Request, path: str):
-    data = await request.json()
-    status_code = data.get("status")
-    if status_code in (2, 6):  # saved/force-saved
-        url = data.get("url")
-        if not url:
-            return {"error": "no url"}
-        r = requests.get(url, timeout=30)
-        r.raise_for_status()
-        abs_path = os.path.join(os.getcwd(), "files", "uploads", path)
-        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-        with open(abs_path, "wb") as f:
-            f.write(r.content)
-        return {"result": "saved"}
-    return {"result": "ignored", "status": status_code}
 
 @router.get("/{document_id}/required_documents")
-def required_documents(document_id: int, db: Session = Depends(get_db)):
+def get_required_documents(document_id: int, db: Session = Depends(get_db)):
+    """Get list of required documents for a DAO"""
     doc = db.get(Document, document_id)
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable")
-
-    # Stub: liste générique; à spécialiser après extraction réelle
-    docs = [
-        {"type": "Lettre de soumission", "obligatoire": True, "description": "Modèle signé et cacheté"},
-        {"type": "Garantie de soumission", "obligatoire": True, "description": "Conforme au DAO"},
-        {"type": "Attestation CNSS", "obligatoire": True, "description": "Valide"},
-        {"type": "Attestation fiscale", "obligatoire": True, "description": "Valide"},
-        {"type": "Références similaires", "obligatoire": False, "description": "3 projets récents"},
+    
+    # Simulation de documents requis (à remplacer par une vraie logique métier)
+    required_docs = [
+        {
+            "type": "Lettre de soumission",
+            "description": "Lettre de candidature signée avec engagement",
+            "obligatoire": True
+        },
+        {
+            "type": "Attestation d'assurance",
+            "description": "Attestation d'assurance décennale et responsabilité civile",
+            "obligatoire": True
+        },
+        {
+            "type": "Attestation de qualification",
+            "description": "Attestation de qualification professionnelle",
+            "obligatoire": True
+        },
+        {
+            "type": "Références techniques",
+            "description": "Liste des références techniques similaires (3 dernières années)",
+            "obligatoire": False
+        },
+        {
+            "type": "Organisation du chantier",
+            "description": "Plan d'organisation du chantier et planning prévisionnel",
+            "obligatoire": False
+        }
     ]
-    return docs
+    
+    return required_docs
+
+
+@router.post("/generate_docx")
+def generate_docx(payload: GenerateDocxRequest, db: Session = Depends(get_db)):
+    """Generate DOCX file from markdown content"""
+    doc = db.get(Document, payload.document_id)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable")
+    
+    if not payload.content_markdown:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Contenu markdown requis")
+    
+    try:
+        # Génération du fichier DOCX
+        output_filename = f"dao_{doc.id}_{int(time.time())}.docx"
+        output_path = os.path.join(os.getcwd(), "files", "generated", output_filename)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        _markdown_to_docx(payload.content_markdown, output_path)
+        
+        return {
+            "message": "Document DOCX généré avec succès",
+            "file_path": output_path,
+            "filename": output_filename
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erreur lors de la génération: {str(e)}"
+        )
+
+
+def _markdown_to_docx(content: str, out_path: str) -> None:
+    """Convert markdown content to DOCX file"""
+    try:
+        import docx
+        from docx.shared import Inches
+        
+        doc = docx.Document()
+        
+        # Titre principal
+        title = doc.add_heading("Résumé du DAO", 0)
+        title.alignment = 1  # Centré
+        
+        # Ajout du contenu markdown
+        lines = content.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            if line.startswith('#'):
+                # Titres
+                level = line.count('#')
+                if level <= 6:
+                    doc.add_heading(line.lstrip('#').strip(), level)
+            elif line.startswith('|'):
+                # Tableaux markdown
+                if '|' in line and line.count('|') > 1:
+                    cells = [cell.strip() for cell in line.split('|')[1:-1]]
+                    if len(cells) > 1:
+                        table = doc.add_table(rows=1, cols=len(cells))
+                        table.style = 'Table Grid'
+                        for i, cell_text in enumerate(cells):
+                            table.cell(0, i).text = cell_text
+            elif line.startswith('- ') or line.startswith('* '):
+                # Listes à puces
+                doc.add_paragraph(line[2:], style='List Bullet')
+            elif line.startswith('1. '):
+                # Listes numérotées
+                doc.add_paragraph(line[3:], style='List Number')
+            else:
+                # Paragraphe normal
+                doc.add_paragraph(line)
+        
+        doc.save(out_path)
+        
+    except ImportError:
+        raise Exception("python-docx non disponible")
+    except Exception as e:
+        raise Exception(f"Erreur conversion DOCX: {str(e)}")
+
+
+# Removed OnlyOffice integration as we're now using TinyMCE
 
 
