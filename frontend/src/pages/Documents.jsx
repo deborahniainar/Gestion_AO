@@ -1,6 +1,8 @@
-import React, { useRef, useState, useEffect } from 'react'
+import React, { useRef, useState, useEffect, useCallback } from 'react'
 import Sidebar from '../components/Sidebar'
+import ConfirmModal from '../components/ConfirmModal'
 import useNotifications from '../hooks/useNotifications'
+import { documentsAPI } from '../services/api'
 import {
   CloudDownload,
   Help,
@@ -15,9 +17,10 @@ const Documents = () => {
   const [previewDoc, setPreviewDoc] = useState(null);
   const [editingDoc, setEditingDoc] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', expiry: '' });
-  const [editReplaceFile, setEditReplaceFile] = useState(null);
+
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [addForm, setAddForm] = useState({ name: '', expiry: '', file: null });
+  const [confirmDelete, setConfirmDelete] = useState({ open: false, doc: null });
   const addFileRef = useRef(null);
 
   const { 
@@ -52,7 +55,7 @@ const Documents = () => {
     }
   };
 
-  const handleCreateDocument = (e) => {
+  const handleCreateDocument = async (e) => {
     e.preventDefault();
     if (!addForm.file || !addForm.name.trim()) {
       showError("Veuillez remplir tous les champs obligatoires");
@@ -62,31 +65,29 @@ const Documents = () => {
     const loadingToast = showLoading("Création du document en cours...");
     
     try {
-      const ext = (addForm.file.name.split('.').pop() || '').toLowerCase();
-      const base = addForm.file.name.replace(new RegExp(`\\.${ext}$`), '');
-      const url = URL.createObjectURL(addForm.file);
-      const newDoc = {
-        id: `${Date.now()}`,
-        name: addForm.name.trim(),
-        originalName: base,
-        types: ext,
-        file: addForm.file,
-        url,
-        expiry: addForm.expiry || '',
-        addedAt: new Date().toISOString(),
-      };
+      const formData = new FormData();
+      formData.append('file', addForm.file);
+      formData.append('name', addForm.name.trim());
+      if (addForm.expiry) {
+        formData.append('expiry', addForm.expiry);
+      }
+      const response = await documentsAPI.create(formData);
+      const newDoc = response.data;
+      
       setDocuments((prev) => [newDoc, ...prev]);
+      
       closeAdd();
       updateLoading(loadingToast, "Document créé avec succès", "success");
       showCreateSuccess();
     } catch (error) {
+      console.error('Erreur lors de la création du document:', error);
       updateLoading(loadingToast, "Erreur lors de la création", "error");
-      showError("Erreur lors de la création du document");
+      showError(error.response?.data?.detail || "Erreur lors de la création du document");
     }
   };
 
-  const handleDownload = (doc) => {
-    if (!doc?.url) {
+  const handleDownload = async (doc) => {
+    if (!doc?.id) {
       showError("Document non disponible");
       return;
     }
@@ -94,17 +95,25 @@ const Documents = () => {
     const loadingToast = showLoading("Téléchargement en cours...");
     
     try {
+      const response = await documentsAPI.download(doc.id);
+      
+      // Créer un blob et un lien de téléchargement
+      const blob = new Blob([response.data]);
+      const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = doc.url;
-      a.download = doc.name;
+      a.href = url;
+      a.download = doc.original_name || doc.original_filename || `document_${doc.id}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
       updateLoading(loadingToast, "Téléchargement réussi", "success");
       showDownloadSuccess();
     } catch (error) {
+      console.error('Erreur lors du téléchargement:', error);
       updateLoading(loadingToast, "Erreur lors du téléchargement", "error");
-      showError("Erreur lors du téléchargement");
+      showError(error.response?.data?.detail || "Erreur lors du téléchargement");
     }
   };
 
@@ -115,25 +124,57 @@ const Documents = () => {
       return;
     }
     
-    showWarning(`Êtes-vous sûr de vouloir supprimer "${doc.name}" ?`);
-    
-    setDocuments((prev) => {
-      const toRemove = prev.find((d) => d.id === docId);
-      if (toRemove?.url?.startsWith('blob:')) URL.revokeObjectURL(toRemove.url);
-      return prev.filter((d) => d.id !== docId);
+    // Ouvrir le modal de confirmation
+    setConfirmDelete({ 
+      open: true, 
+      doc: doc 
     });
+  };
+
+  const confirmDeleteDocument = async () => {
+    if (!confirmDelete.doc) return;
     
-    showDeleteSuccess();
+    const loadingToast = showLoading("Suppression en cours...");
+    
+    try {
+      await documentsAPI.delete(confirmDelete.doc.id);
+      setDocuments((prev) => prev.filter((d) => d.id !== confirmDelete.doc.id));
+      
+      updateLoading(loadingToast, "Document supprimé avec succès", "success");
+      showDeleteSuccess();
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      updateLoading(loadingToast, "Erreur lors de la suppression", "error");
+      showError(error.response?.data?.detail || "Erreur lors de la suppression du document");
+    }
+    
+    // Fermer le modal
+    setConfirmDelete({ open: false, doc: null });
+  };
+
+  const cancelDelete = () => {
+    setConfirmDelete({ open: false, doc: null });
+  };
+
+  // Fonction utilitaire pour générer le message de confirmation
+  const getDeleteMessage = (doc) => {
+    const docName = doc?.original_name || doc?.original_filename;
+    return docName 
+      ? `Êtes-vous sûr de vouloir supprimer définitivement le document "${docName}" ?`
+      : 'Êtes-vous sûr de vouloir supprimer définitivement ce document ?';
   };
 
   const handleOpenEdit = (doc) => {
     setEditingDoc(doc);
-    setEditForm({ name: doc.name, expiry: doc.expiry || '' });
-    setEditReplaceFile(null);
-    showInfo(`Édition de "${doc.name}"`);
+    setEditForm({ 
+      name: doc.original_name || doc.original_filename || '', 
+      expiry: doc.expire_at || '' 
+    });
+
+    showInfo(`Édition de "${doc.original_name || doc.original_filename || 'ce document'}"`);
   };
 
-  const handleSaveEdit = (e) => {
+  const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!editingDoc) {
       showError("Aucun document en cours d'édition");
@@ -148,30 +189,27 @@ const Documents = () => {
     const loadingToast = showLoading("Mise à jour en cours...");
     
     try {
-      setDocuments((prev) => prev.map((d) => {
-        if (d.id !== editingDoc.id) return d;
-        let updated = { ...d, name: editForm.name, expiry: editForm.expiry };
-        if (editReplaceFile) {
-          if (updated.url?.startsWith('blob:')) URL.revokeObjectURL(updated.url);
-          const ext = (editReplaceFile.name.split('.').pop() || '').toLowerCase();
-          const base = editReplaceFile.name.replace(new RegExp(`\\.${ext}$`), '');
-          updated = {
-            ...updated,
-            file: editReplaceFile,
-            url: URL.createObjectURL(editReplaceFile),
-            types: ext,
-            originalName: base,
-          };
-        }
-        return updated;
-      }));
+      const updateData = {
+        original_name: editForm.name.trim(),
+        expire_at: editForm.expiry || null
+      };
+
+      const response = await documentsAPI.update(editingDoc.id, updateData);
+      const updatedDoc = response.data;
+      
+      // Mettre à jour la liste locale
+      setDocuments((prev) => prev.map((d) => 
+        d.id === editingDoc.id ? updatedDoc : d
+      ));
+      
       setEditingDoc(null);
-      setEditReplaceFile(null);
+  
       updateLoading(loadingToast, "Document mis à jour avec succès", "success");
       showUpdateSuccess();
     } catch (error) {
+      console.error('Erreur lors de la mise à jour:', error);
       updateLoading(loadingToast, "Erreur lors de la mise à jour", "error");
-      showError("Erreur lors de la mise à jour du document");
+      showError(error.response?.data?.detail || "Erreur lors de la mise à jour du document");
     }
   };
 
@@ -181,21 +219,37 @@ const Documents = () => {
   const handleOpenFilePicker = () => openAdd();
   const fileAccept = '.pdf,.doc,.docx,.png,.jpg,.jpeg';
 
+  const loadDocuments = useCallback(async () => {
+    try {
+      const response = await documentsAPI.getAll();
+      setDocuments(response.data || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des documents:', error);
+      showError("Erreur lors du chargement des documents");
+    }
+  }, [showError]);
+
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
+
   // ✅ Hook pour vérifier les expirations
   useEffect(() => {
+    if (documents.length === 0) return; // Pas de documents à vérifier
+
     const checkExpirations = () => {
       const today = new Date();
       documents.forEach(doc => {
-        if (doc.expiry) {
-          const expiryDate = new Date(doc.expiry);
+        if (doc.expire_at) {
+          const expiryDate = new Date(doc.expire_at);
           const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
           
           if (diffDays < 0) {
             // Document déjà expiré
-            showError(`Le document "${doc.name}" est expiré depuis ${-diffDays} jour(s)`);
+            showError(`Le document "${doc.original_name || doc.original_filename || 'sans nom'}" est expiré depuis ${-diffDays} jour(s)`);
           } else if (diffDays <= 7) {
-            // Document proche de l’expiration
-            showWarning(`Le document "${doc.name}" expirera dans ${diffDays} jour(s)`);
+            // Document proche de l'expiration
+            showWarning(`Le document "${doc.original_name || doc.original_filename || 'sans nom'}" expirera dans ${diffDays} jour(s)`);
           }
         }
       });
@@ -208,7 +262,7 @@ const Documents = () => {
     const interval = setInterval(checkExpirations, 24 * 60 * 60 * 1000);
 
     return () => clearInterval(interval);
-  }, [documents, showWarning, showInfo]);
+  }, [documents, showWarning, showError]);
 
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
@@ -223,8 +277,8 @@ const Documents = () => {
 
         {/* Liste des documents */}
         {documents.map((doc) => {
-          const isExpired = doc.expiry && new Date(doc.expiry) < new Date();
-          const isNearExpiry = doc.expiry && new Date(doc.expiry) - new Date() <= 24*24*60*60*1000 && !isExpired;
+          const isExpired = doc.expire_at && new Date(doc.expire_at) < new Date();
+          const isNearExpiry = doc.expire_at && new Date(doc.expire_at) - new Date() <= 7*24*60*60*1000 && !isExpired;
 
           return (
             <div key={doc.id} className={`relative bg-white dark:bg-muted rounded-lg shadow-md p-4 flex justify-between items-center mb-4 group
@@ -235,8 +289,8 @@ const Documents = () => {
                   <Description className="text-primary w-8 h-8" />
                 </button>
                 <div>
-                  <h6 className="font-bold text-secondary m-0">{doc.name}</h6>
-                  <p className="text-sm text-gray-500 m-0">{doc.originalName ? `${doc.originalName}.${doc.types}` : `${doc.name}`}</p>
+                  <h6 className="font-bold text-secondary m-0">{doc.original_name || doc.original_filename || 'Document sans nom'}</h6>
+                  <p className="text-sm text-gray-500 m-0">{doc.original_filename || doc.filename}</p>
                 </div>
               </div>
 
@@ -254,7 +308,7 @@ const Documents = () => {
                   </button>
                 </div>
                 <p className="text-sm text-gray-500 mt-1">
-                  {doc.expiry ? `Expiré le: ${doc.expiry}` : 'Pas de date d’expiration'}
+                  {doc.expire_at ? `Expire le: ${new Date(doc.expire_at).toLocaleDateString('fr-FR')}` : 'Pas de date d\'expiration'}
                 </p>
               </div>
             </div>
@@ -303,21 +357,23 @@ const Documents = () => {
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={closePreview}>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white m-0">Aperçu — {previewDoc.name}</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white m-0">Aperçu — {previewDoc.original_name || previewDoc.original_filename || 'Document sans nom'}</h3>
                 <button onClick={closePreview} className="px-3 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700">Fermer</button>
               </div>
               <div className="p-4 max-h-[80vh] overflow-auto">
-                {['png','jpg','jpeg'].includes((previewDoc.types||'').toLowerCase()) && (
-                  <img src={previewDoc.url} alt={previewDoc.name} className="max-w-full h-auto mx-auto" />
-                )}
-                {previewDoc.types === 'pdf' && (
-                  <iframe title="aperçu-pdf" src={previewDoc.url} className="w-full h-[70vh]" />
-                )}
-                {!['png','jpg','jpeg','pdf'].includes((previewDoc.types||'').toLowerCase()) && (
-                  <div className="text-center text-gray-600 dark:text-gray-300">
-                    Aperçu non disponible pour ce type de fichier. Veuillez le télécharger.
-                  </div>
-                )}
+                <div className="text-center text-gray-600 dark:text-gray-300">
+                  <p>Aperçu non disponible dans cette version.</p>
+                  <p>Cliquez sur le bouton de téléchargement pour consulter le document.</p>
+                  <button 
+                    onClick={() => {
+                      handleDownload(previewDoc);
+                      closePreview();
+                    }}
+                    className="mt-4 px-4 py-2 bg-primary text-white rounded hover:opacity-90"
+                  >
+                    Télécharger le document
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -347,6 +403,16 @@ const Documents = () => {
             </div>
           </div>
         )}
+        <ConfirmModal
+          open={confirmDelete.open}
+          title="Supprimer le document"
+          message={getDeleteMessage(confirmDelete.doc)}
+          confirmLabel="Supprimer"
+          cancelLabel="Annuler"
+          destructive={true}
+          onConfirm={confirmDeleteDocument}
+          onCancel={cancelDelete}
+        />
       </main> 
     </div>
   )

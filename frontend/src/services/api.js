@@ -123,4 +123,18 @@ export const apiWithNotifications = {
   }
 }
 
+export const documentsAPI = {
+  getAll: () => api.get('/documents/'),
+  create: (formData) => api.post('/documents/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  }),
+  update: (id, data) => api.put(`/documents/${id}`, data),
+  delete: (id) => api.delete(`/documents/${id}`),
+  download: (id) => api.get(`/documents/download/${id}`, {
+    responseType: 'blob',
+  }),
+}
+
 export default api
