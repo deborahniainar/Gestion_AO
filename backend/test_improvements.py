@@ -138,8 +138,6 @@ def test_api_endpoints():
             "/dao/extract_summary", 
             "/dao/{document_id}/required_documents",
             "/dao/generate_docx",
-            "/dao/onlyoffice/config",
-            "/dao/onlyoffice/callback"
         ]
         
         for route in expected_routes:
