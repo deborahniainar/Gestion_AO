@@ -138,3 +138,13 @@ export const documentsAPI = {
 }
 
 export default api
+
+export const soumissionsWorkspacesAPI = {
+  listLots: (appelOffre) => api.get(`/soumissions/workspaces/`, { params: { appel_offre: appelOffre || 'default' } }),
+  getWorkspace: (lot, appelOffre, opts = {}) => api.get(`/soumissions/workspaces/${encodeURIComponent(lot)}`, { params: { appel_offre: appelOffre || 'default', create_if_missing: !!opts.createIfMissing } }),
+  saveWorkspace: (lot, data, appelOffre) => api.put(`/soumissions/workspaces/${encodeURIComponent(lot)}`, data, { params: { appel_offre: appelOffre || 'default' } }),
+  deleteWorkspace: (lot, appelOffre) => api.delete(`/soumissions/workspaces/${encodeURIComponent(lot)}`, { params: { appel_offre: appelOffre || 'default' } }),
+  getSubtask: (lot, subId, appelOffre) => api.get(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}`, { params: { appel_offre: appelOffre || 'default' } }),
+  saveSubtask: (lot, subId, data, appelOffre) => api.put(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}`, data, { params: { appel_offre: appelOffre || 'default' } }),
+  exportFinished: (lot, appelOffre) => api.post(`/soumissions/workspaces/${encodeURIComponent(lot)}/export_finished`, null, { params: { appel_offre: appelOffre || 'default' }, responseType: 'blob' }),
+}

@@ -13,8 +13,6 @@ from ..db.models import Document
 from ..services.nlp_processing import summarize as llm_summarize
 
 from fastapi import Request
-from jose import jwt
-from ..core.config import ONLYOFFICE_URL, ONLYOFFICE_JWT, INTERNAL_BACKEND_URL
 import time, json, requests
 
 router = APIRouter(prefix="/dao", tags=["DAO"])
@@ -352,43 +350,10 @@ def generate_docx(payload: GenerateDocxRequest, db: Session = Depends(get_db)):
     rel_path = os.path.join("dao", "generated", out_name)
     return {"file_path": rel_path, "url": f"/uploads/{rel_path}"}
 
-@router.post("/onlyoffice/config")
-def onlyoffice_config(payload: OnlyOfficeConfigRequest):
-    file_url = f"{INTERNAL_BACKEND_URL}/uploads/{payload.file_path}"
-    key = f"{payload.file_path}:{int(time.time())}"
-    config = {
-        "document": {
-            "fileType": "docx",
-            "key": key,
-            "title": payload.title or "document.docx",
-            "url": file_url,
-        },
-        "editorConfig": {
-            "callbackUrl": f"{INTERNAL_BACKEND_URL}/dao/onlyoffice/callback?path={payload.file_path}",
-            "lang": "fr",
-            "mode": "edit",
-            "customization": {"autosave": True, "forcesave": True}
-        }
-    }
-    token = jwt.encode(config, ONLYOFFICE_JWT, algorithm="HS256")
-    return {"docServerUrl": ONLYOFFICE_URL, "config": config, "token": token}
+# OnlyOffice integration removed. TinyMCE is used client-side; server keeps
+# only upload/generation endpoints.
 
-@router.post("/onlyoffice/callback")
-async def onlyoffice_callback(request: Request, path: str):
-    data = await request.json()
-    status_code = data.get("status")
-    if status_code in (2, 6):  # saved/force-saved
-        url = data.get("url")
-        if not url:
-            return {"error": "no url"}
-        r = requests.get(url, timeout=30)
-        r.raise_for_status()
-        abs_path = os.path.join(os.getcwd(), "files", "uploads", path)
-        os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-        with open(abs_path, "wb") as f:
-            f.write(r.content)
-        return {"result": "saved"}
-    return {"result": "ignored", "status": status_code}
+# OnlyOffice callback removed.
 
 @router.get("/{document_id}/required_documents")
 def required_documents(document_id: int, db: Session = Depends(get_db)):

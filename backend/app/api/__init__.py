@@ -13,6 +13,7 @@ from .soumission_details import router as soumission_details_router
 from .dashboard import router as dashboard_router
 from .auth import router as auth_router
 from .dao import router as dao_router
+from .soumission_workspaces import router as soumission_workspaces_router
 
 routers = [
     soumissions_router,
@@ -30,5 +31,6 @@ routers = [
     dashboard_router,
     auth_router,
     dao_router,
+    soumission_workspaces_router,
 ]
 
