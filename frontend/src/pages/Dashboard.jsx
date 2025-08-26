@@ -72,6 +72,15 @@ const Dashboard = () => {
             </button>
           </div>
         </div>
+        {/* Bouton Aide flottant */}
+        <button
+          className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+          onClick={() => {
+            alert("Aide / Guide utilisateur en cours de développement !");
+          }}
+        >
+          <Help style={{ fontSize: '4rem' }} />
+        </button>
       </main> 
     </div>
   )

@@ -42,7 +42,7 @@ Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d
 
 6) Préparation des soumissions
    - Création de soumissions liées à un AO
-   - Calcul des totaux
+   - Remplissage et créations des formulaire de soumission en ordre
    - Export de tous les documents en PDF/Word (prêts à imprimer/télécharger)
 
 7) Tableau de bord et historique

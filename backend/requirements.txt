@@ -20,3 +20,10 @@ passlib[bcrypt]
 requests
 Pillow
 openai>=1.37.0
+
+# Nouvelles dépendances pour l'extraction avancée
+nltk                     # Traitement du langage naturel
+python-dateutil          # Utilitaires pour les dates
+langdetect               # Détection de langue
+textblob                 # Analyse de sentiment et correction
+regex                    # Expressions régulières avancées
