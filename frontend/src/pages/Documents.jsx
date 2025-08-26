@@ -319,6 +319,7 @@ const Documents = () => {
         <div onClick={handleOpenFilePicker} className="border-2 border-dashed border-gray-400 rounded-lg p-10 flex justify-center items-center cursor-pointer hover:bg-muted transition">
           <Add className="h-20 w-20 text-primary dark:text-neutral-100" />
         </div>
+        
 
         {/* Modal Ajout */}
         {isAddOpen && (

@@ -11,6 +11,11 @@ import {
   AutoAwesome,
   Psychology,
   Search
+  Check,
+  Settings,
+  AutoAwesome,
+  Psychology,
+  Search
 } from "@mui/icons-material";
 import Sidebar from "../components/Sidebar";
 import useNotifications from "../hooks/useNotifications";
@@ -35,6 +40,9 @@ export default function GestionDAO() {
     resetDaoProcess,
   } = useDao();
   const [uploadError, setUploadError] = useState("");
+  const [extractionMode, setExtractionMode] = useState("smart");
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionProgress, setExtractionProgress] = useState(0);
   const [extractionMode, setExtractionMode] = useState("smart");
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState(0);
@@ -139,6 +147,8 @@ export default function GestionDAO() {
         document_id: daoDocId,
         keywords: keywords.trim() || undefined,
         extraction_mode: extractionMode,
+        keywords: keywords.trim() || undefined,
+        extraction_mode: extractionMode,
       });
 
       clearInterval(progressInterval);
@@ -214,9 +224,11 @@ export default function GestionDAO() {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(20);
       doc.setTextColor(92, 114, 132);
+      doc.setTextColor(92, 114, 132);
       doc.text("Résumé du DAO", margin, 60);
 
       doc.setFontSize(12);
+      doc.setTextColor(60, 68, 83);
       doc.setTextColor(60, 68, 83);
       const lines = doc.splitTextToSize(summary || "", maxWidth);
       doc.text(lines, margin, 100, { maxWidth });
@@ -274,7 +286,12 @@ export default function GestionDAO() {
         <div className="mb-6 flex">
           <div className="mr-6 relative">
             <div className="w-5 h-64 bg-muted rounded-full overflow-hidden">
+        <div className="mb-6 flex">
+          <div className="mr-6 relative">
+            <div className="w-5 h-64 bg-muted rounded-full overflow-hidden">
               <div
+                className="w-full bg-primary rounded-full transition-all duration-300 ease-in-out"
+                style={{ height: `${progressPercent}%` }}
                 className="w-full bg-primary rounded-full transition-all duration-300 ease-in-out"
                 style={{ height: `${progressPercent}%` }}
               />
@@ -300,10 +317,30 @@ export default function GestionDAO() {
                 </span>
               </div>
             ))}
+          <div className="flex flex-col justify-between h-64">
+            {stepLabels.map((label, index) => (
+              <div key={index} className="flex items-center">
+                <div className={`flex items-center justify-center w-8 h-8 rounded-full font-bold text-base mr-3 ${
+                  index + 1 <= currentStep 
+                    ? 'bg-primary text-main' 
+                    : 'bg-gray-400 text-gray-600'
+                }`}>
+                  {index + 1}
+                </div>
+                <span className={`font-semibold text-base ${
+                  index + 1 <= currentStep 
+                    ? 'text-primary' 
+                    : 'text-gray-500'
+                }`}>
+                  {label}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Section 1: Upload */}
+        <div className="bg-muted rounded-lg mb-6">
         <div className="bg-muted rounded-lg mb-6">
           <div className="flex">
             <div className="flex-1 p-6">
@@ -340,6 +377,7 @@ export default function GestionDAO() {
         {/* Section 2: Extraction */}
         {uploadConfirmed && file && (
           <div className="bg-muted rounded-lg mb-6">
+          <div className="bg-muted rounded-lg mb-6">
             <div className="flex">
               <div className="flex-1 p-6">
                 <div>
@@ -347,6 +385,37 @@ export default function GestionDAO() {
                     Extraction du fichier {file?.name || ""}
                   </h3>
 
+                  {/* Mode d'extraction */}
+                  <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Mode d'extraction
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {[
+                        { value: "smart", icon: AutoAwesome, label: "Intelligent", color: "bg-blue-500" },
+                        { value: "structured", icon: Settings, label: "Structuré", color: "bg-green-500" },
+                        { value: "keywords", icon: Search, label: "Mots-clés", color: "bg-purple-500" }
+                      ].map((mode) => (
+                        <button
+                          key={mode.value}
+                          onClick={() => setExtractionMode(mode.value)}
+                          className={`p-3 rounded-lg border-2 transition-all duration-200 ${
+                            extractionMode === mode.value
+                              ? `${mode.color} text-white border-transparent`
+                              : 'bg-white border-gray-300 hover:border-gray-400'
+                          }`}
+                        >
+                          <mode.icon className="h-6 w-6 mx-auto mb-2" />
+                          <div className="font-medium">{mode.label}</div>
+                          <div className="text-xs opacity-75">
+                            {getExtractionModeDescription(mode.value)}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Mots-clés */}
                   {/* Mode d'extraction */}
                   <div className="mb-6">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -389,12 +458,15 @@ export default function GestionDAO() {
                     <textarea
                       className="w-full p-4 bg-gray-100 border-none rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-secondary"
                       rows="4"
+                      rows="4"
                       value={keywords}
                       onChange={(e) => setKeywords(e.target.value)}
+                      placeholder="Ex: date limite, garantie, montant, lots, exigences techniques..."
                       placeholder="Ex: date limite, garantie, montant, lots, exigences techniques..."
                     />
                   </div>
 
+                  {/* Bouton d'extraction avec progression */}
                   {/* Bouton d'extraction avec progression */}
                   <div className="text-right">
                     <button
@@ -403,7 +475,25 @@ export default function GestionDAO() {
                           ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
                           : 'bg-secondary text-main hover:bg-secondary-50'
                       }`}
+                      className={`px-6 py-3 font-semibold rounded-lg transition-colors duration-200 shadow-md ${
+                        isExtracting
+                          ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                          : 'bg-secondary text-main hover:bg-secondary-50'
+                      }`}
                       onClick={handleSubmitKeywords}
+                      disabled={isExtracting}
+                    >
+                      {isExtracting ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Extraction en cours...
+                        </div>
+                      ) : (
+                        <>
+                          <Psychology className="h-5 w-5 mr-2" />
+                          Extraire le résumé
+                        </>
+                      )}
                       disabled={isExtracting}
                     >
                       {isExtracting ? (
@@ -434,6 +524,21 @@ export default function GestionDAO() {
                       </p>
                     </div>
                   )}
+
+                  {/* Barre de progression */}
+                  {isExtracting && (
+                    <div className="mt-4">
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-secondary h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${extractionProgress}%` }}
+                        ></div>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-2 text-center">
+                        {extractionProgress}% - Traitement en cours...
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -442,6 +547,7 @@ export default function GestionDAO() {
 
         {/* Section 3: Résumé */}
         {keywordsSubmitted && (
+          <div className="bg-muted rounded-lg mb-6">
           <div className="bg-muted rounded-lg mb-6">
             <div className="flex">
               <div className="flex-1 p-6">
@@ -573,6 +679,17 @@ export default function GestionDAO() {
             </div>
           </div>
         )}
+
+        {/* Bouton Aide flottant */}
+        <button
+          className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+          onClick={() => {
+            alert("Aide / Guide utilisateur en cours de développement !");
+          }}
+        >
+          <Help style={{ fontSize: '4rem' }} />
+        </button>
+
 
         {/* Bouton Aide flottant */}
         <button
