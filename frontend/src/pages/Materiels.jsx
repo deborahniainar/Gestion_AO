@@ -59,7 +59,6 @@ const Materiel = () => {
   } = useNotifications();
 
   const loadMateriels = useCallback(async (showToast = true) => {
-    const loadingToast = showToast ? showLoading("Chargement des matériels...") : null;
     try {
       const token = localStorage.getItem('token');
       const res = await fetch('/api/materiels/', {
@@ -104,7 +103,6 @@ const Materiel = () => {
       }));
       setMateriel(mapped);
       if (showToast && loadingToast) {
-        updateLoading(loadingToast, `${mapped.length} matériels chargés`, "success");
         showFetchSuccess();
       }
       return mapped;
@@ -960,6 +958,17 @@ const Materiel = () => {
                     </div>
                 </div>
             )}
+            
+            {/* Bouton Aide flottant */}
+          <button
+            className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+            onClick={() => {
+              alert("Aide / Guide utilisateur en cours de développement !");
+            }}
+          >
+            <Help style={{ fontSize: '4rem' }} />
+          </button>
+
         </main> 
         
         <ConfirmModal
