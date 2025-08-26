@@ -64,7 +64,6 @@ const Personnels = () => {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    const loadingToast = showLoading("Suppression en cours...");
     const loadPersonnels = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -169,7 +168,6 @@ const Personnels = () => {
   };
 
   const handleDeletePersonnel = async (id) => {
-    const loadingToast = showLoading("Suppression en cours...");
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/personnels/${id}`, {
@@ -962,6 +960,17 @@ const Personnels = () => {
                     </div>
                 </div>
             )}
+            
+            {/* Bouton Aide flottant */}
+          <button
+            className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+            onClick={() => {
+              alert("Aide / Guide utilisateur en cours de développement !");
+            }}
+          >
+            <Help style={{ fontSize: '4rem' }} />
+          </button>
+
         </main> 
         <ConfirmModal
           open={confirmOpen}
