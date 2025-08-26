@@ -163,22 +163,22 @@ def extract_text_from_file(file_path: str, file_type: str) -> str:
             if len(text.strip()) < 500:
                     # Tentative OCR si peu de texte (PDF scanné)
                 try:
-                        import pytesseract
-                        from PIL import Image
+                    import pytesseract
+                    from PIL import Image
 
                     ocr_text = []
-                        with fitz.open(file_path) as pdf:
+                    with fitz.open(file_path) as pdf:
                         for i in range(pdf.page_count):
                             page = pdf.load_page(i)
-                                pix = page.get_pixmap(dpi=300)  # Augmentation de la résolution
+                            pix = page.get_pixmap(dpi=300)  # Augmentation de la résolution
                             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                             ocr_text.append(pytesseract.image_to_string(img, lang="fra+eng"))
                         
                     text = "\n".join(ocr_text)
-                    except ImportError:
-                        print("Pytesseract non disponible pour l'OCR")
-                    except Exception as e:
-                        print(f"Erreur OCR: {e}")
+                except ImportError:
+                    print("Pytesseract non disponible pour l'OCR")
+                except Exception as e:
+                    print(f"Erreur OCR: {e}")
                         
         elif file_type.lower() == "docx":
             try:
