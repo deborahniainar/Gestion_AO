@@ -64,6 +64,7 @@ const Personnels = () => {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
+    const loadingToast = showLoading("Suppression en cours...");
     const loadPersonnels = async () => {
       try {
         const token = localStorage.getItem('token');
