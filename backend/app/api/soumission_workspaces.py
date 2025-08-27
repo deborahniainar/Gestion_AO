@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from typing import Any, Dict, List, Optional
 import os
@@ -6,6 +6,7 @@ import json
 import re
 import io
 from docx import Document as DocxDocument
+from ..core.config import settings
 
 
 router = APIRouter(prefix="/soumissions/workspaces", tags=["Soumissions - Workspaces"])
@@ -228,5 +229,24 @@ def get_subtask_docx(lot: str, sub_id: str, appel_offre: str = Query("default"))
         raise
     except Exception:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Génération DOCX échouée")
+
+
+@router.get("/{lot}/subtasks/{sub_id}/onlyoffice_url")
+def get_onlyoffice_url(lot: str, sub_id: str, request: Request, appel_offre: str = Query("default")) -> Dict[str, str]:
+    ds = settings.ONLYOFFICE_DS_URL or ""
+    if not ds:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ONLYOFFICE_DS_URL non configuré")
+    # For a basic embed via editor?fileUrl=... approach (public link). Real deployments should use config JSON + JWT.
+    from urllib.parse import quote, urlencode
+    lot_enc = quote(lot, safe="")
+    sub_enc = quote(sub_id, safe="")
+    query = urlencode({"appel_offre": appel_offre})
+    rel = f"/api/soumissions/workspaces/{lot_enc}/subtasks/{sub_enc}/docx?{query}"
+    # OnlyOffice DS often cannot reach the Vite dev server on 5173; point to the backend public URL
+    base = settings.BACKEND_PUBLIC_URL.rstrip('/') if settings.BACKEND_PUBLIC_URL else str(request.base_url).rstrip('/')
+    file_url = base + rel
+    # Some DS distributions accept ?fileUrl= param on default editor route. Otherwise, front should embed via DocsAPI config.
+    from urllib.parse import quote as q
+    return {"url": f"{ds.rstrip('/')}/?fileUrl={q(file_url, safe=':/?&=%')}"}
 
 
