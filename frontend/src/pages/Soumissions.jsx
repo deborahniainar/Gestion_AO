@@ -486,12 +486,19 @@ const Soumissions = () => {
     });
   };
 
-  const handleOpenSubtask = (listeId, sousTache) => {
+  const handleOpenSubtask = async (listeId, sousTache) => {
     if (!sousTache) return;
-    // Ouvre OnlyOffice (Document Server) dans un nouvel onglet via un viewer/editor public
-    // Ici on part d'un docx généré à la volée pour amorcer l'édition
-    const url = `/api/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(sousTache.id)}/docx?appel_offre=${encodeURIComponent(appelOffre)}`;
-    window.open(url, '_blank');
+    try {
+      const { data } = await soumissionsWorkspacesAPI.getOnlyOfficeUrl(lot, sousTache.id, appelOffre);
+      const url = data?.url;
+      if (url) {
+        window.open(url, '_blank');
+      } else {
+        NotificationService.error("URL OnlyOffice indisponible");
+      }
+    } catch (_) {
+      NotificationService.error("Impossible d'ouvrir OnlyOffice");
+    }
   };
 
   return (

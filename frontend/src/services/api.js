@@ -147,4 +147,5 @@ export const soumissionsWorkspacesAPI = {
   getSubtask: (lot, subId, appelOffre) => api.get(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}`, { params: { appel_offre: appelOffre || 'default' } }),
   saveSubtask: (lot, subId, data, appelOffre) => api.put(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}`, data, { params: { appel_offre: appelOffre || 'default' } }),
   exportFinished: (lot, appelOffre) => api.post(`/soumissions/workspaces/${encodeURIComponent(lot)}/export_finished`, null, { params: { appel_offre: appelOffre || 'default' }, responseType: 'blob' }),
+  getOnlyOfficeUrl: (lot, subId, appelOffre) => api.get(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}/onlyoffice_url`, { params: { appel_offre: appelOffre || 'default' } }),
 }
