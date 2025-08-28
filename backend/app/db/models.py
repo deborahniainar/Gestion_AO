@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Date, DateTime, Numeric, Integer, BigInteger, ForeignKey, Table
+from sqlalchemy import Column, String, Date, DateTime, Numeric, Integer, BigInteger, ForeignKey, Table, Text, Boolean
 from sqlalchemy import Enum as SAEnum
 from enum import Enum as PyEnum
 from sqlalchemy.orm import relationship
@@ -195,4 +195,39 @@ class Document(Base):
     appels_offre = relationship("AppelOffre", secondary=appeloffre_documents, back_populates="documents")
     personnels = relationship("Personnel", secondary=personnel_documents, back_populates="documents")
     materiels = relationship("Materiel", secondary=materiel_documents, back_populates="documents")
+
+
+# --- Nouveaux modèles pour les workspaces de soumissions (lots, tâches, sous-tâches) ---
+class Lot(Base):
+    __tablename__ = "soumission_lots"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    appel_offre = Column(String(255), nullable=False, index=True)
+    titre = Column(String(255), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    tasks = relationship("Task", back_populates="lot", cascade="all, delete-orphan")
+
+
+class Task(Base):
+    __tablename__ = "soumission_tasks"
+    # IDs ici sont des UUID strings générés côté frontend; on accepte String primary key
+    id = Column(String(64), primary_key=True, index=True)
+    titre = Column(String(255), nullable=False)
+    ordre = Column(Integer, nullable=True, default=0)
+    id_lot = Column(Integer, ForeignKey("soumission_lots.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    lot = relationship("Lot", back_populates="tasks")
+    subtasks = relationship("Subtask", back_populates="task", cascade="all, delete-orphan")
+
+
+class Subtask(Base):
+    __tablename__ = "soumission_subtasks"
+    id = Column(String(64), primary_key=True, index=True)
+    titre = Column(String(255), nullable=False)
+    done = Column(Boolean, nullable=False, default=False)
+    ordre = Column(Integer, nullable=True, default=0)
+    content_markdown = Column(Text, nullable=True)
+    id_task = Column(String(64), ForeignKey("soumission_tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    task = relationship("Task", back_populates="subtasks")
 

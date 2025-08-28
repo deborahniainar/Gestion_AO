@@ -1,251 +1,255 @@
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status, Depends
 from fastapi.responses import StreamingResponse
 from typing import Any, Dict, List, Optional
-import os
-import json
-import re
 import io
 from docx import Document as DocxDocument
 from ..core.config import settings
+from sqlalchemy.orm import Session
+from ..db import models
+from ..db.session import get_db
+import uuid
 
 
 router = APIRouter(prefix="/soumissions/workspaces", tags=["Soumissions - Workspaces"])
 
 
-BASE_DIR = os.path.join(os.getcwd(), "files", "soumissions_workspaces")
-os.makedirs(BASE_DIR, exist_ok=True)
-
-CACHE: dict[str, dict] = {}
-
-
 def _slugify(value: str) -> str:
-    value = value.strip().lower()
-    value = re.sub(r"[^a-z0-9]+", "_", value)
-    value = re.sub(r"_+", "_", value).strip("_")
-    return value or "default"
-
-
-def _workspace_filepath(appel_offre: str, lot: str) -> str:
-    ao = _slugify(appel_offre or "default")
-    lt = _slugify(lot or "default")
-    filename = f"{ao}__{lt}.json"
-    return os.path.join(BASE_DIR, filename)
+    return (value or "").strip()
 
 
 @router.get("/", response_model=List[str])
-def list_lots(appel_offre: str = Query("default")) -> List[str]:
-    ao = _slugify(appel_offre)
-    lots: List[str] = []
-    for name in os.listdir(BASE_DIR):
-        if not name.endswith(".json"):
-            continue
-        if name.startswith(f"{ao}__"):
-            parts = name[:-5].split("__", 1)
-            if len(parts) == 2:
-                lots.append(parts[1])
-    return lots
+def list_lots(appel_offre: str = Query("default"), db: Session = Depends(get_db)) -> List[str]:
+    ao = (appel_offre or "default").strip()
+    lots = db.query(models.Lot).filter(models.Lot.appel_offre == ao).all()
+    return [l.titre for l in lots]
+
+
+def _build_workspace_response(lot_obj: models.Lot) -> Dict[str, Any]:
+    listes = []
+    subtasks_map: Dict[str, Dict[str, Any]] = {}
+    for task in sorted(lot_obj.tasks, key=lambda t: (t.ordre or 0)):
+        sous = []
+        for st in sorted(task.subtasks, key=lambda s: (s.ordre or 0)):
+            sous.append({
+                "id": st.id,
+                "titre": st.titre,
+                "done": bool(st.done)
+            })
+            # only expose content via subtasks map endpoints; include title mapping
+            subtasks_map[st.id] = {"title": st.titre or "", "content_markdown": st.content_markdown or ""}
+        listes.append({
+            "id": task.id,
+            "titre": task.titre,
+            "sousTaches": sous
+        })
+    return {"appelOffre": lot_obj.appel_offre, "lot": lot_obj.titre, "listes": listes, "subtasks": subtasks_map}
 
 
 @router.get("/{lot}")
-def get_workspace(lot: str, appel_offre: str = Query("default"), create_if_missing: bool = Query(False)) -> Dict[str, Any]:
-    path = _workspace_filepath(appel_offre, lot)
-    if not os.path.exists(path):
+def get_workspace(lot: str, appel_offre: str = Query("default"), create_if_missing: bool = Query(False), db: Session = Depends(get_db)) -> Dict[str, Any]:
+    ao = (appel_offre or "default").strip()
+    lot_title = (lot or "default").strip()
+    lot_obj = db.query(models.Lot).filter(models.Lot.appel_offre == ao, models.Lot.titre == lot_title).first()
+    if not lot_obj:
         if create_if_missing:
-            return {"appelOffre": appel_offre, "lot": lot, "listes": [], "subtasks": {}}
+            # create empty lot
+            lot_obj = models.Lot(appel_offre=ao, titre=lot_title)
+            db.add(lot_obj)
+            db.commit()
+            db.refresh(lot_obj)
+            return {"appelOffre": ao, "lot": lot_title, "listes": [], "subtasks": {}}
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Espace non trouvé")
-    try:
-        mtime = os.path.getmtime(path)
-        cached = CACHE.get(path)
-        if cached and cached.get("mtime") == mtime:
-            return cached["data"]
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            # ensure keys exist
-            if "subtasks" not in data or not isinstance(data.get("subtasks"), dict):
-                data["subtasks"] = {}
-            CACHE[path] = {"mtime": mtime, "data": data}
-            return data
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Lecture échouée")
+    return _build_workspace_response(lot_obj)
 
 
 @router.put("/{lot}", status_code=status.HTTP_204_NO_CONTENT)
-def save_workspace(lot: str, payload: Dict[str, Any], appel_offre: str = Query("default")) -> None:
-    path = _workspace_filepath(appel_offre, lot)
-    try:
-        existing: Dict[str, Any] = {}
-        if os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as fr:
-                    existing = json.load(fr) or {}
-            except Exception:
-                existing = {}
-        data = {
-            "appelOffre": appel_offre,
-            "lot": lot,
-            "listes": payload.get("listes", existing.get("listes", [])),
-            "subtasks": existing.get("subtasks", {}),
-        }
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        try:
-            mtime = os.path.getmtime(path)
-            CACHE[path] = {"mtime": mtime, "data": data}
-        except Exception:
-            CACHE.pop(path, None)
-        return None
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Sauvegarde échouée")
+def save_workspace(lot: str, payload: Dict[str, Any], appel_offre: str = Query("default"), db: Session = Depends(get_db)) -> None:
+    ao = (appel_offre or "default").strip()
+    lot_title = (lot or "default").strip()
+    # find or create lot
+    lot_obj = db.query(models.Lot).filter(models.Lot.appel_offre == ao, models.Lot.titre == lot_title).first()
+    if not lot_obj:
+        lot_obj = models.Lot(appel_offre=ao, titre=lot_title)
+        db.add(lot_obj)
+        db.commit()
+        db.refresh(lot_obj)
+
+    listes = payload.get("listes", []) or []
+    # Build map of incoming task ids
+    incoming_task_ids = set()
+    for idx, l in enumerate(listes):
+        task_id = l.get("id") or str(uuid.uuid4().hex)
+        incoming_task_ids.add(task_id)
+        task = db.query(models.Task).filter(models.Task.id == task_id, models.Task.id_lot == lot_obj.id).first()
+        if not task:
+            task = models.Task(id=task_id, titre=l.get("titre") or "", ordre=idx, id_lot=lot_obj.id)
+            db.add(task)
+            db.commit()
+            db.refresh(task)
+        else:
+            task.titre = l.get("titre") or task.titre
+            task.ordre = idx
+            db.add(task)
+            db.commit()
+        # handle subtasks
+        incoming_sub_ids = set()
+        for sidx, st in enumerate(l.get("sousTaches") or []):
+            sid = st.get("id") or str(uuid.uuid4().hex)
+            incoming_sub_ids.add(sid)
+            sub = db.query(models.Subtask).filter(models.Subtask.id == sid, models.Subtask.id_task == task.id).first()
+            if not sub:
+                sub = models.Subtask(id=sid, titre=st.get("titre") or "", done=bool(st.get("done")), ordre=sidx, id_task=task.id)
+                db.add(sub)
+            else:
+                sub.titre = st.get("titre") or sub.titre
+                sub.done = bool(st.get("done"))
+                sub.ordre = sidx
+                db.add(sub)
+            db.commit()
+        # delete subtasks not present
+        existing_subs = db.query(models.Subtask).filter(models.Subtask.id_task == task.id).all()
+        for ex in existing_subs:
+            if ex.id not in incoming_sub_ids:
+                db.delete(ex)
+        db.commit()
+    # delete tasks not present
+    existing_tasks = db.query(models.Task).filter(models.Task.id_lot == lot_obj.id).all()
+    for et in existing_tasks:
+        if et.id not in incoming_task_ids:
+            db.delete(et)
+    db.commit()
+    return None
 
 
 @router.delete("/{lot}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_workspace(lot: str, appel_offre: str = Query("default")) -> None:
-    path = _workspace_filepath(appel_offre, lot)
-    try:
-        if os.path.exists(path):
-            os.remove(path)
-        CACHE.pop(path, None)
-        return None
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Suppression échouée")
+def delete_workspace(lot: str, appel_offre: str = Query("default"), db: Session = Depends(get_db)) -> None:
+    ao = (appel_offre or "default").strip()
+    lot_title = (lot or "default").strip()
+    lot_obj = db.query(models.Lot).filter(models.Lot.appel_offre == ao, models.Lot.titre == lot_title).first()
+    if lot_obj:
+        db.delete(lot_obj)
+        db.commit()
+    return None
 
 
 @router.get("/{lot}/subtasks/{sub_id}")
-def get_subtask_content(lot: str, sub_id: str, appel_offre: str = Query("default")) -> Dict[str, Any]:
-    path = _workspace_filepath(appel_offre, lot)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Espace non trouvé")
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f) or {}
-        subtasks = data.get("subtasks", {})
-        return subtasks.get(sub_id, {"title": "", "content_markdown": ""})
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Lecture échouée")
+def get_subtask_content(lot: str, sub_id: str, appel_offre: str = Query("default"), db: Session = Depends(get_db)) -> Dict[str, Any]:
+    ao = (appel_offre or "default").strip()
+    lot_title = (lot or "default").strip()
+    sub = db.query(models.Subtask).filter(models.Subtask.id == sub_id).first()
+    if not sub or not sub.task or not sub.task.lot or sub.task.lot.titre != lot_title or sub.task.lot.appel_offre != ao:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sous-tâche introuvable")
+    return {"title": sub.titre or "", "content_markdown": sub.content_markdown or ""}
 
 
 @router.put("/{lot}/subtasks/{sub_id}", status_code=status.HTTP_204_NO_CONTENT)
-def save_subtask_content(lot: str, sub_id: str, payload: Dict[str, Any], appel_offre: str = Query("default")) -> None:
-    path = _workspace_filepath(appel_offre, lot)
-    try:
-        data: Dict[str, Any] = {"appelOffre": appel_offre, "lot": lot, "listes": [], "subtasks": {}}
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f) or data
-        if "subtasks" not in data or not isinstance(data.get("subtasks"), dict):
-            data["subtasks"] = {}
-        data["subtasks"][sub_id] = {
-            "title": payload.get("title") or "",
-            "content_markdown": payload.get("content_markdown") or "",
-        }
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        try:
-            mtime = os.path.getmtime(path)
-            CACHE[path] = {"mtime": mtime, "data": data}
-        except Exception:
-            CACHE.pop(path, None)
+def save_subtask_content(lot: str, sub_id: str, payload: Dict[str, Any], appel_offre: str = Query("default"), db: Session = Depends(get_db)) -> None:
+    ao = (appel_offre or "default").strip()
+    lot_title = (lot or "default").strip()
+    sub = db.query(models.Subtask).filter(models.Subtask.id == sub_id).first()
+    if not sub:
+        # create parent lot if missing
+        lot_obj = db.query(models.Lot).filter(models.Lot.appel_offre == ao, models.Lot.titre == lot_title).first()
+        if not lot_obj:
+            lot_obj = models.Lot(appel_offre=ao, titre=lot_title)
+            db.add(lot_obj)
+            db.commit()
+            db.refresh(lot_obj)
+        # create a default task to attach this subtask
+        default_task = db.query(models.Task).filter(models.Task.id_lot == lot_obj.id).first()
+        if not default_task:
+            default_task = models.Task(id=str(uuid.uuid4().hex), titre="Tâches à faire", ordre=0, id_lot=lot_obj.id)
+            db.add(default_task)
+            db.commit()
+            db.refresh(default_task)
+        sub = models.Subtask(id=sub_id, titre=payload.get("title") or "", content_markdown=payload.get("content_markdown") or "", id_task=default_task.id)
+        db.add(sub)
+        db.commit()
         return None
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Sauvegarde échouée")
+    # ensure sub belongs to lot
+    if not sub.task or not sub.task.lot or sub.task.lot.titre != lot_title or sub.task.lot.appel_offre != ao:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sous-tâche ne correspond pas au lot indiqué")
+    sub.titre = payload.get("title") or sub.titre
+    sub.content_markdown = payload.get("content_markdown") or sub.content_markdown
+    db.add(sub)
+    db.commit()
+    return None
 
 
 @router.post("/{lot}/export_finished")
-def export_finished(lot: str, appel_offre: str = Query("default")):
-    path = _workspace_filepath(appel_offre, lot)
-    if not os.path.exists(path):
+def export_finished(lot: str, appel_offre: str = Query("default"), db: Session = Depends(get_db)):
+    ao = (appel_offre or "default").strip()
+    lot_title = (lot or "default").strip()
+    lot_obj = db.query(models.Lot).filter(models.Lot.appel_offre == ao, models.Lot.titre == lot_title).first()
+    if not lot_obj:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Espace non trouvé")
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f) or {}
-        listes = data.get("listes", [])
-        subtasks_map: Dict[str, Dict[str, Any]] = data.get("subtasks", {})
 
-        def is_done_list(title: str) -> bool:
-            t = (title or "").lower()
-            return "termin" in t
+    def is_done_list(title: str) -> bool:
+        t = (title or "").lower()
+        return "termin" in t
 
-        # Build docx
-        doc = DocxDocument()
-        any_content = False
-        for l in listes:
-            if not is_done_list(l.get("titre")):
+    doc = DocxDocument()
+    any_content = False
+    # iterate tasks treated as lists
+    for task in sorted(lot_obj.tasks, key=lambda t: (t.ordre or 0)):
+        if not is_done_list(task.titre):
+            continue
+        for st in sorted(task.subtasks, key=lambda s: (s.ordre or 0)):
+            content = (st.content_markdown or "").strip()
+            if not content:
                 continue
-            for st in l.get("sousTaches", []) or []:
-                sub_id = st.get("id")
-                sub_title = st.get("titre") or "Sans titre"
-                stored = subtasks_map.get(sub_id or "", {})
-                content = stored.get("content_markdown", "").strip()
-                if not content:
-                    # Skip empty content
-                    continue
-                any_content = True
-                doc.add_heading(sub_title, level=2)
-                for line in content.splitlines():
-                    doc.add_paragraph(line)
+            any_content = True
+            doc.add_heading(st.titre or "Sans titre", level=2)
+            for line in content.splitlines():
+                doc.add_paragraph(line)
 
-        if not any_content:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Aucun contenu à exporter dans 'Terminées'")
+    if not any_content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Aucun contenu à exporter dans 'Terminées'")
 
-        buf = io.BytesIO()
-        doc.save(buf)
-        buf.seek(0)
-        filename = f"export_{_slugify(appel_offre)}_{_slugify(lot)}.docx"
-        return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={
-            "Content-Disposition": f"attachment; filename={filename}"
-        })
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Export échoué")
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    from urllib.parse import quote
+    filename = f"export_{quote(ao)}_{quote(lot_title)}.docx"
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={
+        "Content-Disposition": f"attachment; filename={filename}"
+    })
 
 
 @router.get("/{lot}/subtasks/{sub_id}/docx")
-def get_subtask_docx(lot: str, sub_id: str, appel_offre: str = Query("default")):
-    path = _workspace_filepath(appel_offre, lot)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Espace non trouvé")
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f) or {}
-        subtasks = data.get("subtasks", {})
-        entry = subtasks.get(sub_id)
-        if not entry:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sous-tâche sans contenu")
-        title = entry.get("title") or "document"
-        content = (entry.get("content_markdown") or "").strip()
-        doc = DocxDocument()
-        doc.add_heading(title, level=1)
-        for line in content.splitlines():
-            doc.add_paragraph(line)
-        buf = io.BytesIO()
-        doc.save(buf)
-        buf.seek(0)
-        filename = f"subtask_{_slugify(sub_id)}.docx"
-        return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={
-            "Content-Disposition": f"attachment; filename={filename}"
-        })
-    except HTTPException:
-        raise
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Génération DOCX échouée")
+def get_subtask_docx(lot: str, sub_id: str, appel_offre: str = Query("default"), db: Session = Depends(get_db)):
+    ao = (appel_offre or "default").strip()
+    lot_title = (lot or "default").strip()
+    sub = db.query(models.Subtask).filter(models.Subtask.id == sub_id).first()
+    if not sub or not sub.task or not sub.task.lot or sub.task.lot.titre != lot_title or sub.task.lot.appel_offre != ao:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sous-tâche sans contenu")
+    title = sub.titre or "document"
+    content = (sub.content_markdown or "").strip()
+    doc = DocxDocument()
+    doc.add_heading(title, level=1)
+    for line in content.splitlines():
+        doc.add_paragraph(line)
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    filename = f"subtask_{sub_id}.docx"
+    return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={
+        "Content-Disposition": f"attachment; filename={filename}"
+    })
 
 
 @router.get("/{lot}/subtasks/{sub_id}/onlyoffice_url")
-def get_onlyoffice_url(lot: str, sub_id: str, request: Request, appel_offre: str = Query("default")) -> Dict[str, str]:
+def get_onlyoffice_url(lot: str, sub_id: str, request: Request, appel_offre: str = Query("default"), db: Session = Depends(get_db)) -> Dict[str, str]:
     ds = settings.ONLYOFFICE_DS_URL or ""
     if not ds:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ONLYOFFICE_DS_URL non configuré")
-    # For a basic embed via editor?fileUrl=... approach (public link). Real deployments should use config JSON + JWT.
     from urllib.parse import quote, urlencode
     lot_enc = quote(lot, safe="")
     sub_enc = quote(sub_id, safe="")
     query = urlencode({"appel_offre": appel_offre})
     rel = f"/api/soumissions/workspaces/{lot_enc}/subtasks/{sub_enc}/docx?{query}"
-    # OnlyOffice DS often cannot reach the Vite dev server on 5173; point to the backend public URL
     base = settings.BACKEND_PUBLIC_URL.rstrip('/') if settings.BACKEND_PUBLIC_URL else str(request.base_url).rstrip('/')
     file_url = base + rel
-    # Some DS distributions accept ?fileUrl= param on default editor route. Otherwise, front should embed via DocsAPI config.
     from urllib.parse import quote as q
     return {"url": f"{ds.rstrip('/')}/?fileUrl={q(file_url, safe=':/?&=%')}"}
 
