@@ -18,7 +18,13 @@ class Settings(BaseSettings):
     # OnlyOffice Document Server URL (e.g., http://localhost:8080 or https://onlyoffice.example.com)
     ONLYOFFICE_DS_URL: str = "http://localhost:8080"
     # Public backend base URL (reachable by OnlyOffice DS) e.g., http://localhost:8000
-    BACKEND_PUBLIC_URL: str = "http://localhost:8000"
+    # For local Docker-based OnlyOffice, host.docker.internal often resolves to the host machine from the container.
+    # If that doesn't work in your environment, set BACKEND_PUBLIC_URL explicitly in backend/.env to an IP or ngrok URL.
+    BACKEND_PUBLIC_URL: str = "http://host.docker.internal:8000"
+
+    # Optional: enable JWT for OnlyOffice Document Server if your DS is configured to require it
+    ONLYOFFICE_JWT_ENABLED: bool = True
+    ONLYOFFICE_JWT_SECRET: str = os.environ.get('ONLYOFFICE_JWT_SECRET', 'change-me-onlyoffice')
     
     class Config:
         env_file = ".env"
