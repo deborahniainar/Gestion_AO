@@ -10,7 +10,11 @@ import Home from './pages/Home'
 import DAO from './pages/DAO' 
 import Personnels from './pages/Personnels' 
 import Materiels from './pages/Materiels' 
-import Prices from './pages/Prices' 
+import PriceBDE from './pages/PriceBDE'
+import PriceEQU from './pages/PriceEQU'
+import PriceMO from './pages/PriceMO'
+import PriceMTX from './pages/PriceMTX'
+import PriceSDP from './pages/PriceSDP'
 import Documents from './pages/Documents' 
 import Soumissions from './pages/Soumissions' 
 import Dashboard from './pages/Dashboard'
@@ -36,7 +40,11 @@ function App() {
                 <Route path="/gestion_dao" element={<DAO />} />
                 <Route path="/personnels" element={<Personnels />} />   
                 <Route path="/materiels" element={<Materiels />} />       
-                <Route path="/prices" element={<Prices />} />       
+                <Route path="/priceBDE" element={<PriceBDE />} />       
+                <Route path="/priceEQU" element={<PriceEQU />} />       
+                <Route path="/priceMO" element={<PriceMO />} />       
+                <Route path="/priceMTX" element={<PriceMTX />} />       
+                <Route path="/priceSDP" element={<PriceSDP />} />       
                 <Route path="/doc_admin" element={<Documents />} />       
                 <Route path="/soumissions" element={<Soumissions />} />       
                 <Route path="/dashboard" element={<Dashboard />} />  

@@ -4,12 +4,19 @@ import {
   DescriptionOutlined, 
   LocalShippingOutlined,
   PeopleAltOutlined, 
-  AttachMoneyOutlined, 
+  AttachMoneyOutlined,
+  AccessibilityNewOutlined,
+  BuildOutlined,
+  FrontLoader,
+  ReceiptLongOutlined,
+  ReceiptOutlined,
   InventoryOutlined,
   BarChartOutlined, 
   DarkModeOutlined, 
   LightModeOutlined,
-  LogoutOutlined 
+  LogoutOutlined,
+  ExpandLess,
+  ExpandMore
 } from "@mui/icons-material";
 import { NavLink, useLocation } from "react-router-dom";
 import logo from '../assets/Logo.png';
@@ -19,6 +26,7 @@ import { useTheme } from '../contexts/ThemeContext';
 export default function Sidebar() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
+  const [openPrices, setOpenPrices] = useState(false);
   const { isDarkMode, toggleDarkMode } = useTheme();
 
   useEffect(() => {
@@ -27,6 +35,12 @@ export default function Sidebar() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+  
+  useEffect(() => {
+  if (location.pathname.startsWith("/price")) {
+    setOpenPrices(true);
+  }
+}, [location.pathname]);
 
   const ActiveMark = ({active}) => active ? (
     <div
@@ -95,19 +109,92 @@ export default function Sidebar() {
           {!collapsed && <span>Matériels</span>}
         </NavLink>
         
-        <NavLink 
-          to="/prices" 
-          className={`relative flex items-center gap-3 py-2 px-3 rounded-lg transition-all duration-200 ${
-            location.pathname === "/prices" 
+        {/* --- Prices avec sous-menu --- */}
+        <button
+          onClick={() => setOpenPrices(!openPrices)}
+          className={`relative flex items-center justify-between py-2 px-3 rounded-lg transition-all duration-200 ${
+            location.pathname.startsWith("/price") 
               ? "text-secondary font-semibold" 
               : "text-primary dark:text-main hover:bg-muted dark:hover:bg-accent"
           }`}
-          title="Prices"
         >
-          <ActiveMark active={location.pathname === "/prices"} />
-          <AttachMoneyOutlined className="h-5 w-5" />
-          {!collapsed && <span>Prix</span>}
-        </NavLink>
+          <div className="flex items-center gap-3">
+            <AttachMoneyOutlined className="h-5 w-5" />
+            {!collapsed && <span>Prix</span>}
+          </div>
+          {!collapsed && (openPrices ? <ExpandLess /> : <ExpandMore />)}
+        </button>
+
+        {openPrices && !collapsed && (
+          <ul className="ml-8 mt-1 flex flex-col gap-1 text-sm">
+            <NavLink 
+              to="/priceMO" 
+                className={`relative flex items-center gap-3 py-2 px-3 rounded-lg transition-all duration-200 ${
+                location.pathname === "/priceMO" 
+                  ? "text-secondary font-semibold" 
+                  : "text-primary dark:text-main hover:bg-muted dark:hover:bg-accent"
+              }`}
+              title="Main_d_oeuvre"
+            >
+              <ActiveMark active={location.pathname === "/priceMO"} />
+              <AccessibilityNewOutlined className="" />
+              {!collapsed && <span>Main d'œuvre</span>}
+            </NavLink>
+            <NavLink 
+              to="/priceMTX" 
+                className={`relative flex items-center gap-3 py-2 px-3 rounded-lg transition-all duration-200 ${
+                location.pathname === "/priceMTX" 
+                  ? "text-secondary font-semibold" 
+                  : "text-primary dark:text-main hover:bg-muted dark:hover:bg-accent"
+              }`}
+              title="Materiaux"
+            >
+              <ActiveMark active={location.pathname === "/priceMTX"} />
+              <BuildOutlined />
+              {!collapsed && <span>Matériaux</span>}
+            </NavLink>
+            <NavLink 
+              to="/priceEQU" 
+                className={`relative flex items-center gap-3 py-2 px-3 rounded-lg transition-all duration-200 ${
+                location.pathname === "/priceEQU" 
+                  ? "text-secondary font-semibold" 
+                  : "text-primary dark:text-main hover:bg-muted dark:hover:bg-accent"
+              }`}
+              title="Equipements"
+            >
+              <ActiveMark active={location.pathname === "/priceEQU"} />
+              <FrontLoader />
+              {!collapsed && <span>Equipements</span>}
+            </NavLink>
+            <NavLink 
+              to="/priceSDP" 
+                className={`relative flex items-center gap-3 py-2 px-3 rounded-lg transition-all duration-200 ${
+                location.pathname === "/priceSDP" 
+                  ? "text-secondary font-semibold" 
+                  : "text-primary dark:text-main hover:bg-muted dark:hover:bg-accent"
+              }`}
+              title="Sous_detail_de_prix"
+            >
+              <ActiveMark active={location.pathname === "/priceSDP"} />
+              <ReceiptLongOutlined />
+              {!collapsed && <span>Sous-détail de prix</span>}
+            </NavLink>
+            <NavLink 
+              to="/priceBDE" 
+                className={`relative flex items-center gap-3 py-2 px-3 rounded-lg transition-all duration-200 ${
+                location.pathname === "/priceBDE" 
+                  ? "text-secondary font-semibold" 
+                  : "text-primary dark:text-main hover:bg-muted dark:hover:bg-accent"
+              }`}
+              title="Bordereau_de_prix"
+            >
+              <ActiveMark active={location.pathname === "/priceBDE"} />
+              <ReceiptOutlined />
+              {!collapsed && <span>Bordereau de Prix</span>}
+            </NavLink>
+          </ul>
+        )}
+        {/* --- fin sous-menu Prices --- */}
 
         <NavLink 
           to="/doc_admin" 
