@@ -113,19 +113,6 @@ const Soumissions = () => {
     }
   };
 
-  const handleGenererDepuisDAO = () => {
-    const seeds = [
-      { id: crypto.randomUUID(), titre: 'Page de garde', done: false },
-      { id: crypto.randomUUID(), titre: 'Lettre de soumission', done: false },
-      { id: crypto.randomUUID(), titre: 'Fiche de renseignement', done: false },
-      { id: crypto.randomUUID(), titre: 'Déclaration sur l’honneur', done: false }
-    ];
-    const newListes = listes.length === 0 ? [{ id: crypto.randomUUID(), titre: 'Tâche à faire', sousTaches: seeds }] : [{ ...listes[0], sousTaches: seeds }, ...listes.slice(1)];
-    setListes(newListes);
-    persistWorkspace(newListes);
-    NotificationService.success('Sous-tâches générées à partir du DAO (exemple)');
-  };
-
   const handleSupprimerLot = async () => {
     if (!lot) return;
     if (!confirm(`Supprimer le lot "${lot}" ?`)) return;
@@ -389,9 +376,6 @@ const Soumissions = () => {
                   <option key={nomLot} value={nomLot} />
                 ))}
               </datalist>
-              <button onClick={handleGenererDepuisDAO} className="ml-3 text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2 rounded-md whitespace-nowrap">
-                Générer à partir du DAO
-              </button>
             </div>
 
             <div className="flex items-center gap-2">
