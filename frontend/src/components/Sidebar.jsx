@@ -112,7 +112,7 @@ export default function Sidebar() {
         {/* --- Prices avec sous-menu --- */}
         <button
           onClick={() => setOpenPrices(!openPrices)}
-          className={`relative flex items-center justify-between py-2 px-3 rounded-lg transition-all duration-200 ${
+          className={`relative flex items-center justify-between py-2 px-3 rounded-lg transition-all duration-500 ${
             location.pathname.startsWith("/price") 
               ? "text-secondary font-semibold" 
               : "text-primary dark:text-main hover:bg-muted dark:hover:bg-accent"
