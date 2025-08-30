@@ -134,7 +134,7 @@ const PriceMO = () => {
               </span>
               <label className="text-secondary font-medium whitespace-nowrap">Appel d’Offre :</label>
               <select
-                className="ml-auto border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-64"
+                className="text-primary dark:text-muted ml-auto border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-64"
               >
                 <option value="Nom Appel d’Offre actuel">Nom Appel d’Offre actuel</option>
               </select>
@@ -183,23 +183,25 @@ const PriceMO = () => {
                 </tr>
                 </thead>
                 <tbody>
-                <tr>
-                    <td className="text-primary dark:text-muted border border-secondary px-3 py-2"></td>
-                    <td className="text-primary dark:text-muted border border-secondary px-3 py-2"></td>
-                    <td className="text-primary dark:text-muted border border-secondary px-3 py-2"></td>
-                    <td className="text-primary dark:text-muted border border-secondary px-3 py-2"></td>
-                    <td className="text-primary dark:text-muted border border-secondary px-3 py-2"></td>
-                    <td className="text-primary dark:text-muted border border-secondary px-3 py-2"></td>
-                    <td className="text-primary dark:text-muted border border-secondary px-3 py-2"></td>
-                    <td className="text-primary dark:text-muted border border-secondary px-3 py-2 text-center">
-                    <button className="text-green-600 hover:text-green-800 mr-2">
-                        <Edit fontSize="small" />
-                    </button>
-                    <button className="text-red-600 hover:text-red-800">
-                        <Delete fontSize="small" />
-                    </button>
-                    </td>
-                </tr>
+                  {rows.map((row, idx) => (
+                    <tr key={idx}>
+                      <td className="text-accent dark:text-muted border border-secondary px-3 py-2">{row.poste}</td>
+                      <td className="text-accent dark:text-muted border border-secondary px-3 py-2">{row.poste}</td>
+                      <td className="text-accent dark:text-muted border border-secondary px-3 py-2">{row.poste}</td>
+                      <td className="text-accent dark:text-muted border border-secondary px-3 py-2">{row.poste}</td>
+                      <td className="text-accent dark:text-muted border border-secondary px-3 py-2">{row.poste}</td>
+                      <td className="text-accent dark:text-muted border border-secondary px-3 py-2">{row.poste}</td>
+                      <td className="text-accent dark:text-muted border border-secondary px-3 py-2">{row.poste}</td>
+                      <td className="text-accent dark:text-muted border border-secondary px-3 py-2 text-center">
+                      <button className="text-green-600 hover:text-green-800 mr-2">
+                          <Edit fontSize="small" />
+                      </button>
+                      <button className="text-red-600 hover:text-red-800">
+                          <Delete fontSize="small" />
+                      </button>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
             </table>
             </div>
