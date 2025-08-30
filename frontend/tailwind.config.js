@@ -14,7 +14,7 @@ export default {
         },
         secondary: {
           DEFAULT: '#ff7f32',
-          50: '#f7931e'
+          50: '#FFDEC3'
         },
         accent: {
           DEFAULT: '#3c4453'
