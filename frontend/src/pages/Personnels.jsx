@@ -26,17 +26,13 @@ const Personnels = () => {
   const [editingPersonnel, setEditingPersonnel] = useState(null);
 
   const { 
-    showSuccess, 
     showError, 
     showInfo, 
     showWarning,
-    showCreateSuccess,
     showUpdateSuccess,
     showDeleteSuccess,
     showFetchSuccess,
-    showFetchError,
-    showLoading,
-    updateLoading
+    showFetchError
   } = useNotifications();
   const [formData, setFormData] = useState({
     nom: '',
@@ -54,14 +50,24 @@ const Personnels = () => {
 
   // États pour les fichiers
   const [profileImage, setProfileImage] = useState(null);
-  const [attachedFiles, setAttachedFiles] = useState([]);
+  const [cvFile, setCvFile] = useState(null);
+  const [diplomeFile, setDiplomeFile] = useState(null);
+  const [contratFile, setContratFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [personnelDocuments, setPersonnelDocuments] = useState(null);
+  
+  // États pour les documents existants lors de l'édition
+  const [existingCvFiles, setExistingCvFiles] = useState([]);
+  const [existingDiplomeFiles, setExistingDiplomeFiles] = useState([]);
+  const [existingContratFiles, setExistingContratFiles] = useState([]);
 
   // Références pour les inputs de fichiers
   const imageInputRef = useRef(null);
-  const fileInputRef = useRef(null);
+  const cvInputRef = useRef(null);
+  const diplomeInputRef = useRef(null);
+  const contratInputRef = useRef(null);
 
   useEffect(() => {
     const loadPersonnels = async () => {
@@ -93,15 +99,15 @@ const Personnels = () => {
         setPersonnels(mapped);
         showFetchSuccess();
       } catch (e) {
-        updateLoading(loadingToast, "Erreur lors du chargement", "error");
+        // updateLoading(loadingToast, "Erreur lors du chargement", "error");
         showFetchError(e.message);
         console.error(e);
       }
     };
     loadPersonnels();
-  }, []);
+  }, [showFetchError, showFetchSuccess]);
 
-  const handleOpenForm = (personnel = null) => {
+  const handleOpenForm = async (personnel = null) => {
     if (personnel) {
       setEditingPersonnel(personnel);
       setFormData({
@@ -125,6 +131,10 @@ const Personnels = () => {
         setProfileImage(null);
         setImagePreview(null);
       }
+      
+      // Charger les documents existants
+      await loadExistingDocuments(personnel.id);
+      
       showInfo(`Édition de ${personnel.nom} ${personnel.prenom}`);
     } else {
       setEditingPersonnel(null);
@@ -141,9 +151,15 @@ const Personnels = () => {
         genre: '',
         status: ''
       });
+      // Réinitialiser les documents existants
+      setExistingCvFiles([]);
+      setExistingDiplomeFiles([]);
+      setExistingContratFiles([]);
     }
-    // Réinitialiser les fichiers
-    setAttachedFiles([]);
+    // Réinitialiser les nouveaux fichiers
+    setCvFile(null);
+    setDiplomeFile(null);
+    setContratFile(null);
     setShowForm(true);
   };
 
@@ -151,23 +167,84 @@ const Personnels = () => {
     setShowForm(false);
     setEditingPersonnel(null);
     setProfileImage(null);
-    setAttachedFiles([]);
+    setCvFile(null);
+    setDiplomeFile(null);
+    setContratFile(null);
     setImagePreview(null);
+    // Réinitialiser les documents existants
+    setExistingCvFiles([]);
+    setExistingDiplomeFiles([]);
+    setExistingContratFiles([]);
+    // Réinitialiser les refs
+    if (imageInputRef.current) imageInputRef.current.value = '';
+    if (cvInputRef.current) cvInputRef.current.value = '';
+    if (diplomeInputRef.current) diplomeInputRef.current.value = '';
+    if (contratInputRef.current) contratInputRef.current.value = '';
   };
 
+  // Fonction pour charger les documents existants lors de l'édition
+  const loadExistingDocuments = async (personnelId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/personnels/${personnelId}/documents`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) {
+        throw new Error('Erreur lors du chargement des documents');
+      }
+      const docs = await res.json();
+      
+      // Séparer les documents par catégorie pour l'édition
+      setExistingCvFiles(docs.cv || []);
+      setExistingDiplomeFiles(docs.diplome || []);
+      setExistingContratFiles(docs.contrat || []);
+    } catch (error) {
+      console.error('Erreur lors du chargement des documents existants:', error);
+      setExistingCvFiles([]);
+      setExistingDiplomeFiles([]);
+      setExistingContratFiles([]);
+    }
+  };
+
+  // Fonction pour charger les documents d'un personnel
+  const loadPersonnelDocuments = async (personnelId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/personnels/${personnelId}/documents`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) {
+        throw new Error('Erreur lors du chargement des documents');
+      }
+      const documents = await res.json();
+      
+      // Les documents sont déjà catégorisés par le backend
+      setPersonnelDocuments(documents);
+    } catch (error) {
+      console.error('Erreur lors du chargement des documents:', error);
+      setPersonnelDocuments({ cv: [], diplome: [], contrat: [] });
+    }
+  };
+
+
+
   // Fonction pour ouvrir le modal de détails
-  const handleOpenDetails = (personnel) => {
+  const handleOpenDetails = async (personnel) => {
     setSelectedPersonnel(personnel);
     setShowDetails(true);
+    // Charger les documents du personnel
+    await loadPersonnelDocuments(personnel.id);
   };
 
   // Fonction pour fermer le modal de détails
   const handleCloseDetails = () => {
     setShowDetails(false);
     setSelectedPersonnel(null);
+    setPersonnelDocuments(null);
   };
 
   const handleDeletePersonnel = async (id) => {
+    // const loadingToast = showLoading("Suppression en cours...");
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/personnels/${id}`, {
@@ -185,7 +262,7 @@ const Personnels = () => {
       }
       showDeleteSuccess();
     } catch (e) {
-      updateLoading(loadingToast, "Erreur lors de la suppression", "error");
+      // updateLoading(loadingToast, "Erreur lors de la suppression", "error");
       showError(e.message);
       console.error(e);
     }
@@ -237,37 +314,131 @@ const Personnels = () => {
     }
   };
 
-  // Gestion des fichiers joints
-  const handleFileUpload = (e) => {
-    const files = Array.from(e.target.files);
-    
-    // Vérifier les types de fichiers autorisés
+  // Gestion des fichiers par catégorie
     const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'image/jpeg',
       'image/png',
-      'image/gif'
+    'image/gif'
     ];
 
-    const validFiles = files.filter(file => {
+  const validateFile = (file) => {
       if (allowedTypes.includes(file.type)) {
         return true;
       } else {
-        alert(`Fichier non supporté: ${file.name}. Types autorisés: PDF, Word, Excel, Images`);
+      alert(`Fichier non supporté: ${file.name}. Types autorisés: PDF, Word, Excel, Images`);
         return false;
       }
-    });
-
-    setAttachedFiles(prev => [...prev, ...validFiles]);
   };
 
-  // Supprimer un fichier joint
-  const removeAttachedFile = (index) => {
-    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+  const handleCvUpload = (e) => {
+    const file = e.target.files[0];
+    if (file && validateFile(file)) {
+      setCvFile(file);
+    }
+  };
+
+  const handleDiplomeUpload = (e) => {
+    const file = e.target.files[0];
+    if (file && validateFile(file)) {
+      setDiplomeFile(file);
+    }
+  };
+
+  const handleContratUpload = (e) => {
+    const file = e.target.files[0];
+    if (file && validateFile(file)) {
+      setContratFile(file);
+    }
+  };
+
+  const removeCvFile = () => {
+    setCvFile(null);
+    if (cvInputRef.current) {
+      cvInputRef.current.value = '';
+    }
+  };
+
+  const removeDiplomeFile = () => {
+    setDiplomeFile(null);
+    if (diplomeInputRef.current) {
+      diplomeInputRef.current.value = '';
+    }
+  };
+
+  const removeContratFile = () => {
+    setContratFile(null);
+    if (contratInputRef.current) {
+      contratInputRef.current.value = '';
+    }
+  };
+
+  // Fonctions pour supprimer les documents existants
+  const removeExistingCvFile = async (docId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/personnels/${editingPersonnel.id}/documents/${docId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      
+      if (!res.ok) {
+        throw new Error('Erreur lors de la suppression du document');
+      }
+      
+      // Retirer de la liste locale si la suppression a réussi
+      setExistingCvFiles(prev => prev.filter(doc => doc.id !== docId));
+      showInfo('Document CV supprimé avec succès');
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      showError('Erreur lors de la suppression du document');
+    }
+  };
+
+  const removeExistingDiplomeFile = async (docId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/personnels/${editingPersonnel.id}/documents/${docId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      
+      if (!res.ok) {
+        throw new Error('Erreur lors de la suppression du document');
+      }
+      
+      // Retirer de la liste locale si la suppression a réussi
+      setExistingDiplomeFiles(prev => prev.filter(doc => doc.id !== docId));
+      showInfo('Document diplôme supprimé avec succès');
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      showError('Erreur lors de la suppression du document');
+    }
+  };
+
+  const removeExistingContratFile = async (docId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/personnels/${editingPersonnel.id}/documents/${docId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      
+      if (!res.ok) {
+        throw new Error('Erreur lors de la suppression du document');
+      }
+      
+      // Retirer de la liste locale si la suppression a réussi
+      setExistingContratFiles(prev => prev.filter(doc => doc.id !== docId));
+      showInfo('Document contrat supprimé avec succès');
+    } catch (error) {
+      console.error('Erreur lors de la suppression:', error);
+      showError('Erreur lors de la suppression du document');
+    }
   };
 
   // Supprimer l'image de profil
@@ -290,30 +461,45 @@ const Personnels = () => {
       }
       const token = localStorage.getItem('token');
 
-      // Mode édition: PUT JSON (sans gestion de fichiers pour l'instant)
+      // Mode édition: utiliser FormData pour gérer les fichiers
       if (editingPersonnel) {
-        const payload = {
-          nom: formData.nom || '',
-          prenom: formData.prenom || '',
-          fonction: formData.fonction || null,
-          formation: formData.formation || null,
-          nationalite: formData.nationalite || null,
-          date_naissance: formData.dateNaissance || null,
-          salaire_mensuel: formData.salaire !== '' && formData.salaire != null ? Number(formData.salaire) : null,
-          experience_annees: formData.experience !== '' && formData.experience != null ? Number(formData.experience) : null,
-          contact: formData.contact || null,
-          genre: formData.genre || null,
-          status: formData.status || null,
-        };
+        const fd = new FormData();
+        if (formData.nom) fd.append('nom', formData.nom);
+        if (formData.prenom) fd.append('prenom', formData.prenom);
+        if (formData.fonction) fd.append('fonction', formData.fonction);
+        if (formData.formation) fd.append('formation', formData.formation);
+        if (formData.nationalite) fd.append('nationalite', formData.nationalite);
+        if (formData.dateNaissance) fd.append('date_naissance', formData.dateNaissance);
+        if (formData.salaire !== '' && formData.salaire != null) fd.append('salaire_mensuel', formData.salaire);
+        if (formData.experience !== '' && formData.experience != null) fd.append('experience_annees', formData.experience);
+        if (formData.contact) fd.append('contact', formData.contact);
+        if (formData.genre) fd.append('genre', formData.genre);
+        if (formData.status) fd.append('status', formData.status);
 
-        const res = await fetch(`/api/personnels/${editingPersonnel.id}`, {
+        // Ajouter l'image de profil si elle existe
+        if (profileImage && profileImage instanceof File) {
+          fd.append('profile_image', profileImage);
+        }
+
+        // Ajouter les fichiers par catégorie
+        if (cvFile) {
+          fd.append('cv_file', cvFile);
+        }
+        if (diplomeFile) {
+          fd.append('diplome_file', diplomeFile);
+        }
+        if (contratFile) {
+          fd.append('contrat_file', contratFile);
+        }
+
+        const res = await fetch(`/api/personnels/${editingPersonnel.id}/with-files`, {
           method: 'PUT',
           headers: {
-            'Content-Type': 'application/json',
             ...(token ? { Authorization: `Bearer ${token}` } : {})
           },
-          body: JSON.stringify(payload),
+          body: fd,
         });
+
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           const detail = err?.detail;
@@ -322,6 +508,7 @@ const Personnels = () => {
             : (detail || 'Erreur lors de la mise à jour du personnel');
           throw new Error(message);
         }
+
         const updated = await res.json();
         const mapped = {
           id: updated.id,
@@ -336,10 +523,11 @@ const Personnels = () => {
           contact: updated.contact ?? '',
           genre: updated.genre ?? '',
           status: updated.status ?? '',
-          profileImage: imagePreview || null,
+          profileImage: updated.profile_image ? `/api/uploads/personnels/${updated.profile_image}` : null,
         };
         setPersonnels(prev => prev.map(p => p.id === mapped.id ? mapped : p));
         handleCloseForm();
+        showUpdateSuccess();
         return;
       }
 
@@ -356,9 +544,11 @@ const Personnels = () => {
       if (formData.genre) fd.append('genre', formData.genre);
       if (formData.status) fd.append('status', formData.status);
 
-      // Fichiers: image de profil séparée + pièces jointes
+      // Fichiers: image de profil et documents par catégorie
       if (profileImage) fd.append('profile_image', profileImage);
-      attachedFiles.forEach((file) => fd.append('files', file));
+      if (cvFile) fd.append('cv_file', cvFile);
+      if (diplomeFile) fd.append('diplome_file', diplomeFile);
+      if (contratFile) fd.append('contrat_file', contratFile);
 
       const res = await fetch('/api/personnels/with-files', {
         method: 'POST',
@@ -674,19 +864,100 @@ const Personnels = () => {
                                     </h5>
                                     
                                     <div className="space-y-4">
-                                        <div className="p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                                            <h6 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">CVs</h6>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400">Aucun CV joint</p>
+                                        {/* CVs */}
+                                        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                                            <h6 className="font-semibold text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-2">
+                                                <AttachFile className="h-4 w-4" />
+                                                CVs
+                                            </h6>
+                                            {personnelDocuments && personnelDocuments.cv.length > 0 ? (
+                                                <div className="space-y-2">
+                                                    {personnelDocuments.cv.map((doc, index) => (
+                                                        <div key={index} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border">
+                                                            <div className="flex items-center gap-2">
+                                                                <AttachFile className="h-4 w-4 text-blue-500" />
+                                                                <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                                    {doc.original_filename || doc.filename}
+                                                                </span>
+                                                            </div>
+                                                            <a
+                                                                href={doc.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                                                            >
+                                                                <Visibility className="h-4 w-4" />
+                                                            </a>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm text-blue-600 dark:text-blue-400">Aucun CV joint</p>
+                                            )}
                                         </div>
                                         
-                                        <div className="p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                                            <h6 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">Diplôme</h6>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400">Aucun diplôme joint</p>
+                                        {/* Diplôme */}
+                                        <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+                                            <h6 className="font-semibold text-green-700 dark:text-green-300 mb-2 flex items-center gap-2">
+                                                <AttachFile className="h-4 w-4" />
+                                                Diplôme
+                                            </h6>
+                                            {personnelDocuments && personnelDocuments.diplome.length > 0 ? (
+                                                <div className="space-y-2">
+                                                    {personnelDocuments.diplome.map((doc, index) => (
+                                                        <div key={index} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border">
+                                                            <div className="flex items-center gap-2">
+                                                                <AttachFile className="h-4 w-4 text-green-500" />
+                                                                <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                                    {doc.original_filename || doc.filename}
+                                                                </span>
+                                                            </div>
+                                                            <a
+                                                                href={doc.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-green-600 hover:text-green-800 dark:text-green-400"
+                                                            >
+                                                                <Visibility className="h-4 w-4" />
+                                                            </a>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm text-green-600 dark:text-green-400">Aucun diplôme joint</p>
+                                            )}
                                         </div>
                                         
-                                        <div className="p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                                            <h6 className="font-semibold text-gray-700 dark:text-gray-300 mb-2">Contrat</h6>
-                                            <p className="text-sm text-gray-600 dark:text-gray-400">Aucun contrat joint</p>
+                                        {/* Contrat */}
+                                        <div className="p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 rounded-lg">
+                                            <h6 className="font-semibold text-orange-700 dark:text-orange-300 mb-2 flex items-center gap-2">
+                                                <AttachFile className="h-4 w-4" />
+                                                Contrat
+                                            </h6>
+                                            {personnelDocuments && personnelDocuments.contrat.length > 0 ? (
+                                                <div className="space-y-2">
+                                                    {personnelDocuments.contrat.map((doc, index) => (
+                                                        <div key={index} className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border">
+                                                            <div className="flex items-center gap-2">
+                                                                <AttachFile className="h-4 w-4 text-orange-500" />
+                                                                <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                                    {doc.original_filename || doc.filename}
+                                                                </span>
+                                        </div>
+                                                            <a
+                                                                href={doc.url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-orange-600 hover:text-orange-800 dark:text-orange-400"
+                                                            >
+                                                                <Visibility className="h-4 w-4" />
+                                                            </a>
+                                    </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm text-orange-600 dark:text-orange-400">Aucun contrat joint</p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -899,52 +1170,226 @@ const Personnels = () => {
                                 </div>
                             </div>
 
-                            {/* Section des fichiers joints */}
-                            <div className="mt-6">
-                                <label className="block text-secondary font-medium mb-3">Fichiers joints</label>
-                                
-                                {/* Bouton pour joindre des fichiers */}
+                            {/* Section des fichiers par catégorie */}
+                            <div className="mt-6 space-y-6">
+                                {/* CV */}
+                                <div>
+                                    <label className="block text-secondary font-medium mb-2">CV</label>
+                                    
+                                    {/* Documents existants */}
+                                    {editingPersonnel && existingCvFiles.length > 0 && (
+                                        <div className="mb-3">
+                                            <p className="text-xs text-gray-500 mb-2">Documents existants :</p>
+                                            <div className="space-y-2">
+                                                {existingCvFiles.map(doc => (
+                                                    <div key={doc.id} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded border">
+                                                        <div className="flex items-center gap-2">
+                                                            <AttachFile className="h-4 w-4 text-blue-500" />
+                                                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                                {doc.original_filename || doc.filename}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <a 
+                                                                href={doc.url} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="p-1 text-blue-500 hover:text-blue-700"
+                                                                title="Voir"
+                                                            >
+                                                                <Visibility className="h-4 w-4" />
+                                                            </a>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeExistingCvFile(doc.id)}
+                                                                className="p-1 text-red-500 hover:text-red-700"
+                                                                title="Supprimer"
+                                                            >
+                                                                <Close className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="flex items-center gap-3">
                                 <button
                                     type="button"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="px-6 py-3 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
+                                            onClick={() => cvInputRef.current?.click()}
+                                            className="px-4 py-2 bg-blue-200 dark:bg-blue-600 hover:bg-blue-300 dark:hover:bg-blue-500 text-blue-700 dark:text-blue-200 font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
                                 >
-                                    <AttachFile className="h-5 w-5" />
-                                    Joindre des fichiers
+                                            <AttachFile className="h-4 w-4" />
+                                            {editingPersonnel ? 'Ajouter/Remplacer CV' : 'Choisir CV'}
                                 </button>
-                                
-                                {/* Input caché pour les fichiers */}
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    multiple
-                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
-                                    onChange={handleFileUpload}
-                                    className="hidden"
-                                />
-                                
-                                {/* Liste des fichiers joints */}
-                                {attachedFiles.length > 0 && (
-                                    <div className="mt-4 space-y-2">
-                                        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Fichiers sélectionnés :</h4>
-                                        {attachedFiles.map((file, index) => (
-                                            <div key={index} className="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
-                                                <div className="flex items-center gap-3">
-                                                    <AttachFile className="h-5 w-5 text-gray-500" />
-                                                    <span className="text-sm text-gray-700 dark:text-gray-300">{file.name}</span>
-                                                    <span className="text-xs text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
-                                                </div>
+                                        {cvFile && (
+                                            <div className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                                                <span className="text-sm text-gray-700 dark:text-gray-300">{cvFile.name}</span>
                                                 <button
                                                     type="button"
-                                                    onClick={() => removeAttachedFile(index)}
-                                                    className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                                                    onClick={removeCvFile}
+                                                    className="p-1 text-red-500 hover:text-red-700"
                                                 >
-                                                    <Close className="h-4 w-4" />
+                                                    <Close className="h-3 w-3" />
                                                 </button>
                                             </div>
-                                        ))}
+                                        )}
                                     </div>
-                                )}
+                                <input
+                                        ref={cvInputRef}
+                                    type="file"
+                                        accept=".pdf,.doc,.docx"
+                                        onChange={handleCvUpload}
+                                    className="hidden"
+                                />
+                                </div>
+
+                                {/* Diplôme */}
+                                <div>
+                                    <label className="block text-secondary font-medium mb-2">Diplôme</label>
+                                    
+                                    {/* Documents existants */}
+                                    {editingPersonnel && existingDiplomeFiles.length > 0 && (
+                                        <div className="mb-3">
+                                            <p className="text-xs text-gray-500 mb-2">Documents existants :</p>
+                                            <div className="space-y-2">
+                                                {existingDiplomeFiles.map(doc => (
+                                                    <div key={doc.id} className="flex items-center justify-between p-2 bg-green-50 dark:bg-green-900/20 rounded border">
+                                                        <div className="flex items-center gap-2">
+                                                            <AttachFile className="h-4 w-4 text-green-500" />
+                                                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                                {doc.original_filename || doc.filename}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <a 
+                                                                href={doc.url} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="p-1 text-green-500 hover:text-green-700"
+                                                                title="Voir"
+                                                            >
+                                                                <Visibility className="h-4 w-4" />
+                                                            </a>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeExistingDiplomeFile(doc.id)}
+                                                                className="p-1 text-red-500 hover:text-red-700"
+                                                                title="Supprimer"
+                                                            >
+                                                                <Close className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                                <div className="flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={() => diplomeInputRef.current?.click()}
+                                            className="px-4 py-2 bg-green-200 dark:bg-green-600 hover:bg-green-300 dark:hover:bg-green-500 text-green-700 dark:text-green-200 font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
+                                        >
+                                            <AttachFile className="h-4 w-4" />
+                                            {editingPersonnel ? 'Ajouter/Remplacer Diplôme' : 'Choisir Diplôme'}
+                                        </button>
+                                        {diplomeFile && (
+                                            <div className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                                                <span className="text-sm text-gray-700 dark:text-gray-300">{diplomeFile.name}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={removeDiplomeFile}
+                                                    className="p-1 text-red-500 hover:text-red-700"
+                                                >
+                                                    <Close className="h-3 w-3" />
+                                                </button>
+                                            </div>
+                                                    )}
+                                                </div>
+                                    <input
+                                        ref={diplomeInputRef}
+                                        type="file"
+                                        accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                                        onChange={handleDiplomeUpload}
+                                        className="hidden"
+                                    />
+                                </div>
+
+                                {/* Contrat */}
+                                <div>
+                                    <label className="block text-secondary font-medium mb-2">Contrat</label>
+                                    
+                                    {/* Documents existants */}
+                                    {editingPersonnel && existingContratFiles.length > 0 && (
+                                        <div className="mb-3">
+                                            <p className="text-xs text-gray-500 mb-2">Documents existants :</p>
+                                            <div className="space-y-2">
+                                                {existingContratFiles.map(doc => (
+                                                    <div key={doc.id} className="flex items-center justify-between p-2 bg-orange-50 dark:bg-orange-900/20 rounded border">
+                                                        <div className="flex items-center gap-2">
+                                                            <AttachFile className="h-4 w-4 text-orange-500" />
+                                                            <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                                {doc.original_filename || doc.filename}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <a 
+                                                                href={doc.url} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="p-1 text-orange-500 hover:text-orange-700"
+                                                                title="Voir"
+                                                            >
+                                                                <Visibility className="h-4 w-4" />
+                                                            </a>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeExistingContratFile(doc.id)}
+                                                                className="p-1 text-red-500 hover:text-red-700"
+                                                                title="Supprimer"
+                                                            >
+                                                                <Close className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="flex items-center gap-3">
+                                                        <button
+                                                            type="button"
+                                            onClick={() => contratInputRef.current?.click()}
+                                            className="px-4 py-2 bg-orange-200 dark:bg-orange-600 hover:bg-orange-300 dark:hover:bg-orange-500 text-orange-700 dark:text-orange-200 font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
+                                                        >
+                                            <AttachFile className="h-4 w-4" />
+                                            {editingPersonnel ? 'Ajouter/Remplacer Contrat' : 'Choisir Contrat'}
+                                                        </button>
+                                        {contratFile && (
+                                            <div className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                                                <span className="text-sm text-gray-700 dark:text-gray-300">{contratFile.name}</span>
+                                                    <button
+                                                        type="button"
+                                                    onClick={removeContratFile}
+                                                    className="p-1 text-red-500 hover:text-red-700"
+                                                    >
+                                                    <Close className="h-3 w-3" />
+                                                    </button>
+                                                </div>
+                                        )}
+                                            </div>
+                                    <input
+                                        ref={contratInputRef}
+                                        type="file"
+                                        accept=".pdf,.doc,.docx"
+                                        onChange={handleContratUpload}
+                                        className="hidden"
+                                    />
+                                    </div>
                             </div>
 
                             {/* Boutons d'action */}
