@@ -26,17 +26,12 @@ const Personnels = () => {
   const [editingPersonnel, setEditingPersonnel] = useState(null);
 
   const { 
-    showSuccess, 
     showError, 
     showInfo, 
     showWarning,
-    showCreateSuccess,
-    showUpdateSuccess,
     showDeleteSuccess,
     showFetchSuccess,
     showFetchError,
-    showLoading,
-    updateLoading
   } = useNotifications();
   const [formData, setFormData] = useState({
     nom: '',
@@ -93,7 +88,6 @@ const Personnels = () => {
         setPersonnels(mapped);
         showFetchSuccess();
       } catch (e) {
-        updateLoading(loadingToast, "Erreur lors du chargement", "error");
         showFetchError(e.message);
         console.error(e);
       }
@@ -185,7 +179,6 @@ const Personnels = () => {
       }
       showDeleteSuccess();
     } catch (e) {
-      updateLoading(loadingToast, "Erreur lors de la suppression", "error");
       showError(e.message);
       console.error(e);
     }
