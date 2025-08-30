@@ -62,6 +62,10 @@ const Personnels = () => {
   const [existingCvFiles, setExistingCvFiles] = useState([]);
   const [existingDiplomeFiles, setExistingDiplomeFiles] = useState([]);
   const [existingContratFiles, setExistingContratFiles] = useState([]);
+  
+  // États pour la modal de visualisation des documents
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [currentDocument, setCurrentDocument] = useState(null);
 
   // Références pour les inputs de fichiers
   const imageInputRef = useRef(null);
@@ -241,6 +245,34 @@ const Personnels = () => {
     setShowDetails(false);
     setSelectedPersonnel(null);
     setPersonnelDocuments(null);
+  };
+
+  // Fonctions pour la modal de visualisation des documents
+  const handleOpenDocumentModal = (document, type = null) => {
+    const documentWithType = {
+      ...document,
+      type: type || getFileType(document.filename || document.original_filename)
+    };
+    setCurrentDocument(documentWithType);
+    setShowDocumentModal(true);
+  };
+
+  const handleCloseDocumentModal = () => {
+    setShowDocumentModal(false);
+    setCurrentDocument(null);
+  };
+
+  // Fonction pour déterminer le type de fichier
+  const getFileType = (filename) => {
+    if (!filename) return 'unknown';
+    const extension = filename.split('.').pop().toLowerCase();
+    
+    if (['pdf'].includes(extension)) return 'pdf';
+    if (['jpg', 'jpeg', 'png', 'gif'].includes(extension)) return 'image';
+    if (['doc', 'docx'].includes(extension)) return 'word';
+    if (['xls', 'xlsx'].includes(extension)) return 'excel';
+    
+    return 'unknown';
   };
 
   const handleDeletePersonnel = async (id) => {
@@ -880,14 +912,13 @@ const Personnels = () => {
                                                                     {doc.original_filename || doc.filename}
                                                                 </span>
                                                             </div>
-                                                            <a
-                                                                href={doc.url}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
+                                                            <button
+                                                                onClick={() => handleOpenDocumentModal(doc)}
                                                                 className="text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                                                                title="Visualiser le document"
                                                             >
                                                                 <Visibility className="h-4 w-4" />
-                                                            </a>
+                                                            </button>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -912,14 +943,13 @@ const Personnels = () => {
                                                                     {doc.original_filename || doc.filename}
                                                                 </span>
                                                             </div>
-                                                            <a
-                                                                href={doc.url}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
+                                                            <button
+                                                                onClick={() => handleOpenDocumentModal(doc)}
                                                                 className="text-green-600 hover:text-green-800 dark:text-green-400"
+                                                                title="Visualiser le document"
                                                             >
                                                                 <Visibility className="h-4 w-4" />
-                                                            </a>
+                                                            </button>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -944,14 +974,13 @@ const Personnels = () => {
                                                                     {doc.original_filename || doc.filename}
                                                                 </span>
                                         </div>
-                                                            <a
-                                                                href={doc.url}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
+                                                            <button
+                                                                onClick={() => handleOpenDocumentModal(doc)}
                                                                 className="text-orange-600 hover:text-orange-800 dark:text-orange-400"
+                                                                title="Visualiser le document"
                                                             >
                                                                 <Visibility className="h-4 w-4" />
-                                                            </a>
+                                                            </button>
                                     </div>
                                                     ))}
                                                 </div>
@@ -1190,15 +1219,13 @@ const Personnels = () => {
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center gap-1">
-                                                            <a 
-                                                                href={doc.url} 
-                                                                target="_blank" 
-                                                                rel="noopener noreferrer"
+                                                            <button 
+                                                                onClick={() => handleOpenDocumentModal(doc)}
                                                                 className="p-1 text-blue-500 hover:text-blue-700"
-                                                                title="Voir"
+                                                                title="Visualiser le document"
                                                             >
                                                                 <Visibility className="h-4 w-4" />
-                                                            </a>
+                                                            </button>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => removeExistingCvFile(doc.id)}
@@ -1263,15 +1290,13 @@ const Personnels = () => {
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center gap-1">
-                                                            <a 
-                                                                href={doc.url} 
-                                                                target="_blank" 
-                                                                rel="noopener noreferrer"
+                                                            <button 
+                                                                onClick={() => handleOpenDocumentModal(doc)}
                                                                 className="p-1 text-green-500 hover:text-green-700"
-                                                                title="Voir"
+                                                                title="Visualiser le document"
                                                             >
                                                                 <Visibility className="h-4 w-4" />
-                                                            </a>
+                                                            </button>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => removeExistingDiplomeFile(doc.id)}
@@ -1336,15 +1361,13 @@ const Personnels = () => {
                                                             </span>
                                                         </div>
                                                         <div className="flex items-center gap-1">
-                                                            <a 
-                                                                href={doc.url} 
-                                                                target="_blank" 
-                                                                rel="noopener noreferrer"
+                                                            <button 
+                                                                onClick={() => handleOpenDocumentModal(doc)}
                                                                 className="p-1 text-orange-500 hover:text-orange-700"
-                                                                title="Voir"
+                                                                title="Visualiser le document"
                                                             >
                                                                 <Visibility className="h-4 w-4" />
-                                                            </a>
+                                                            </button>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => removeExistingContratFile(doc.id)}
@@ -1416,7 +1439,90 @@ const Personnels = () => {
             <Help style={{ fontSize: '4rem' }} />
           </button>
 
-        </main> 
+        </main>
+
+        {/* Modal de visualisation des documents */}
+        {showDocumentModal && currentDocument && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+                    {/* Header de la modal */}
+                    <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-600">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                            {currentDocument.original_filename || currentDocument.filename}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                            <a
+                                href={currentDocument.url}
+                                download
+                                className="px-3 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                                title="Télécharger"
+                            >
+                                <CloudDownload className="h-4 w-4 inline mr-1" />
+                                Télécharger
+                            </a>
+                            <button 
+                                onClick={handleCloseDocumentModal}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-200"
+                            >
+                                <Close className="h-6 w-6 text-gray-500" />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Contenu de la modal */}
+                    <div className="flex-1 overflow-auto p-4">
+                        {currentDocument.type === 'pdf' && (
+                            <iframe
+                                src={currentDocument.url}
+                                className="w-full h-full min-h-[600px] border-0 rounded"
+                                title={`Aperçu de ${currentDocument.original_filename || currentDocument.filename}`}
+                            />
+                        )}
+                        
+                        {currentDocument.type === 'image' && (
+                            <div className="flex justify-center">
+                                <img
+                                    src={currentDocument.url}
+                                    alt={currentDocument.original_filename || currentDocument.filename}
+                                    className="max-w-full max-h-full object-contain rounded"
+                                />
+                            </div>
+                        )}
+                        
+                        {(['word', 'excel', 'unknown'].includes(currentDocument.type)) && (
+                            <div className="text-center py-12">
+                                <div className="mb-4">
+                                    <AttachFile className="h-16 w-16 text-gray-400 mx-auto" />
+                                </div>
+                                <h4 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                                    Aperçu non disponible
+                                </h4>
+                                <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                    Ce type de fichier ne peut pas être prévisualisé dans le navigateur.
+                                </p>
+                                <div className="space-y-2">
+                                    <p className="text-sm text-gray-500">
+                                        <strong>Nom:</strong> {currentDocument.original_filename || currentDocument.filename}
+                                    </p>
+                                    <p className="text-sm text-gray-500">
+                                        <strong>Type:</strong> {currentDocument.type.toUpperCase()}
+                                    </p>
+                                </div>
+                                <a
+                                    href={currentDocument.url}
+                                    download
+                                    className="mt-4 inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200"
+                                >
+                                    <CloudDownload className="h-4 w-4 mr-2" />
+                                    Télécharger pour l'ouvrir
+                                </a>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
+        
         <ConfirmModal
           open={confirmOpen}
           title="Confirmer la suppression"
