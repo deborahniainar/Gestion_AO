@@ -10,7 +10,7 @@ import {
 
 const Modal = ({ open, onClose, onSave }) => {
   const [form, setForm] = useState({
-    designation: "",
+    description: "",
     origine: "",
     pu: "",
     transport: "",
@@ -25,7 +25,7 @@ const Modal = ({ open, onClose, onSave }) => {
 
   const handleSubmit = () => {
     onSave(form)
-    setForm({ designation: "", origine: "", pu: "", transport: "", taxes: "", ppercent: "", pvaleur: "" })
+    setForm({ description: "", origine: "", pu: "", transport: "", taxes: "", ppercent: "", pvaleur: "" })
     onClose()
   }
 
@@ -38,10 +38,10 @@ const Modal = ({ open, onClose, onSave }) => {
         
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium mb-1">Designation</label>
+            <label className="block text-sm font-medium mb-1">Description</label>
             <input
-              name="designation"
-              value={form.designation}
+              name="description"
+              value={form.description}
               onChange={handleChange}
               className="w-full border rounded px-2 py-1"
               placeholder="Nom du matériel"
@@ -227,7 +227,8 @@ const PriceMTX = () => {
                 </tr>
               </thead>
               <tbody>
-                    <tr className='border border-secondary'>
+                  {rows.map ((row, idx) => (
+                    <tr key={idx}>
                       <td className="text-primary dark:text-muted border border-secondary px-3 py-2"></td>
                       <td className="text-primary dark:text-muted border border-secondary px-3 py-2"></td>
                       <td className="text-primary dark:text-muted border border-secondary px-3 py-2"></td>
@@ -246,6 +247,7 @@ const PriceMTX = () => {
                         </button>
                       </td>
                     </tr>
+                  ))}
               </tbody>
             </table>
           </div>

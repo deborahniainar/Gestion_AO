@@ -5,7 +5,7 @@ import {
   LocalShippingOutlined,
   PeopleAltOutlined, 
   AttachMoneyOutlined,
-  AccessibilityNewOutlined,
+  Groups2Outlined,
   BuildOutlined,
   FrontLoader,
   ReceiptLongOutlined,
@@ -137,7 +137,7 @@ export default function Sidebar() {
               title="Main_d_oeuvre"
             >
               <ActiveMark active={location.pathname === "/priceMO"} />
-              <AccessibilityNewOutlined className="" />
+              <Groups2Outlined className="" />
               {!collapsed && <span>Main d'œuvre</span>}
             </NavLink>
             <NavLink 

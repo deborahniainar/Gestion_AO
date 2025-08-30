@@ -31,7 +31,7 @@ const PriceSDP = () => {
               </span>
               <label className="text-secondary font-medium whitespace-nowrap">Appel d’Offre :</label>
               <select
-                className="ml-auto border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-64"
+                className="text-primary dark:text-muted ml-auto border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-64"
               >
                 <option value="Nom Appel d’Offre actuel">Nom Appel d’Offre actuel</option>
               </select>
