@@ -221,7 +221,6 @@ class Task(Base):
 
 
 class Subtask(Base):
-    __tablename__ = "soumission_subtasks"
     id = Column(String(64), primary_key=True, index=True)
     titre = Column(String(255), nullable=False)
     done = Column(Boolean, nullable=False, default=False)
@@ -230,4 +229,132 @@ class Subtask(Base):
     id_task = Column(String(64), ForeignKey("soumission_tasks.id", ondelete="CASCADE"), nullable=False, index=True)
 
     task = relationship("Task", back_populates="subtasks")
+
+
+# --- Modèles pour persister les DAO, leurs lots et les tableaux de prix/tâches ---
+class DAO(Base):
+    __tablename__ = "dao"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    document_id = Column(Integer, ForeignKey("documents.id", ondelete="SET NULL"), nullable=True, index=True)
+    reference = Column(String(255), nullable=True, index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    # relations
+    lots = relationship("DaoLot", back_populates="dao", cascade="all, delete-orphan")
+    document = relationship("Document", backref="daos")
+
+
+class DaoLot(Base):
+    __tablename__ = "dao_lots"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id_dao = Column(Integer, ForeignKey("dao.id", ondelete="CASCADE"), nullable=False, index=True)
+    lot_name = Column(String(255), nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
+
+    dao = relationship("DAO", back_populates="lots")
+
+    price_mo = relationship("DaoPriceMO", back_populates="lot", cascade="all, delete-orphan")
+    price_mtx = relationship("DaoPriceMTX", back_populates="lot", cascade="all, delete-orphan")
+    price_equ = relationship("DaoPriceEQU", back_populates="lot", cascade="all, delete-orphan")
+    price_sdp = relationship("DaoPriceSDP", back_populates="lot", cascade="all, delete-orphan")
+    price_bde = relationship("DaoPriceBDE", back_populates="lot", cascade="all, delete-orphan")
+
+    tasks = relationship("DaoTask", back_populates="lot", cascade="all, delete-orphan")
+
+
+class DaoPriceMO(Base):
+    __tablename__ = "dao_price_mo"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id_lot = Column(Integer, ForeignKey("dao_lots.id", ondelete="CASCADE"), nullable=False, index=True)
+    poste = Column(String(255), nullable=False)
+    horaire_mensuel = Column(Numeric(19,2), nullable=True)
+    charges = Column(Numeric(19,2), nullable=True)
+    temps = Column(Numeric(19,2), nullable=True)
+    salaire_horaire = Column(Numeric(19,2), nullable=True)
+    total = Column(Numeric(19,2), nullable=True)
+
+    lot = relationship("DaoLot", back_populates="price_mo")
+
+
+class DaoPriceMTX(Base):
+    __tablename__ = "dao_price_mtx"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id_lot = Column(Integer, ForeignKey("dao_lots.id", ondelete="CASCADE"), nullable=False, index=True)
+    designation = Column(String(255), nullable=False)
+    quantite = Column(Numeric(19,2), nullable=True)
+    prix_unitaire = Column(Numeric(19,2), nullable=True)
+    total = Column(Numeric(19,2), nullable=True)
+
+    lot = relationship("DaoLot", back_populates="price_mtx")
+
+
+class DaoPriceEQU(Base):
+    __tablename__ = "dao_price_equ"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id_lot = Column(Integer, ForeignKey("dao_lots.id", ondelete="CASCADE"), nullable=False, index=True)
+    designation = Column(String(255), nullable=False)
+    quantite = Column(Numeric(19,2), nullable=True)
+    prix_unitaire = Column(Numeric(19,2), nullable=True)
+    total = Column(Numeric(19,2), nullable=True)
+
+    lot = relationship("DaoLot", back_populates="price_equ")
+
+
+class DaoPriceSDP(Base):
+    __tablename__ = "dao_price_sdp"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id_lot = Column(Integer, ForeignKey("dao_lots.id", ondelete="CASCADE"), nullable=False, index=True)
+    description = Column(String(512), nullable=True)
+    quantite = Column(Numeric(19,2), nullable=True)
+    prix_unitaire = Column(Numeric(19,2), nullable=True)
+    total = Column(Numeric(19,2), nullable=True)
+
+    lot = relationship("DaoLot", back_populates="price_sdp")
+    posts = relationship("DaoPriceSDPPost", back_populates="sdp", cascade="all, delete-orphan")
+
+
+class DaoPriceSDPPost(Base):
+    __tablename__ = "dao_price_sdp_posts"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id_sdp = Column(Integer, ForeignKey("dao_price_sdp.id", ondelete="CASCADE"), nullable=False, index=True)
+    titre = Column(String(255), nullable=False)
+    ordre = Column(Integer, nullable=True, default=0)
+
+    sdp = relationship("DaoPriceSDP", back_populates="posts")
+    articles = relationship("DaoPriceSDPArticle", back_populates="post", cascade="all, delete-orphan")
+
+
+class DaoPriceSDPArticle(Base):
+    __tablename__ = "dao_price_sdp_articles"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id_post = Column(Integer, ForeignKey("dao_price_sdp_posts.id", ondelete="CASCADE"), nullable=False, index=True)
+    designation = Column(String(512), nullable=False)
+    quantite = Column(Numeric(19,2), nullable=True)
+    prix_unitaire = Column(Numeric(19,2), nullable=True)
+    total = Column(Numeric(19,2), nullable=True)
+
+    post = relationship("DaoPriceSDPPost", back_populates="articles")
+
+
+class DaoTask(Base):
+    __tablename__ = "dao_tasks"
+    id = Column(String(64), primary_key=True, index=True)
+    titre = Column(String(255), nullable=False)
+    ordre = Column(Integer, nullable=True, default=0)
+    id_lot = Column(Integer, ForeignKey("dao_lots.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    lot = relationship("DaoLot", back_populates="tasks")
+    subtasks = relationship("DaoSubtask", back_populates="task", cascade="all, delete-orphan")
+
+
+class DaoSubtask(Base):
+    __tablename__ = "dao_subtasks"
+    id = Column(String(64), primary_key=True, index=True)
+    titre = Column(String(255), nullable=False)
+    done = Column(Boolean, nullable=False, default=False)
+    ordre = Column(Integer, nullable=True, default=0)
+    content_markdown = Column(Text, nullable=True)
+    id_task = Column(String(64), ForeignKey("dao_tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    task = relationship("DaoTask", back_populates="subtasks")
 

@@ -180,7 +180,7 @@ const PriceEQU = () => {
         {/* Header */}
         <header className="flex justify-between items-center px-6 py-6 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
             <h5 className="text-xl font-bold text-secondary m-0">
-            Ventilation des prix de base pour les équipements
+            Ventilation des prix de base pour les équipements (Convertis par Heure)
           </h5>
         </header>
         {/* Carte principale */}
@@ -233,21 +233,21 @@ const PriceEQU = () => {
               <table className="w-full border border-secondary border-collapse">
                 <thead className="bg-gray-100 dark:bg-primary/40">
                   <tr>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Description</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Valeur de Remplacement (VR)</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Droits et Taxes</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">VR + Taxes</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Nombre de Jours de durée de vie utile</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Amortissement</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Coût Carburant</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Coût Lubrifiant</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Coût Pièce de Rechange (PR)</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Taxes sur Lubrifiant et PR</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Coût Main d'oeuvre</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Total/jour</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Temps de travail journalier moyen</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Total/heure</th>
-                    <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Action</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Description</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Valeur de Remplacement (VR)</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Droits et Taxes</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">VR + Taxes</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Nombre de Jours de durée de vie utile</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Amortissement</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Coût Carburant</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Coût Lubrifiant</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Coût Pièce de Rechange (PR)</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Taxes sur Lubrifiant et PR</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Coût Main d'oeuvre</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Total/jour</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Temps de travail journalier moyen</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Total/heure</th>
+                    <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Action</th>
                   </tr>
                 </thead>
                 <tbody>

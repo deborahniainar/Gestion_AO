@@ -38,6 +38,17 @@ export default function GestionDAO() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState(0);
 
+  // New modal state and helpers to replace prompt/confirm
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newLotName, setNewLotName] = useState("");
+
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [renameIdx, setRenameIdx] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteIdx, setDeleteIdx] = useState(null);
+
   const {
     showSuccess,
     showError,
@@ -206,6 +217,57 @@ export default function GestionDAO() {
 
   const currentStep = getCurrentStep();
 
+    // Gestion des lots
+  const openAddModal = () => {
+    setNewLotName("");
+    setShowAddModal(true);
+  };
+
+  const confirmAddLot = () => {
+    if (!newLotName.trim()) {
+      showError("Le nom du lot est obligatoire");
+      return;
+    }
+    setRequiredDocs((prev) => [...(prev || []), { lotName: newLotName }]);
+    setShowAddModal(false);
+    setNewLotName("");
+    showSuccess("Lot ajouté avec succès");
+  };
+
+  const openRenameModal = (idx) => {
+    setRenameIdx(idx);
+    setRenameValue(requiredDocs[idx]?.lotName || "");
+    setShowRenameModal(true);
+  };
+
+  const confirmRename = () => {
+    if (!renameValue.trim()) {
+      showError("Le nouveau nom est obligatoire");
+      return;
+    }
+    setRequiredDocs((prev) => {
+      const updated = [...prev];
+      updated[renameIdx] = { ...updated[renameIdx], lotName: renameValue };
+      return updated;
+    });
+    setShowRenameModal(false);
+    setRenameIdx(null);
+    setRenameValue("");
+    showSuccess("Lot renommé avec succès");
+  };
+
+  const openDeleteModal = (idx) => {
+    setDeleteIdx(idx);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = () => {
+    setRequiredDocs((prev) => prev.filter((_, i) => i !== deleteIdx));
+    setShowDeleteModal(false);
+    setDeleteIdx(null);
+    showSuccess("Lot supprimé avec succès");
+  };
+
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
       <Sidebar />
@@ -349,13 +411,7 @@ export default function GestionDAO() {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => {
-                      const name = prompt('Nom du lot :');
-                      if (name && name.trim()) {
-                        setRequiredDocs([...(requiredDocs || []), { lotName: name.trim() }]);
-                        showSuccess('Lot ajouté');
-                      }
-                    }}
+                    onClick={openAddModal}
                     className="px-4 py-2 bg-secondary text-white rounded hover:opacity-90"
                   >
                     Ajouter un lot
@@ -396,26 +452,13 @@ export default function GestionDAO() {
                         </div>
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={() => {
-                              const newName = prompt('Renommer le lot', lot.lotName || lot.type || `Lot ${idx + 1}`);
-                              if (newName && newName.trim()) {
-                                const copy = [...(requiredDocs || [])];
-                                copy[idx] = { ...copy[idx], lotName: newName.trim() };
-                                setRequiredDocs(copy);
-                                showSuccess('Nom du lot modifié');
-                              }
-                            }}
+                            onClick={() => openRenameModal(idx)}
                             className="text-blue-600 hover:underline text-sm"
                           >
                             Modifier
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm('Supprimer ce lot ?')) {
-                                setRequiredDocs((requiredDocs || []).filter((_, i) => i !== idx));
-                                showInfo('Lot supprimé');
-                              }
-                            }}
+                            onClick={() => openDeleteModal(idx)}
                             className="text-red-600 hover:underline text-sm"
                           >
                             Supprimer
@@ -433,12 +476,46 @@ export default function GestionDAO() {
           </div>
         )}
 
-        <button className="fixed bottom-6 right-10 bg-primary text-main rounded-full shadow-lg hover:bg-secondary animate-bounce transition-colors duration-200" onClick={() => alert("Aide / Guide utilisateur en cours de développement !")}> 
-          <Help style={{ fontSize: '4rem' }} />
-        </button>
+        {/* Modals */}
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white dark:bg-primary rounded-lg p-6 w-full max-w-md">
+              <h4 className="font-semibold mb-3">Ajouter un lot</h4>
+              <input className="w-full p-2 border rounded mb-4" value={newLotName} onChange={(e) => setNewLotName(e.target.value)} placeholder="Nom du lot" />
+              <div className="flex justify-end gap-3">
+                <button className="px-3 py-2" onClick={() => setShowAddModal(false)}>Annuler</button>
+                <button className="px-3 py-2 bg-secondary text-white rounded" onClick={confirmAddLot}>Ajouter</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showRenameModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white dark:bg-primary rounded-lg p-6 w-full max-w-md">
+              <h4 className="font-semibold mb-3">Renommer le lot</h4>
+              <input className="w-full p-2 border rounded mb-4" value={renameValue} onChange={(e) => setRenameValue(e.target.value)} />
+              <div className="flex justify-end gap-3">
+                <button className="px-3 py-2" onClick={() => setShowRenameModal(false)}>Annuler</button>
+                <button className="px-3 py-2 bg-secondary text-white rounded" onClick={confirmRename}>Valider</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showDeleteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white dark:bg-primary rounded-lg p-6 w-full max-w-md">
+              <h4 className="font-semibold mb-3">Supprimer le lot</h4>
+              <p>Êtes-vous sûr de vouloir supprimer ce lot ?</p>
+              <div className="flex justify-end gap-3 mt-4">
+                <button className="px-3 py-2" onClick={() => setShowDeleteModal(false)}>Annuler</button>
+                <button className="px-3 py-2 bg-red-600 text-white rounded" onClick={confirmDelete}>Supprimer</button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
-  );
+  )
 }
-
-
