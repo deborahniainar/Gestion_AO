@@ -354,28 +354,20 @@ const Soumissions = () => {
                 <option value="Nom Appel d’Offre actuel">Nom Appel d’Offre actuel</option>
               </select>
               <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
-              <input
-                type="text"
+              <select
                 className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40"
                 value={lot}
                 onChange={(e) => setLot(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    setLot(e.target.value);
-                  }
-                }}
-                placeholder="Saisir le lot"
-                list="lots-datalist"
-              />
-              {(loadingLots || loadingWorkspace) && (
-                <span className="ml-2 inline-block h-5 w-5 border-2 border-secondary/70 border-t-transparent rounded-full animate-spin" aria-label="Chargement..."></span>
-              )}
-              <datalist id="lots-datalist">
+              >
+                <option value="">Sélectionner un Lot</option>
                 {(lotNames || []).map(nomLot => (
-                  <option key={nomLot} value={nomLot} />
+                  <option key={nomLot} value={nomLot}>{nomLot}</option>
                 ))}
-              </datalist>
+              </select>
+               {(loadingLots || loadingWorkspace) && (
+                 <span className="ml-2 inline-block h-5 w-5 border-2 border-secondary/70 border-t-transparent rounded-full animate-spin" aria-label="Chargement..."></span>
+               )}
+              
             </div>
 
             <div className="flex items-center gap-2">

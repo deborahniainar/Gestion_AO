@@ -154,7 +154,7 @@ const PriceMTX = () => {
         {/* Header */}
         <header className="flex justify-between items-center px-6 py-6 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
             <h5 className="text-xl font-bold text-secondary m-0">
-              Ventilation des prix de base de fourniture des matériaux et consommables (Convertis en Heures)
+              Ventilation des prix de base de fourniture des matériaux et consommables (Convertis par Unité)
             </h5>
         </header>
         

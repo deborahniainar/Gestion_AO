@@ -29,6 +29,10 @@ class OnlyOfficeConfigRequest(BaseModel):
     file_path: str
     title: str | None = None
 
+class SaveDAORequest(BaseModel):
+    document_id: int
+    lots: Optional[List[Dict]] = None
+
 @router.post("/upload")
 def upload_dao(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if file is None or not file.filename:
@@ -361,12 +365,92 @@ def required_documents(document_id: int, db: Session = Depends(get_db)):
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable")
 
-    # Stub: liste générique; à spécialiser après extraction réelle
-    docs = [
-        {"type": "Lettre de soumission", "obligatoire": True, "description": "Modèle signé et cacheté"},
-        {"type": "Garantie de soumission", "obligatoire": True, "description": "Conforme au DAO"},
-        {"type": "Attestation CNSS", "obligatoire": True, "description": "Valide"},
-        {"type": "Attestation fiscale", "obligatoire": True, "description": "Valide"},
-        {"type": "Références similaires", "obligatoire": False, "description": "3 projets récents"},
-    ]
-    return docs
+@router.post("/save")
+def save_dao(payload: SaveDAORequest, db: Session = Depends(get_db), force: bool = False):
+    """Save DAO metadata (lots) for a previously uploaded document.
+    If a saved file already exists for the document and `force` is False,
+    respond with 409 Conflict to avoid duplicate storage. Pass `?force=true`
+    to overwrite the existing saved file.
+    """
+    doc = db.get(Document, payload.document_id)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable")
+
+    out_dir = os.path.join(os.getcwd(), "files", "uploads", "dao")
+    os.makedirs(out_dir, exist_ok=True)
+    out_path = os.path.join(out_dir, f"saved_{payload.document_id}.json")
+
+    # If a saved file already exists, prevent duplicate saves unless forced
+    if os.path.exists(out_path) and not force:
+        # Return 409 Conflict with path info
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                            detail=f"DAO déjà enregistré pour document_id={payload.document_id}. Pour écraser, réessayez avec ?force=true")
+
+    try:
+        with open(out_path, "w", encoding="utf-8") as fh:
+            json.dump({"document_id": payload.document_id, "lots": payload.lots or []}, fh, ensure_ascii=False, indent=2)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Impossible d'enregistrer le DAO: {str(e)}")
+
+    return {"status": "ok", "saved_path": f"/uploads/dao/{os.path.basename(out_path)}", "overwritten": bool(force)}
+
+import datetime
+
+@router.post("/cleanup")
+def cleanup_dao(days: int = 30, action: str = "archive", dry_run: bool = True):
+    """Nettoyage / archivage des fichiers DAO.
+
+    - days: fichiers plus anciens que ce nombre de jours seront traités.
+    - action: 'archive' (déplace vers ./archive) ou 'delete' (supprime les fichiers).
+    - dry_run: si True, ne fait que simuler et renvoie la liste des fichiers qui seraient affectés.
+
+    Retourne un résumé des fichiers traités.
+    """
+    base_dir = os.path.join(os.getcwd(), "files", "uploads", "dao")
+    if not os.path.exists(base_dir):
+        return {"moved": [], "deleted": [], "skipped": [], "message": "Répertoire DAO introuvable"}
+
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
+    archive_dir = os.path.join(base_dir, "archive")
+    os.makedirs(archive_dir, exist_ok=True)
+
+    moved = []
+    deleted = []
+    skipped = []
+
+    for name in os.listdir(base_dir):
+        # Ignorer dossiers utilitaires
+        if name in ("generated", "archive"):
+            skipped.append({"path": name, "reason": "ignored_dir"})
+            continue
+        path = os.path.join(base_dir, name)
+        if os.path.isdir(path):
+            skipped.append({"path": name, "reason": "is_dir"})
+            continue
+        try:
+            mtime = datetime.datetime.fromtimestamp(os.path.getmtime(path))
+        except Exception:
+            skipped.append({"path": name, "reason": "stat_failed"})
+            continue
+        if mtime < cutoff:
+            if dry_run:
+                if action == "delete":
+                    deleted.append(path)
+                else:
+                    moved.append(path)
+                continue
+            # effectif
+            try:
+                if action == "delete":
+                    os.remove(path)
+                    deleted.append(path)
+                else:
+                    dest = os.path.join(archive_dir, name)
+                    shutil.move(path, dest)
+                    moved.append(dest)
+            except Exception as e:
+                skipped.append({"path": path, "reason": f"error:{str(e)}"})
+        else:
+            skipped.append({"path": path, "reason": "newer_than_cutoff"})
+
+    return {"moved": moved, "deleted": deleted, "skipped": skipped, "dry_run": bool(dry_run), "days": days, "action": action}
