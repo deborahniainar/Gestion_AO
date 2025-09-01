@@ -1,4 +1,4 @@
-import React, {useState} from 'react'
+import React, {useState, useEffect} from 'react'
 import Sidebar from '../components/Sidebar'
 import {
   CloudDownload,
@@ -8,6 +8,8 @@ import {
   Edit, 
   Delete
 } from "@mui/icons-material";
+import { useDao } from '../contexts/DaoContext'
+import api from '../services/api'
 
 const Modal = ({ open, onClose, onSave }) => {
   const [form, setForm] = useState({
@@ -102,7 +104,33 @@ const Modal = ({ open, onClose, onSave }) => {
 const PriceMO = () => {
     const [openModal, setOpenModal] = useState(false)
     const [rows, setRows] = useState([])
+    const { requiredDocs } = useDao()
+    const [appelOffres, setAppelOffres] = useState([])
+    const [appelOffre, setAppelOffre] = useState('')
+    const [lot, setLot] = useState('')
 
+    useEffect(() => {
+        let mounted = true
+        const load = async () => {
+            try {
+                // Debug: log presence of Authorization token before API call
+                const token = localStorage.getItem('token')
+                console.log('[PriceMO] Authorization token present:', !!token, token ? `Bearer ${token.slice(0,10)}...` : 'none')
+                const res = await api.get('/appels_offre/')
+                console.log('[PriceMO] /appels_offre/ response data:', res.data)
+                const refs = Array.isArray(res.data) ? res.data.map(a => a.reference) : []
+                console.log('[PriceMO] extracted refs:', refs)
+                if (!mounted) return
+                setAppelOffres(refs)
+                console.log('[PriceMO] setAppelOffres ->', refs.length)
+                if (!appelOffre && refs.length) setAppelOffre(refs[0])
+            } catch {
+                // ignore
+            }
+        }
+        load()
+        return () => { mounted = false }
+    }, [])
     const addRow = (data) => {
         const salaireHoraire = (data.horaireMensuel / 160).toFixed(2) // exemple
         const total = (
@@ -135,8 +163,13 @@ const PriceMO = () => {
               <label className="text-secondary font-medium whitespace-nowrap">Appel d’Offre :</label>
               <select
                 className="text-primary dark:text-muted ml-auto border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-64"
+                value={appelOffre}
+                onChange={(e) => setAppelOffre(e.target.value)}
               >
-                <option value="Nom Appel d’Offre actuel">Nom Appel d’Offre actuel</option>
+                <option value="">Sélectionner un Appel d'Offre</option>
+                {appelOffres.map((ref, idx) => (
+                  <option key={idx} value={ref}>{ref}</option>
+                ))}
               </select>
               <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
               <input
@@ -144,9 +177,21 @@ const PriceMO = () => {
                 className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40"
                 placeholder="Saisir le lot"
                 list="lots-datalist"
+                value={lot}
+                onChange={(e) => setLot(e.target.value)}
               />
+              <select
+                className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40"
+                value={lot}
+                onChange={(e) => setLot(e.target.value)}
+              >
+                <option value="">Séléctionner un Lot</option>
+                
+              </select>
             </div>
-        
+                <datalist id="lots-datalist">
+                  {(requiredDocs || []).map((d, i) => d.lotName && <option key={i} value={d.lotName} />)}
+                </datalist>
             <div className="flex items-center gap-2">
               <button className="inline-flex items-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm px-3 py-2 rounded-md">
                 <Delete fontSize="small" />
