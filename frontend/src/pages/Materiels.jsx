@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import Sidebar from '../components/Sidebar'
 import ConfirmModal from '../components/ConfirmModal'
+import DocumentViewer from '../components/DocumentViewer'
 import useNotifications from '../hooks/useNotifications'
 import {
   CloudDownload,
@@ -21,6 +22,10 @@ const Materiel = () => {
   const [editingMateriel, setEditingMateriel] = useState(null);
   const [showPiecesJointes, setShowPiecesJointes] = useState(false);
   const [selectedMateriel, setSelectedMateriel] = useState(null);
+  
+  // États pour la modal de visualisation des documents
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [currentDocument, setCurrentDocument] = useState(null);
   const [formData, setFormData] = useState({
     nombre: '',
     designation:'',
@@ -48,7 +53,7 @@ const Materiel = () => {
   const { 
     showError, 
     showInfo, 
-    showWarning,
+
     showCreateSuccess,
     showUpdateSuccess,
     showDeleteSuccess,
@@ -102,19 +107,18 @@ const Materiel = () => {
         };
       }));
       setMateriel(mapped);
-      if (showToast && loadingToast) {
+      if (showToast) {
         showFetchSuccess();
       }
       return mapped;
     } catch (e) {
-      if (showToast && loadingToast) {
-        updateLoading(loadingToast, "Erreur lors du chargement", "error");
+      if (showToast) {
         showFetchError(e.message);
       }
       console.error(e);
       throw e;
     }
-  }, [showLoading, updateLoading, showFetchSuccess, showFetchError]);
+  }, [showFetchSuccess, showFetchError]);
 
   useEffect(() => {
     loadMateriels();
@@ -221,35 +225,7 @@ const Materiel = () => {
     console.log('Téléchargement de:', piece.nom, 'URL:', url);
   };
 
-  const handleViewPiece = (piece) => {
-    const url = piece.url || (piece.filename ? `/uploads/materiels/${piece.filename}` : `/uploads/materiels/${piece.nom}`);
-    const extension = piece.type?.toLowerCase() || piece.nom.split('.').pop().toLowerCase();
-    
-    const previewableTypes = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'txt'];
-    
-    console.log('Visualisation - Piece:', piece);
-    console.log('Visualisation - URL construite:', url);
-    console.log('Visualisation - Extension:', extension);
-    
-    if (previewableTypes.includes(extension)) {
-      fetch(url, { method: 'HEAD' })
-        .then(response => {
-          if (response.ok) {
-            window.open(url, '_blank', 'noopener,noreferrer');
-            showInfo(`Ouverture de ${piece.nom}`);
-          } else {
-            throw new Error(`Fichier non trouvé (${response.status})`);
-          }
-        })
-        .catch(error => {
-          console.error('Erreur lors de la vérification du fichier:', error);
-          showError(`Impossible d'ouvrir le fichier : ${error.message}`);
-        });
-    } else {
-      showWarning(`Le type de fichier ${extension.toUpperCase()} ne peut pas être visualisé directement. Téléchargement en cours...`);
-      handleDownloadPiece(piece);
-    }
-  };
+
 
   const handleDeleteClick = (id) => {
     const materiel = Materiel.find(m => m.id === id);
@@ -538,6 +514,17 @@ const Materiel = () => {
     setSelectedMateriel(null);
   };
 
+  // Fonctions pour la modal de visualisation des documents
+  const handleOpenDocumentModal = (document) => {
+    setCurrentDocument(document);
+    setShowDocumentModal(true);
+  };
+
+  const handleCloseDocumentModal = () => {
+    setShowDocumentModal(false);
+    setCurrentDocument(null);
+  };
+
   // Fonction pour obtenir l'icône selon le type de fichier
   const getFileIcon = (type) => {
     switch(type) {
@@ -705,9 +692,9 @@ const Materiel = () => {
                                             </div>
                                             <div className="flex gap-2">
                                                 <button 
-                                                    onClick={() => handleViewPiece(piece)}
+                                                    onClick={() => handleOpenDocumentModal(piece)}
                                                     className="p-2 text-primary hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors duration-200" 
-                                                    title="Visualiser"
+                                                    title="Visualiser le document"
                                                 >
                                                     <Visibility className="h-4 w-4" />
                                                 </button>
@@ -969,7 +956,14 @@ const Materiel = () => {
             <Help style={{ fontSize: '4rem' }} />
           </button>
 
-        </main> 
+                </main>
+
+        {/* Modal de visualisation des documents */}
+        <DocumentViewer
+          isOpen={showDocumentModal}
+          document={currentDocument}
+          onClose={handleCloseDocumentModal}
+        />
         
         <ConfirmModal
           open={confirmOpen}
