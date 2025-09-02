@@ -692,3 +692,88 @@ def list_daos(db: Session = Depends(get_db)):
             "filename": getattr(doc, 'filename', None) if doc is not None else None,
         })
     return out
+
+@router.get("/{document_id}/lots/{lot_id}/workforce")
+def get_lot_workforce(document_id: int, lot_id: int, db: Session = Depends(get_db)):
+    """Return the list of DaoPriceMO rows for a given document_id and lot_id.
+    This uses the same serialization format as the main GET /{document_id} endpoint.
+    """
+    dao = db.query(DAO).filter(DAO.document_id == document_id).first()
+    if not dao:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DAO introuvable")
+
+    lot = db.query(DaoLot).filter(DaoLot.id == lot_id, DaoLot.id_dao == dao.id).first()
+    if not lot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lot introuvable pour ce DAO")
+
+    mos = db.query(DaoPriceMO).filter(DaoPriceMO.id_lot == lot.id).all()
+    out = []
+    for m in mos:
+        out.append({
+            "id": m.id,
+            "poste": m.poste,
+            "horaire_mensuel": str(m.horaire_mensuel) if m.horaire_mensuel is not None else None,
+            "charges": str(m.charges) if m.charges is not None else None,
+            "temps": str(m.temps) if m.temps is not None else None,
+            "salaire_horaire": str(m.salaire_horaire) if m.salaire_horaire is not None else None,
+            "total": str(m.total) if m.total is not None else None,
+        })
+
+    return out
+
+
+@router.put("/{document_id}/lots/{lot_id}/workforce")
+def put_lot_workforce(document_id: int, lot_id: int, payload: List[Dict], db: Session = Depends(get_db)):
+    """Replace DaoPriceMO rows for a given lot with the provided payload (list of objects).
+
+    Expected payload item keys (any of): poste, horaireMensuel/horaire_mensuel/horaire, charges, temps, salaireHoraire/salaire_horaire/valeurHoraireMensuel, total
+    Values will be converted to Decimal when possible.
+    """
+    dao = db.query(DAO).filter(DAO.document_id == document_id).first()
+    if not dao:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DAO introuvable")
+
+    lot = db.query(DaoLot).filter(DaoLot.id == lot_id, DaoLot.id_dao == dao.id).first()
+    if not lot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lot introuvable pour ce DAO")
+
+    from decimal import Decimal
+
+    def to_decimal(v):
+        if v is None or v == "":
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+    try:
+        # Delete existing rows for this lot
+        db.query(DaoPriceMO).filter(DaoPriceMO.id_lot == lot.id).delete(synchronize_session=False)
+
+        # Insert new rows
+        for mo in payload or []:
+            poste = mo.get('poste') or mo.get('name') or ''
+            horaire_mensuel = to_decimal(mo.get('horaireMensuel') or mo.get('horaire_mensuel') or mo.get('horaire'))
+            charges = to_decimal(mo.get('charges'))
+            temps = to_decimal(mo.get('temps'))
+            salaire_horaire = to_decimal(mo.get('salaireHoraire') or mo.get('salaire_horaire') or mo.get('valeurHoraireMensuel') or mo.get('salaireMensuel'))
+            total = to_decimal(mo.get('total'))
+
+            pm = DaoPriceMO(
+                id_lot=lot.id,
+                poste=poste,
+                horaire_mensuel=horaire_mensuel,
+                charges=charges,
+                temps=temps,
+                salaire_horaire=salaire_horaire,
+                total=total,
+            )
+            db.add(pm)
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Impossible d'enregistrer la main d'oeuvre: {str(e)}")
+
+    return {"status": "ok", "saved": len(payload or [])}

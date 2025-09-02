@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Sidebar from "../components/Sidebar"
 import {
   CloudDownload,
@@ -253,6 +253,7 @@ const ConfirmModal = ({ open, message = 'Confirmer ?', onConfirm, onCancel }) =>
 const PriceMO = () => {
   const [openModal, setOpenModal] = useState(false)
   const [rows, setRows] = useState([])
+  const [rowsByLot, setRowsByLot] = useState({}) // in-memory map: { [lotName]: rows[] }
   const [editingIndex, setEditingIndex] = useState(null)
   const [editingInitial, setEditingInitial] = useState(null)
   const [daos, setDaos] = useState([])
@@ -308,6 +309,50 @@ const PriceMO = () => {
 
   useEffect(() => { fetchPersonnels() }, [fetchPersonnels])
 
+  // Fetch persisted rows for a lot from backend
+  const fetchRowsForLot = useCallback(async (lotId) => {
+    if (!daoDocId || !lotId) return []
+    try {
+      const res = await api.get(`/dao/${daoDocId}/lots/${lotId}/workforce`)
+      const data = Array.isArray(res.data) ? res.data : []
+      // Map backend DAO shape to frontend table row shape
+      return data.map((m) => {
+        const HM = m.horaire_mensuel ? Number(m.horaire_mensuel) : 0
+        const SH = m.salaire_horaire ? Number(m.salaire_horaire) : 0
+        const SM = (HM && SH) ? Number((SH * HM).toFixed(2)) : (m.horaire_mensuel ? Number(m.horaire_mensuel) : 0)
+        const HS = m.heuresSup ?? m.heures_sup ?? 0
+        const CS = m.charges ? Number(m.charges) : 0
+        const TD = m.temps ? Number(m.temps) : 0
+        const total = m.total ? Number(m.total) : Number((SH + HS + CS + TD).toFixed(2))
+        return {
+          personnelId: m.personnelId ?? null,
+          poste: m.poste ?? "",
+          salaireMensuel: SM ? Number(SM).toFixed(2) : "0.00",
+          salaireHoraire: SH ? Number(SH).toFixed(2) : "0.00",
+          heuresSup: HS ? Number(HS).toFixed(2) : "0.00",
+          charges: CS ? Number(CS).toFixed(2) : "0.00",
+          temps: TD ? Number(TD).toFixed(2) : "0.00",
+          total: total ? Number(total).toFixed(2) : "0.00",
+          _hm: HM,
+        }
+      })
+    } catch (err) {
+      console.warn('[PriceMO] failed to fetch rows for lot', lotId, err)
+      return []
+    }
+  }, [daoDocId])
+
+  // Save rows for a lot to backend (PUT)
+  const saveRowsForLot = useCallback(async (lotId, rowsToSave) => {
+    if (!daoDocId || !lotId) return
+    try {
+      await api.put(`/dao/${daoDocId}/lots/${lotId}/workforce`, rowsToSave)
+      console.log('[PriceMO] saved rows for lot', lotId)
+    } catch (err) {
+      console.warn('[PriceMO] failed to save rows for lot', lotId, err)
+    }
+  }, [daoDocId])
+
   /* ---------- Table actions & calculations ---------- */
   const addRow = (data) => {
     // SH = SM / HM
@@ -335,7 +380,14 @@ const PriceMO = () => {
       _hm: HM,
     }
 
-    setRows((prev) => [...prev, row])
+    setRows((prev) => {
+      const next = [...prev, row]
+      if (lot) {
+        setRowsByLot(prevMap => ({ ...prevMap, [lot]: next }))
+        saveRowsForLot(lot, next)
+      }
+      return next
+    })
   }
 
   const updateRow = (idx, data) => {
@@ -358,7 +410,14 @@ const PriceMO = () => {
       total: total.toFixed(2),
       _hm: HM,
     }
-    setRows((prev) => prev.map((r, i) => (i === idx ? updated : r)))
+    setRows((prev) => {
+      const next = prev.map((r, i) => (i === idx ? updated : r))
+      if (lot) {
+        setRowsByLot(prevMap => ({ ...prevMap, [lot]: next }))
+        saveRowsForLot(lot, next)
+      }
+      return next
+    })
   }
 
   // deletion workflow using in-app confirm modal
@@ -371,7 +430,16 @@ const PriceMO = () => {
   }
 
   const confirmDelete = () => {
-    if (pendingDeleteIdx != null) setRows((prev) => prev.filter((_, i) => i !== pendingDeleteIdx))
+    if (pendingDeleteIdx != null) {
+      setRows((prev) => {
+        const next = prev.filter((_, i) => i !== pendingDeleteIdx)
+        if (lot) {
+          setRowsByLot(prevMap => ({ ...prevMap, [lot]: next }))
+          saveRowsForLot(lot, next)
+        }
+        return next
+      })
+    }
     setConfirmOpen(false)
     setPendingDeleteIdx(null)
   }
@@ -443,9 +511,40 @@ const PriceMO = () => {
               {daoDocId ? (
                 <>
                   <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
-                  <select className="border border-gray-300 dark:border-muted-50 text-primary dark:text-muted bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40" value={lot} onChange={(e) => setLot(e.target.value)}>
+                  <select
+                    className="border border-gray-300 dark:border-muted-50 text-primary dark:text-muted bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40"
+                    value={lot}
+                    onChange={async (e) => {
+                      const val = e.target.value
+                      // save current rows for previous lot in-memory before switching
+                      if (lot) {
+                        // persist previous lot (do not await UI-blocking, but handle)
+                        saveRowsForLot(lot, rows).catch(() => {})
+                        setRowsByLot(prev => ({ ...prev, [lot]: rows }))
+                      }
+
+                      if (!val) {
+                        setLot("")
+                        setRows([])
+                        return
+                      }
+
+                      const lotId = Number(val)
+                      setLot(lotId)
+
+                      // load rows for selected lot: prefer in-memory cache, else fetch
+                      const cached = rowsByLot[lotId]
+                      if (Array.isArray(cached) && cached.length > 0) {
+                        setRows(cached)
+                      } else {
+                        const fetched = await fetchRowsForLot(lotId)
+                        setRows(Array.isArray(fetched) ? fetched : [])
+                        setRowsByLot(prev => ({ ...prev, [lotId]: Array.isArray(fetched) ? fetched : [] }))
+                      }
+                    }}
+                  >
                     <option value="">Sélectionner un Lot</option>
-                    {(savedLots || []).map((s, i) => (<option key={i} value={s.name}>{s.name}</option>))}
+                    {(savedLots || []).map((s, i) => (<option key={i} value={s.id}>{s.name}</option>))}
                   </select>
                 </>
               ) : (
@@ -460,19 +559,29 @@ const PriceMO = () => {
           </div>
 
           {/* Action + Table */}
-          <div className="flex items-center justify-between mb-3">
-            <button onClick={() => setOpenModal(true)} className="inline-flex items-center gap-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md"><Add fontSize="small" />Ajouter une main d'œuvre</button>
-          </div>
+          {lot ? (
+            <>
+              <div className="flex items-center justify-between mb-3">
+                <button onClick={() => setOpenModal(true)} className="inline-flex items-center gap-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md"><Add fontSize="small" />Ajouter une main d'œuvre</button>
+              </div>
 
-          <WorkforceTable rows={rows} onDelete={requestDeleteRow} onEdit={editRow} />
+              <WorkforceTable rows={rows} onDelete={requestDeleteRow} onEdit={editRow} />
+            </>
+          ) : (
+            <div className="p-4 text-sm text-gray-500">Sélectionner un Lot.</div>
+          )}
         </div>
 
-        {/* Modal */}
-        <Modal open={openModal} onClose={() => { setOpenModal(false); setEditingIndex(null); setEditingInitial(null); }} onSave={handleSave} personnels={personnels} initialData={editingInitial} />
-        <ConfirmModal open={confirmOpen} message={"Supprimer cette ligne ?"} onConfirm={confirmDelete} onCancel={cancelDelete} />
-      </main>
-    </div>
-  )
-}
+        {/* Modal - only available when a lot is selected */}
+        {lot && (
+          <>
+            <Modal open={openModal} onClose={() => { setOpenModal(false); setEditingIndex(null); setEditingInitial(null); }} onSave={handleSave} personnels={personnels} initialData={editingInitial} />
+            <ConfirmModal open={confirmOpen} message={"Supprimer cette ligne ?"} onConfirm={confirmDelete} onCancel={cancelDelete} />
+          </>
+        )}
+       </main>
+     </div>
+   )
+ }
 
-export default PriceMO
+ export default PriceMO
