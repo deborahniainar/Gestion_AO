@@ -195,11 +195,11 @@ const Modal = ({ open, onClose, onSave, personnels = [], initialData = null }) =
 const WorkforceTable = ({ rows, onEdit, onDelete }) => {
   const columns = [
     { key: "poste", label: "Poste" },
-    { key: "salaireMensuel", label: "Salaire Mensuel (SM)" },
-    { key: "salaireHoraire", label: "Salaire Horaire (SH)" },
-    { key: "heuresSup", label: "Heures Supplémentaires (HS)" },
-    { key: "charges", label: "Charges Sociales (CS)" },
-    { key: "temps", label: "Temps de Déplacement (TD)" },
+    { key: "salaireMensuel", label: "Salaire Mensuel" },
+    { key: "salaireHoraire", label: "Salaire Horaire" },
+    { key: "heuresSup", label: "Heures Supplémentaires" },
+    { key: "charges", label: "Charges Sociales" },
+    { key: "temps", label: "Temps de Déplacement" },
     { key: "total", label: "Total Horaire" },
   ]
 
@@ -324,9 +324,13 @@ const PriceMO = () => {
         const CS = m.charges ? Number(m.charges) : 0
         const TD = m.temps ? Number(m.temps) : 0
         const total = m.total ? Number(m.total) : Number((SH + HS + CS + TD).toFixed(2))
+        // prefer showing personnel fonction when available
+        const personnelId = m.personnelId ?? null
+        const p = personnelId ? personnels.find(pp => String(pp.id) === String(personnelId)) : null
+        const posteLabel = p?.fonction ?? m.poste ?? ""
         return {
-          personnelId: m.personnelId ?? null,
-          poste: m.poste ?? "",
+          personnelId: personnelId,
+          poste: posteLabel,
           salaireMensuel: SM ? Number(SM).toFixed(2) : "0.00",
           salaireHoraire: SH ? Number(SH).toFixed(2) : "0.00",
           heuresSup: HS ? Number(HS).toFixed(2) : "0.00",
@@ -340,7 +344,7 @@ const PriceMO = () => {
       console.warn('[PriceMO] failed to fetch rows for lot', lotId, err)
       return []
     }
-  }, [daoDocId])
+  }, [daoDocId, personnels])
 
   // Save rows for a lot to backend (PUT)
   const saveRowsForLot = useCallback(async (lotId, rowsToSave) => {
@@ -352,6 +356,77 @@ const PriceMO = () => {
       console.warn('[PriceMO] failed to save rows for lot', lotId, err)
     }
   }, [daoDocId])
+
+  // Export current lot rows as Excel (.xlsx)
+  const exportCurrentLotExcel = async () => {
+    if (!lot) {
+      alert('Aucun lot sélectionné pour l\'export')
+      return
+    }
+    try {
+      const XLSX = await import('xlsx')
+      const currentRows = rows || []
+      const headers = ['Poste', 'Salaire Mensuel', 'Salaire Horaire', 'Heures Supplémentaires', 'Charges Sociales', 'Temps de Déplacement', 'Total Horaire']
+      // prepare worksheet data: header title, empty row, then column headers and rows
+      const lotObj = (savedLots || []).find(s => String(s.id) === String(lot))
+      const lotName = lotObj ? (lotObj.name || `lot-${lot}`) : `lot-${lot}`
+      const title = 'Ventilation des prix de base pour la main d\'œuvre (Convertis par Heure)'
+      const wsData = [[title], [] , headers, ...currentRows.map(r => [r.poste ?? '', r.salaireMensuel ?? '', r.salaireHoraire ?? '', r.heuresSup ?? '', r.charges ?? '', r.temps ?? '', r.total ?? ''])]
+      const ws = XLSX.utils.aoa_to_sheet(wsData)
+      // Optionally freeze header row after title
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'MainOeuvre')
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const filename = `dao-${daoDocId || 'unknown'}_${lotName.replace(/[^a-z0-9\-_]/gi, '_')}.xlsx`
+      a.href = url
+      a.setAttribute('download', filename)
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('Excel export failed', err)
+      alert('L\'export Excel nécessite la librairie "xlsx". Veuillez installer la dépendance (xlsx) et recharger l\'application.')
+    }
+  }
+
+  // Export current lot rows as PDF
+  const exportCurrentLotPDF = async () => {
+    if (!lot) {
+      alert('Aucun lot sélectionné pour l\'export')
+      return
+    }
+    try {
+      const { jsPDF } = await import('jspdf')
+      const autoTableModule = await import('jspdf-autotable')
+      const autoTable = autoTableModule && (autoTableModule.default || autoTableModule)
+      const doc = new jsPDF({ unit: 'pt', format: 'a4' })
+      const margin = 40
+      const title = 'Ventilation des prix de base pour la main d\'œuvre (Convertis par Heure)'
+      doc.setFontSize(14)
+      doc.text(title, margin, 60)
+      const headers = ['Poste', 'Salaire Mensuel', 'Salaire Horaire', 'Heures Supplémentaires', 'Charges Sociales', 'Temps de Déplacement', 'Total Horaire']
+      const body = (rows || []).map(r => [r.poste ?? '', r.salaireMensuel ?? '', r.salaireHoraire ?? '', r.heuresSup ?? '', r.charges ?? '', r.temps ?? '', r.total ?? ''])
+      // call the autotable function directly (some bundlers don't attach it to jsPDF prototype)
+      if (typeof autoTable === 'function') {
+        autoTable(doc, { head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
+      } else if (typeof doc.autoTable === 'function') {
+        doc.autoTable({ head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
+      } else {
+        throw new Error('jspdf-autotable not available')
+      }
+      const lotObj = (savedLots || []).find(s => String(s.id) === String(lot))
+      const lotName = lotObj ? (lotObj.name || `lot-${lot}`) : `lot-${lot}`
+      const filename = `dao-${daoDocId || 'unknown'}_${lotName.replace(/[^a-z0-9\-_]/gi, '_')}.pdf`
+      doc.save(filename)
+    } catch (err) {
+      console.error('PDF export failed', err)
+      alert('L\'export PDF nécessite les librairies "jspdf" et "jspdf-autotable". Veuillez les installer et recharger l\'application.')
+    }
+  }
 
   /* ---------- Table actions & calculations ---------- */
   const addRow = (data) => {
@@ -369,7 +444,8 @@ const PriceMO = () => {
 
     const row = {
       personnelId: data.personnelId || null,
-      poste: data.poste || "",
+      // show function of selected personnel when available
+      poste: (data.personnelId ? (personnels.find(p => String(p.id) === String(data.personnelId))?.fonction) : null) || data.poste || "",
       salaireMensuel: SM ? SM.toFixed(2) : "0.00",
       salaireHoraire: SH.toFixed(2),
       heuresSup: HS.toFixed(2),
@@ -401,7 +477,7 @@ const PriceMO = () => {
 
     const updated = {
       personnelId: data.personnelId || null,
-      poste: data.poste || "",
+      poste: (data.personnelId ? (personnels.find(p => String(p.id) === String(data.personnelId))?.fonction) : null) || data.poste || "",
       salaireMensuel: SM ? SM.toFixed(2) : "0.00",
       salaireHoraire: SH.toFixed(2),
       heuresSup: HS.toFixed(2),
@@ -553,8 +629,8 @@ const PriceMO = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button className="inline-flex items-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm px-3 py-2 rounded-md"><Delete fontSize="small" />Supprimer le lot</button>
-              <button className="inline-flex items-center gap-2 bg-secondary hover:bg-secondary/90 text-white text-sm px-3 py-2 rounded-md"><CloudDownload fontSize="small" />Exporter</button>
+              <button onClick={exportCurrentLotExcel} title="Exporter en Excel (.xlsx)" className="inline-flex items-center gap-2 bg-secondary hover:bg-secondary/90 text-white text-sm px-3 py-2 rounded-md"><CloudDownload fontSize="small" />XLSX</button>
+              <button onClick={exportCurrentLotPDF} title="Exporter en PDF" className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-2 rounded-md"><CloudDownload fontSize="small" />PDF</button>
             </div>
           </div>
 
