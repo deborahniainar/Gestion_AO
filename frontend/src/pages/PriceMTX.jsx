@@ -209,20 +209,20 @@ const PriceMTX = () => {
             <table className="w-full border border-secondary border-collapse">
               <thead className="bg-gray-100 dark:bg-primary/40">
                 <tr>
-                  <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Description</th>
-                  <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Unité</th>
-                  <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Origine</th>
-                  <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">PU</th>
-                  <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Transport</th>
-                  <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Droits et Taxes</th>
-                  <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left" colSpan={2}>Perte</th>
-                  <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Total</th>
-                  <th className="text-primary dark:text-muted border border-secondary px-3 py-2 border text-left">Action</th>
+                  <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Description</th>
+                  <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Unité</th>
+                  <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Origine</th>
+                  <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">PU</th>
+                  <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Transport</th>
+                  <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Droits et Taxes</th>
+                  <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left" colSpan={2}>Perte</th>
+                  <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Total</th>
+                  <th className="text-primary dark:text-muted border-secondary px-3 py-2 border text-left">Action</th>
                 </tr>
                 <tr>
                   <th></th><th></th><th></th><th></th><th></th><th></th>
-                  <th className="text-primary dark:text-muted border border-secondary px-3 py-1 border text-left">% </th>
-                  <th className="text-primary dark:text-muted border border-secondary px-3 py-1 border text-left">Valeur</th>
+                  <th className="text-primary dark:text-muted border-secondary px-3 py-1 border text-left">% </th>
+                  <th className="text-primary dark:text-muted border-secondary px-3 py-1 border text-left">Valeur</th>
                   <th></th><th></th>
                 </tr>
               </thead>
