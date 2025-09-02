@@ -1,0 +1,112 @@
+PRAGMA foreign_keys=OFF;
+BEGIN TRANSACTION;
+PRAGMA foreign_keys=ON;
+
+CREATE TABLE IF NOT EXISTS dao (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  document_id INTEGER,
+  reference VARCHAR(255),
+  created_at DATETIME DEFAULT (CURRENT_TIMESTAMP)
+);
+
+CREATE TABLE IF NOT EXISTS dao_lots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_dao INTEGER NOT NULL,
+  lot_name VARCHAR(255) NOT NULL,
+  created_at DATETIME DEFAULT (CURRENT_TIMESTAMP),
+  FOREIGN KEY(id_dao) REFERENCES dao(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dao_price_mo (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_lot INTEGER NOT NULL,
+  poste VARCHAR(255) NOT NULL,
+  horaire_mensuel NUMERIC(19,2),
+  charges NUMERIC(19,2),
+  temps NUMERIC(19,2),
+  salaire_horaire NUMERIC(19,2),
+  total NUMERIC(19,2),
+  FOREIGN KEY(id_lot) REFERENCES dao_lots(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dao_price_mtx (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_lot INTEGER NOT NULL,
+  designation VARCHAR(255) NOT NULL,
+  quantite NUMERIC(19,2),
+  prix_unitaire NUMERIC(19,2),
+  total NUMERIC(19,2),
+  FOREIGN KEY(id_lot) REFERENCES dao_lots(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dao_price_equ (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_lot INTEGER NOT NULL,
+  designation VARCHAR(255) NOT NULL,
+  quantite NUMERIC(19,2),
+  prix_unitaire NUMERIC(19,2),
+  total NUMERIC(19,2),
+  FOREIGN KEY(id_lot) REFERENCES dao_lots(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dao_price_sdp (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_lot INTEGER NOT NULL,
+  description VARCHAR(512),
+  quantite NUMERIC(19,2),
+  prix_unitaire NUMERIC(19,2),
+  total NUMERIC(19,2),
+  FOREIGN KEY(id_lot) REFERENCES dao_lots(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dao_price_sdp_posts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_sdp INTEGER NOT NULL,
+  titre VARCHAR(255) NOT NULL,
+  ordre INTEGER,
+  FOREIGN KEY(id_sdp) REFERENCES dao_price_sdp(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dao_price_sdp_articles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_post INTEGER NOT NULL,
+  designation VARCHAR(512) NOT NULL,
+  quantite NUMERIC(19,2),
+  prix_unitaire NUMERIC(19,2),
+  total NUMERIC(19,2),
+  FOREIGN KEY(id_post) REFERENCES dao_price_sdp_posts(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dao_price_bde (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_lot INTEGER NOT NULL,
+  poste VARCHAR(255),
+  quantite NUMERIC(19,2),
+  prix_unitaire NUMERIC(19,2),
+  total NUMERIC(19,2),
+  FOREIGN KEY(id_lot) REFERENCES dao_lots(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dao_tasks (
+  id VARCHAR(64) PRIMARY KEY,
+  titre VARCHAR(255) NOT NULL,
+  ordre INTEGER,
+  id_lot INTEGER NOT NULL,
+  FOREIGN KEY(id_lot) REFERENCES dao_lots(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS dao_subtasks (
+  id VARCHAR(64) PRIMARY KEY,
+  titre VARCHAR(255) NOT NULL,
+  done BOOLEAN NOT NULL DEFAULT 0,
+  ordre INTEGER,
+  content_markdown TEXT,
+  id_task VARCHAR(64) NOT NULL,
+  FOREIGN KEY(id_task) REFERENCES dao_tasks(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS ix_dao_reference ON dao(reference);
+CREATE INDEX IF NOT EXISTS ix_dao_lots_lot_name ON dao_lots(lot_name);
+
+COMMIT;
+PRAGMA foreign_keys=ON;
