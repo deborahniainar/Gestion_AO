@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { jsPDF } from "jspdf";
 import {
   Help,
@@ -32,6 +32,8 @@ export default function GestionDAO() {
     editingSummary, setEditingSummary,
     requiredDocs, setRequiredDocs,
   } = useDao();
+const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess, showLoading, updateLoading } = useNotifications();
+  const { setDaoId, setSavedLots } = useDao();
 
   const [uploadError, setUploadError] = useState("");
   const [extractionMode, setExtractionMode] = useState("smart");
@@ -49,15 +51,24 @@ export default function GestionDAO() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteIdx, setDeleteIdx] = useState(null);
 
-  const {
-    showSuccess,
-    showError,
-    showInfo,
-    showUploadSuccess,
-    showDownloadSuccess,
-    showLoading,
-    updateLoading,
-  } = useNotifications();
+  // Overwrite-confirmation modal and saved-badge state
+  const [showOverwriteModal, setShowOverwriteModal] = useState(false);
+  const [conflictMessage, setConflictMessage] = useState("");
+  const [savedBadge, setSavedBadge] = useState(() => {
+    try {
+      return daoDocId ? localStorage.getItem(`daoSaved:${daoDocId}`) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (!daoDocId) { setSavedBadge(null); return; }
+      const val = localStorage.getItem(`daoSaved:${daoDocId}`);
+      setSavedBadge(val);
+    } catch {}
+  }, [daoDocId]);
 
   const handleUpload = (e) => {
     const f = e.target.files?.[0];
@@ -268,6 +279,93 @@ export default function GestionDAO() {
     showSuccess("Lot supprimé avec succès");
   };
 
+  // Enregistrer le DAO (gère 409 -> ouverture d'une modal d'écrasement)
+  const validateLots = (lots) => {
+    const errors = [];
+    if (!Array.isArray(lots) || lots.length === 0) {
+      errors.push('Au moins un lot est requis.');
+      return errors;
+    }
+    lots.forEach((l, idx) => {
+      const name = (l && l.lotName) || l?.type || '';
+      if (!name || !String(name).trim()) {
+        errors.push(`Le lot #${idx + 1} doit avoir un nom.`);
+      }
+      // basic array shape checks for price tables if present
+      ['priceMO', 'priceMTX', 'priceEQU', 'priceBDE', 'priceSDP'].forEach((key) => {
+        const arr = l?.[key];
+        if (arr != null && !Array.isArray(arr)) {
+          errors.push(`Le champ ${key} du lot "${name || idx+1}" doit être un tableau.`);
+        } else if (Array.isArray(arr)) {
+          arr.forEach((it, j) => {
+            if (it && typeof it === 'object') {
+              if ('quantite' in it && isNaN(Number(it.quantite))) errors.push(`Quantité invalide dans ${key} du lot "${name || idx+1}", ligne ${j+1}`);
+              if ('prix_unitaire' in it && isNaN(Number(it.prix_unitaire))) errors.push(`Prix unitaire invalide dans ${key} du lot "${name || idx+1}", ligne ${j+1}`);
+            }
+          });
+        }
+      });
+    });
+    return errors;
+  };
+
+  const saveDao = async (opts = {}) => {
+    if (!daoDocId) { showError("Téléversez et confirmez le DAO avant d'enregistrer."); return; }
+    const payload = { document_id: daoDocId, lots: requiredDocs || [] };
+
+    // Client-side validations
+    const errors = validateLots(payload.lots);
+    if (errors.length > 0) {
+      showError(errors.join(' • '));
+      return;
+    }
+
+    try {
+      const res = await apiWithNotifications.post(`/dao/save${opts.force ? '?force=true' : ''}`, payload);
+      const ts = new Date().toISOString();
+      try { localStorage.setItem(`daoSaved:${daoDocId}`, ts); } catch {}
+      setSavedBadge(ts);
+      // store returned dao_id and optionally lots
+      const daoIdReturned = res?.data?.dao_id;
+      const lotsCreated = res?.data?.lots_created ?? payload.lots.length;
+      if (daoIdReturned) setDaoId(daoIdReturned);
+      if (Array.isArray(payload.lots) && payload.lots.length > 0) {
+        // store savedLots as simple names/ids map
+        const saved = payload.lots.map((l, i) => ({ name: l.lotName || l.name || `Lot ${i+1}` }));
+        setSavedLots(saved);
+      }
+      showSuccess('DAO enregistré avec succès');
+    } catch (err) {
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.detail;
+      if (status === 409) {
+        const message = detail || 'Un DAO existe déjà pour ce document. Voulez-vous écraser ?';
+        setConflictMessage(message);
+        setShowOverwriteModal(true);
+      } else {
+        showError('Erreur lors de l\'enregistrement du DAO');
+      }
+    }
+  };
+
+  const confirmOverwrite = async () => {
+    setShowOverwriteModal(false);
+    const payload = { document_id: daoDocId, lots: requiredDocs || [] };
+    try {
+      await apiWithNotifications.post('/dao/save?force=true', payload);
+      const ts = new Date().toISOString();
+      try { localStorage.setItem(`daoSaved:${daoDocId}`, ts); } catch {}
+      setSavedBadge(ts);
+      // update DaoContext with dao id
+      const res = await apiWithNotifications.get(`/dao/${daoDocId}`); // fetch persisted dao to get ids
+      if (res?.data?.dao_id) setDaoId(res.data.dao_id);
+      if (Array.isArray(res?.data?.lots)) setSavedLots(res.data.lots.map(l => ({ id: l.id, name: l.lot_name })));
+      showSuccess('DAO écrasé et enregistré avec succès');
+    } catch (e) {
+      showError('Échec lors de l\'écrasement du DAO');
+    }
+  };
+
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
       <Sidebar />
@@ -292,15 +390,14 @@ export default function GestionDAO() {
                 <div className="flex justify-between gap-5">
                   <CloudUpload style={{fontSize: 55}} className="h-16 w-16 text-primary dark:text-main" />
                   <input type="file" className="w-full p-3 border-2 border-primary dark:border-main rounded-lg" accept=".pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleUpload} />
-                </div>
-                
+              </div>
                 {uploadError && <small className="text-yellow-600 block mb-2">{uploadError}</small>}
                 {file && <p className="text-accent dark:text-main mt-2">Fichier sélectionné : {file.name}</p>}
                 <button className="mt-4 px-6 py-3 bg-primary dark:bg-accent text-main font-semibold rounded-lg disabled:opacity-50" onClick={handleConfirmUpload} disabled={!file || !!uploadError}>Téléverser</button>
               </div>
+              </div>
             </div>
           </div>
-        </div>
 
         {/* Section 2: Extraction du fichier */}
         {uploadConfirmed && file && (
@@ -419,19 +516,17 @@ export default function GestionDAO() {
 
                   <button
                     onClick={async () => {
-                      if (!daoDocId) { showError("Téléversez et confirmez le DAO avant d'enregistrer."); return; }
-                      try {
-                        const payload = { document_id: daoDocId, lots: requiredDocs || [] };
-                        await apiWithNotifications.post('/dao/save', payload);
-                        showSuccess('DAO enregistré avec succès');
-                      } catch {
-                        showError("Erreur lors de l'enregistrement du DAO");
-                      }
+                      await saveDao();
                     }}
                     className="px-4 py-2 bg-primary text-main rounded hover:opacity-90"
                   >
                     Enregistrer le DAO
                   </button>
+                  {savedBadge && (
+                    <span className="ml-3 inline-flex items-center px-2 py-1 bg-green-100 text-green-800 text-sm rounded">
+                      Enregistré • {new Date(savedBadge).toLocaleString()}
+                    </span>
+                  )}
                 </div>
 
                 <div className="text-sm text-gray-500">Nombre de lots créés : <span className="font-semibold text-gray-800">{(requiredDocs || []).length}</span></div>
@@ -515,6 +610,29 @@ export default function GestionDAO() {
             </div>
           </div>
         )}
+
+        {showOverwriteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white dark:bg-primary rounded-lg p-6 w-full max-w-md">
+              <h4 className="font-semibold mb-3">DAO déjà existant</h4>
+              <p className="mb-4">{conflictMessage}</p>
+              <div className="flex justify-end gap-3">
+                <button className="px-3 py-2" onClick={() => setShowOverwriteModal(false)}>Annuler</button>
+                <button className="px-3 py-2 bg-red-600 text-white rounded" onClick={confirmOverwrite}>Écraser et enregistrer</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bouton Aide flottant */}
+        <button
+          className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+          onClick={() => {
+            alert("Aide / Guide utilisateur en cours de développement !");
+          }}          
+        >
+            <Help style={{ fontSize: '4rem' }} />
+          </button>
       </main>
     </div>
   )

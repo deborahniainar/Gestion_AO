@@ -9,7 +9,7 @@ import unicodedata
 from sqlalchemy.orm import Session
 
 from ..db.session import get_db
-from ..db.models import Document
+from ..db.models import Document, DAO, DaoLot, DaoPriceMO, DaoPriceMTX, DaoPriceEQU, DaoPriceSDP, DaoPriceSDPPost, DaoPriceSDPArticle, DaoPriceBDE, DaoTask, DaoSubtask
 from ..services.nlp_processing import summarize as llm_summarize
 
 from fastapi import Request
@@ -367,32 +367,152 @@ def required_documents(document_id: int, db: Session = Depends(get_db)):
 
 @router.post("/save")
 def save_dao(payload: SaveDAORequest, db: Session = Depends(get_db), force: bool = False):
-    """Save DAO metadata (lots) for a previously uploaded document.
-    If a saved file already exists for the document and `force` is False,
-    respond with 409 Conflict to avoid duplicate storage. Pass `?force=true`
-    to overwrite the existing saved file.
+    """Persist a DAO structure into DB (DAO, lots, price tables, tasks).
+
+    Payload: { document_id: int, lots: [{ lotName, priceMO: [...], priceMTX: [...], priceEQU: [...], priceSDP: [...], priceBDE: [...], tasks: [...] }, ...] }
+    If a DAO already exists for the document and `force` is False -> 409 Conflict.
+    If `force` is True, existing DAO and children are removed and replaced.
     """
     doc = db.get(Document, payload.document_id)
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document introuvable")
 
-    out_dir = os.path.join(os.getcwd(), "files", "uploads", "dao")
-    os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, f"saved_{payload.document_id}.json")
-
-    # If a saved file already exists, prevent duplicate saves unless forced
-    if os.path.exists(out_path) and not force:
-        # Return 409 Conflict with path info
+    # Check existing DAO for this document
+    existing = db.query(DAO).filter(DAO.document_id == payload.document_id).first()
+    if existing and not force:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT,
                             detail=f"DAO déjà enregistré pour document_id={payload.document_id}. Pour écraser, réessayez avec ?force=true")
 
     try:
-        with open(out_path, "w", encoding="utf-8") as fh:
-            json.dump({"document_id": payload.document_id, "lots": payload.lots or []}, fh, ensure_ascii=False, indent=2)
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Impossible d'enregistrer le DAO: {str(e)}")
+        # If overwriting, delete existing DAO cascade
+        if existing:
+            db.delete(existing)
+            db.flush()
 
-    return {"status": "ok", "saved_path": f"/uploads/dao/{os.path.basename(out_path)}", "overwritten": bool(force)}
+        # Create DAO row
+        dao = DAO(document_id=payload.document_id, reference=getattr(payload, 'reference', None))
+        db.add(dao)
+        db.flush()
+
+        lots = payload.lots or []
+        from decimal import Decimal
+
+        def to_decimal(v):
+            if v is None or v == "":
+                return None
+            try:
+                return Decimal(str(v))
+            except Exception:
+                return None
+
+        created_lot_ids = []
+
+        for lot_obj in lots:
+            # accept different key names
+            lot_name = (lot_obj.get('lotName') or lot_obj.get('name') or lot_obj.get('lot') or lot_obj.get('titre') or 'Lot')
+            dlot = DaoLot(id_dao=dao.id, lot_name=lot_name)
+            db.add(dlot)
+            db.flush()
+
+            created_lot_ids.append(dlot.id)
+
+            # Main d'oeuvre
+            for mo in lot_obj.get('priceMO') or lot_obj.get('price_mo') or lot_obj.get('mainOeuvre') or []:
+                pm = DaoPriceMO(
+                    id_lot=dlot.id,
+                    poste=mo.get('poste') or mo.get('name') or '',
+                    horaire_mensuel=to_decimal(mo.get('horaireMensuel') or mo.get('horaire_mensuel') or mo.get('horaire')),
+                    charges=to_decimal(mo.get('charges')),
+                    temps=to_decimal(mo.get('temps')),
+                    salaire_horaire=to_decimal(mo.get('salaireHoraire') or mo.get('salaire_horaire')),
+                    total=to_decimal(mo.get('total')),
+                )
+                db.add(pm)
+
+            # Matériaux
+            for mtx in lot_obj.get('priceMTX') or lot_obj.get('price_mtx') or lot_obj.get('materiaux') or []:
+                m = DaoPriceMTX(
+                    id_lot=dlot.id,
+                    designation=mtx.get('designation') or mtx.get('name') or '',
+                    quantite=to_decimal(mtx.get('quantite')),
+                    prix_unitaire=to_decimal(mtx.get('prix_unitaire') or mtx.get('prixUnitaire')),
+                    total=to_decimal(mtx.get('total')),
+                )
+                db.add(m)
+
+            # Équipements
+            for equ in lot_obj.get('priceEQU') or lot_obj.get('price_equ') or lot_obj.get('equipements') or []:
+                e = DaoPriceEQU(
+                    id_lot=dlot.id,
+                    designation=equ.get('designation') or equ.get('name') or '',
+                    quantite=to_decimal(equ.get('quantite')),
+                    prix_unitaire=to_decimal(equ.get('prix_unitaire') or equ.get('prixUnitaire')),
+                    total=to_decimal(equ.get('total')),
+                )
+                db.add(e)
+
+            # Bordereau de prix
+            for bde in lot_obj.get('priceBDE') or lot_obj.get('price_bde') or lot_obj.get('bde') or []:
+                b = DaoPriceBDE(
+                    id_lot=dlot.id,
+                    poste=bde.get('poste') or bde.get('name') or '',
+                    quantite=to_decimal(bde.get('quantite')),
+                    prix_unitaire=to_decimal(bde.get('prix_unitaire') or bde.get('prixUnitaire')),
+                    total=to_decimal(bde.get('total')),
+                )
+                db.add(b)
+
+            # Sous-détail de prix (avec postes et articles)
+            for sdp in lot_obj.get('priceSDP') or lot_obj.get('price_sdp') or lot_obj.get('sousDetailPrix') or []:
+                s = DaoPriceSDP(
+                    id_lot=dlot.id,
+                    description=sdp.get('description') or sdp.get('titre') or None,
+                    quantite=to_decimal(sdp.get('quantite')),
+                    prix_unitaire=to_decimal(sdp.get('prix_unitaire') or sdp.get('prixUnitaire')),
+                    total=to_decimal(sdp.get('total')),
+                )
+                db.add(s)
+                db.flush()
+
+                for post in sdp.get('posts') or sdp.get('posts_list') or post.get('posts') if False else sdp.get('posts') or []:
+                    p = DaoPriceSDPPost(
+                        id_sdp=s.id,
+                        titre=post.get('titre') or post.get('title') or post.get('name') or ''
+                    )
+                    db.add(p)
+                    db.flush()
+                    for art in post.get('articles') or post.get('items') or []:
+                        a = DaoPriceSDPArticle(
+                            id_post=p.id,
+                            designation=art.get('designation') or art.get('name') or '',
+                            quantite=to_decimal(art.get('quantite')),
+                            prix_unitaire=to_decimal(art.get('prix_unitaire') or art.get('prixUnitaire')),
+                            total=to_decimal(art.get('total')),
+                        )
+                        db.add(a)
+
+            # Tâches et sous-tâches
+            for t in lot_obj.get('tasks') or lot_obj.get('taches') or []:
+                task_id = t.get('id') or uuid.uuid4().hex
+                task = DaoTask(id=task_id, titre=t.get('titre') or t.get('title') or '', ordre=t.get('ordre'), id_lot=dlot.id)
+                db.add(task)
+                db.flush()
+                for st in t.get('subtasks') or t.get('sousTaches') or t.get('sub_tasks') or []:
+                    st_id = st.get('id') or uuid.uuid4().hex
+                    sub = DaoSubtask(id=st_id,
+                                     titre=st.get('titre') or st.get('title') or '',
+                                     done=bool(st.get('done')),
+                                     ordre=st.get('ordre'),
+                                     content_markdown=st.get('content_markdown') or st.get('content') or None,
+                                     id_task=task.id)
+                    db.add(sub)
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Impossible d'enregistrer le DAO en base: {str(e)}")
+
+    return {"status": "ok", "dao_id": dao.id, "lots_created": len(lots), "lot_ids": created_lot_ids}
 
 import datetime
 
@@ -454,3 +574,121 @@ def cleanup_dao(days: int = 30, action: str = "archive", dry_run: bool = True):
             skipped.append({"path": path, "reason": "newer_than_cutoff"})
 
     return {"moved": moved, "deleted": deleted, "skipped": skipped, "dry_run": bool(dry_run), "days": days, "action": action}
+
+@router.get("/{document_id}")
+def get_dao(document_id: int, db: Session = Depends(get_db)):
+    """Return persisted DAO and its lots for a given document_id."""
+    dao = db.query(DAO).filter(DAO.document_id == document_id).first()
+    if not dao:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DAO introuvable")
+
+    lots = []
+    lot_objs = db.query(DaoLot).filter(DaoLot.id_dao == dao.id).all()
+    for l in lot_objs:
+        lot = {
+            "id": l.id,
+            "lot_name": l.lot_name,
+            "created_at": getattr(l, 'created_at', None),
+            "priceMO": [],
+            "priceMTX": [],
+            "priceEQU": [],
+            "priceBDE": [],
+            "priceSDP": [],
+            "tasks": [],
+        }
+        # priceMO
+        mos = db.query(DaoPriceMO).filter(DaoPriceMO.id_lot == l.id).all()
+        for m in mos:
+            lot["priceMO"].append({
+                "id": m.id,
+                "poste": m.poste,
+                "horaire_mensuel": str(m.horaire_mensuel) if m.horaire_mensuel is not None else None,
+                "charges": str(m.charges) if m.charges is not None else None,
+                "temps": str(m.temps) if m.temps is not None else None,
+                "salaire_horaire": str(m.salaire_horaire) if m.salaire_horaire is not None else None,
+                "total": str(m.total) if m.total is not None else None,
+            })
+        # priceMTX
+        mtxs = db.query(DaoPriceMTX).filter(DaoPriceMTX.id_lot == l.id).all()
+        for m in mtxs:
+            lot["priceMTX"].append({
+                "id": m.id,
+                "designation": m.designation,
+                "quantite": str(m.quantite) if m.quantite is not None else None,
+                "prix_unitaire": str(m.prix_unitaire) if m.prix_unitaire is not None else None,
+                "total": str(m.total) if m.total is not None else None,
+            })
+        # priceEQU
+        equs = db.query(DaoPriceEQU).filter(DaoPriceEQU.id_lot == l.id).all()
+        for e in equs:
+            lot["priceEQU"].append({
+                "id": e.id,
+                "designation": e.designation,
+                "quantite": str(e.quantite) if e.quantite is not None else None,
+                "prix_unitaire": str(e.prix_unitaire) if e.prix_unitaire is not None else None,
+                "total": str(e.total) if e.total is not None else None,
+            })
+        # priceBDE
+        bdes = db.query(DaoPriceBDE).filter(DaoPriceBDE.id_lot == l.id).all()
+        for b in bdes:
+            lot["priceBDE"].append({
+                "id": b.id,
+                "poste": b.poste,
+                "quantite": str(b.quantite) if b.quantite is not None else None,
+                "prix_unitaire": str(b.prix_unitaire) if b.prix_unitaire is not None else None,
+                "total": str(b.total) if b.total is not None else None,
+            })
+        # priceSDP + posts/articles
+        sdps = db.query(DaoPriceSDP).filter(DaoPriceSDP.id_lot == l.id).all()
+        for s in sdps:
+            s_obj = {
+                "id": s.id,
+                "description": s.description,
+                "quantite": str(s.quantite) if s.quantite is not None else None,
+                "prix_unitaire": str(s.prix_unitaire) if s.prix_unitaire is not None else None,
+                "total": str(s.total) if s.total is not None else None,
+                "posts": []
+            }
+            posts = db.query(DaoPriceSDPPost).filter(DaoPriceSDPPost.id_sdp == s.id).all()
+            for p in posts:
+                p_obj = {"id": p.id, "titre": p.titre, "articles": []}
+                arts = db.query(DaoPriceSDPArticle).filter(DaoPriceSDPArticle.id_post == p.id).all()
+                for a in arts:
+                    p_obj["articles"].append({
+                        "id": a.id,
+                        "designation": a.designation,
+                        "quantite": str(a.quantite) if a.quantite is not None else None,
+                        "prix_unitaire": str(a.prix_unitaire) if a.prix_unitaire is not None else None,
+                        "total": str(a.total) if a.total is not None else None,
+                    })
+                s_obj["posts"].append(p_obj)
+            lot["priceSDP"].append(s_obj)
+        # tasks
+        tasks = db.query(DaoTask).filter(DaoTask.id_lot == l.id).all()
+        for t in tasks:
+            t_obj = {"id": t.id, "titre": t.titre, "ordre": t.ordre, "subtasks": []}
+            subs = db.query(DaoSubtask).filter(DaoSubtask.id_task == t.id).all()
+            for st in subs:
+                t_obj["subtasks"].append({"id": st.id, "titre": st.titre, "done": bool(st.done), "ordre": st.ordre, "content_markdown": st.content_markdown})
+            lot["tasks"].append(t_obj)
+
+        lots.append(lot)
+
+    return {"dao_id": dao.id, "document_id": dao.document_id, "lots": lots}
+
+
+@router.get("/")
+def list_daos(db: Session = Depends(get_db)):
+    """Return list of persisted DAOs with their document metadata."""
+    daos = db.query(DAO).all()
+    out = []
+    for d in daos:
+        doc = db.get(Document, d.document_id)
+        out.append({
+            "dao_id": d.id,
+            "document_id": d.document_id,
+            "reference": getattr(d, 'reference', None),
+            "original_name": getattr(doc, 'original_name', None) if doc is not None else None,
+            "filename": getattr(doc, 'filename', None) if doc is not None else None,
+        })
+    return out

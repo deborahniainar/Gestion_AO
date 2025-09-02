@@ -221,6 +221,7 @@ class Task(Base):
 
 
 class Subtask(Base):
+    __tablename__ = "soumission_subtasks"
     id = Column(String(64), primary_key=True, index=True)
     titre = Column(String(255), nullable=False)
     done = Column(Boolean, nullable=False, default=False)
@@ -334,6 +335,18 @@ class DaoPriceSDPArticle(Base):
     total = Column(Numeric(19,2), nullable=True)
 
     post = relationship("DaoPriceSDPPost", back_populates="articles")
+
+
+class DaoPriceBDE(Base):
+    __tablename__ = "dao_price_bde"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id_lot = Column(Integer, ForeignKey("dao_lots.id", ondelete="CASCADE"), nullable=False, index=True)
+    poste = Column(String(255), nullable=True)
+    quantite = Column(Numeric(19,2), nullable=True)
+    prix_unitaire = Column(Numeric(19,2), nullable=True)
+    total = Column(Numeric(19,2), nullable=True)
+
+    lot = relationship("DaoLot", back_populates="price_bde")
 
 
 class DaoTask(Base):

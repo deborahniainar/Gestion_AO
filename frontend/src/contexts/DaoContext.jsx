@@ -34,6 +34,8 @@ export const DaoProvider = ({ children }) => {
   const [summary, setSummary] = useState(persisted?.summary ?? "Le présent Appel d'Offre concerne .............");
   const [editingSummary, setEditingSummary] = useState(false);
   const [requiredDocs, setRequiredDocs] = useState(persisted?.requiredDocs ?? []);
+  const [daoId, setDaoId] = useState(persisted?.daoId ?? null);
+  const [savedLots, setSavedLots] = useState(persisted?.savedLots ?? []);
 
   useEffect(() => {
     const stateToPersist = {
@@ -44,9 +46,11 @@ export const DaoProvider = ({ children }) => {
       showList,
       summary,
       requiredDocs,
+      daoId,
+      savedLots,
     };
     saveState(stateToPersist);
-  }, [daoDocId, keywords, uploadConfirmed, keywordsSubmitted, showList, summary, requiredDocs]);
+  }, [daoDocId, keywords, uploadConfirmed, keywordsSubmitted, showList, summary, requiredDocs, daoId, savedLots]);
 
   const resetDaoProcess = () => {
     setDaoDocId(null);
@@ -57,17 +61,23 @@ export const DaoProvider = ({ children }) => {
     setSummary("Le présent Appel d'Offre concerne .............");
     setEditingSummary(false);
     setRequiredDocs([]);
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    setDaoId(null);
+    setSavedLots([]);
+    try { localStorage.removeItem(STORAGE_KEY); } catch {
+      //
+    }
   };
 
   const value = useMemo(() => ({
     // state
     file, daoDocId, keywords, uploadConfirmed, keywordsSubmitted, showList, summary, editingSummary, requiredDocs,
+    daoId, savedLots,
     // setters
     setFile, setDaoDocId, setKeywords, setUploadConfirmed, setKeywordsSubmitted, setShowList, setSummary, setEditingSummary, setRequiredDocs,
+    setDaoId, setSavedLots,
     // actions
     resetDaoProcess,
-  }), [file, daoDocId, keywords, uploadConfirmed, keywordsSubmitted, showList, summary, editingSummary, requiredDocs]);
+  }), [file, daoDocId, keywords, uploadConfirmed, keywordsSubmitted, showList, summary, editingSummary, requiredDocs, daoId, savedLots]);
 
   return (
     <DaoContext.Provider value={value}>
@@ -76,6 +86,7 @@ export const DaoProvider = ({ children }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useDao = () => useContext(DaoContext);
 
 
