@@ -18,7 +18,8 @@
     "@popperjs/core": "^2.11.8",
     "@tinymce/tinymce-react": "^6.3.0",
     "axios": "^1.11.0",
-    "jspdf": "^3.0.1",
+    "jspdf": "^3.0.2",
+    "jspdf-autotable": "^5.0.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-hook-form": "^7.62.0",
@@ -27,6 +28,7 @@
     "react-toastify": "^11.0.5",
     "remark-gfm": "^4.0.0",
     "tinymce": "^8.0.2",
+    "xlsx": "^0.18.5",
     "yup": "^1.7.0"
   },
   "devDependencies": {
