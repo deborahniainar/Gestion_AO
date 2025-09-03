@@ -18,13 +18,18 @@ import {
   ExpandLess,
   ExpandMore
 } from "@mui/icons-material";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import logo from '../assets/Logo.png';
 import shortLogo from '../assets/Logo-short.png';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
+import ConfirmModal from './ConfirmModal';
 
 export default function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+  const [openLogoutConfirm, setOpenLogoutConfirm] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [openPrices, setOpenPrices] = useState(false);
   const { isDarkMode, toggleDarkMode } = useTheme();
@@ -47,6 +52,16 @@ export default function Sidebar() {
       className="absolute left-0 top-1/2 transform -translate-y-1/2 w-1 h-5 bg-secondary rounded-r-sm"
     />
   ) : null;
+
+  const handleConfirmLogout = () => {
+    try {
+      logout();
+    } catch {
+      // ignore
+    }
+    setOpenLogoutConfirm(false);
+    navigate('/login');
+  }
 
   return (
     <aside
@@ -252,15 +267,26 @@ export default function Sidebar() {
           {!collapsed && <span>{isDarkMode ? "Mode Jour" : "Mode Nuit"}</span>}
         </button>
         <button 
+          onClick={() => setOpenLogoutConfirm(true)}
           className={`w-full flex items-center gap-3 py-2 px-3 rounded-lg text-gray-700 hover:bg-muted transition-all duration-200 ${
-            collapsed ? 'justify-center' : 'justify-start'
-          }`}
-          title="Déconnecter"
-        >
-          <LogoutOutlined className="h-5 w-5" />
-          {!collapsed && <span>Deconnecter</span>}
-        </button>
-      </div>
-    </aside>
-  );
-}
+             collapsed ? 'justify-center' : 'justify-start'
+           }`}
+           title="Déconnecter"
+         >
+           <LogoutOutlined className="h-5 w-5" />
+           {!collapsed && <span>Deconnecter</span>}
+         </button>
+        <ConfirmModal
+          open={openLogoutConfirm}
+          title="Déconnexion"
+          message={"Voulez-vous vous déconnecter ?"}
+          confirmLabel="Se déconnecter"
+          cancelLabel="Annuler"
+          destructive={true}
+          onConfirm={handleConfirmLogout}
+          onCancel={() => setOpenLogoutConfirm(false)}
+        />
+       </div>
+     </aside>
+   );
+ }

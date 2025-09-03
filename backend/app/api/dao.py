@@ -777,3 +777,97 @@ def put_lot_workforce(document_id: int, lot_id: int, payload: List[Dict], db: Se
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Impossible d'enregistrer la main d'oeuvre: {str(e)}")
 
     return {"status": "ok", "saved": len(payload or [])}
+
+@router.get("/{document_id}/lots/{lot_id}/materials")
+def get_lot_materials(document_id: int, lot_id: int, db: Session = Depends(get_db)):
+    """Return the list of DaoPriceMTX rows for a given document_id and lot_id.
+    Serialized fields include transport, taxes, perte_percent and perte_valeur.
+    """
+    dao = db.query(DAO).filter(DAO.document_id == document_id).first()
+    if not dao:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DAO introuvable")
+
+    lot = db.query(DaoLot).filter(DaoLot.id == lot_id, DaoLot.id_dao == dao.id).first()
+    if not lot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lot introuvable pour ce DAO")
+
+    mtxs = db.query(DaoPriceMTX).filter(DaoPriceMTX.id_lot == lot.id).all()
+    out = []
+    for m in mtxs:
+        out.append({
+            "id": m.id,
+            "designation": m.designation,
+            "quantite": str(m.quantite) if m.quantite is not None else None,
+            "prix_unitaire": str(m.prix_unitaire) if m.prix_unitaire is not None else None,
+            "unite": m.unite,
+            "origine": m.origine,
+            "transport": str(m.transport) if getattr(m, 'transport', None) is not None else None,
+            "taxes": str(m.taxes) if getattr(m, 'taxes', None) is not None else None,
+            "perte_percent": str(m.perte_percent) if getattr(m, 'perte_percent', None) is not None else None,
+            "perte_valeur": str(m.perte_valeur) if getattr(m, 'perte_valeur', None) is not None else None,
+            "total": str(m.total) if m.total is not None else None,
+        })
+
+    return out
+
+
+@router.put("/{document_id}/lots/{lot_id}/materials")
+def put_lot_materials(document_id: int, lot_id: int, payload: List[Dict], db: Session = Depends(get_db)):
+    """Replace DaoPriceMTX rows for a given lot with the provided payload (list of objects).
+
+    Accepts flexible keys and persists transport/taxes/perte fields.
+    """
+    dao = db.query(DAO).filter(DAO.document_id == document_id).first()
+    if not dao:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DAO introuvable")
+
+    lot = db.query(DaoLot).filter(DaoLot.id == lot_id, DaoLot.id_dao == dao.id).first()
+    if not lot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lot introuvable pour ce DAO")
+
+    from decimal import Decimal
+
+    def to_decimal(v):
+        if v is None or v == "":
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+    try:
+        db.query(DaoPriceMTX).filter(DaoPriceMTX.id_lot == lot.id).delete(synchronize_session=False)
+
+        for m in payload or []:
+            designation = m.get('designation') or m.get('description') or m.get('name') or ''
+            quantite = to_decimal(m.get('quantite'))
+            prix_unitaire = to_decimal(m.get('pu') or m.get('prix_unitaire') or m.get('price_unit') or m.get('prixUnitaire'))
+            unite = m.get('unite') or m.get('unit') or None
+            origine = m.get('origine') or m.get('origin') or None
+            transport = to_decimal(m.get('transport') or m.get('frais_transport') or m.get('transport_fees'))
+            taxes = to_decimal(m.get('taxes') or m.get('droits') or m.get('duties'))
+            perte_percent = to_decimal(m.get('perte_percent') or m.get('ppercent') or m.get('pertePercent') or m.get('perte'))
+            perte_valeur = to_decimal(m.get('perte_valeur') or m.get('pvaleur') or m.get('perteValeur'))
+            total = to_decimal(m.get('total'))
+
+            mm = DaoPriceMTX(
+                id_lot=lot.id,
+                designation=designation,
+                quantite=quantite,
+                prix_unitaire=prix_unitaire,
+                unite=unite,
+                origine=origine,
+                transport=transport,
+                taxes=taxes,
+                perte_percent=perte_percent,
+                perte_valeur=perte_valeur,
+                total=total,
+            )
+            db.add(mm)
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Impossible d'enregistrer les matériaux: {str(e)}")
+
+    return {"status": "ok", "saved": len(payload or [])}
