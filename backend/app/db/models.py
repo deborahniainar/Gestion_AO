@@ -285,6 +285,14 @@ class DaoPriceMTX(Base):
     quantite = Column(Numeric(19,2), nullable=True)
     prix_unitaire = Column(Numeric(19,2), nullable=True)
     total = Column(Numeric(19,2), nullable=True)
+    # Persist transport, taxes and perte (percent & valeur) for materials
+    transport = Column(Numeric(19,2), nullable=True)
+    taxes = Column(Numeric(19,2), nullable=True)
+    perte_percent = Column(Numeric(19,2), nullable=True)
+    perte_valeur = Column(Numeric(19,2), nullable=True)
+    # Persist unité and origine
+    unite = Column(String(64), nullable=True)
+    origine = Column(String(255), nullable=True)
 
     lot = relationship("DaoLot", back_populates="price_mtx")
 
@@ -370,4 +378,3 @@ class DaoSubtask(Base):
     id_task = Column(String(64), ForeignKey("dao_tasks.id", ondelete="CASCADE"), nullable=False, index=True)
 
     task = relationship("DaoTask", back_populates="subtasks")
-

@@ -52,6 +52,10 @@ def upgrade():
         sa.Column('quantite', sa.Numeric(19,2), nullable=True),
         sa.Column('prix_unitaire', sa.Numeric(19,2), nullable=True),
         sa.Column('total', sa.Numeric(19,2), nullable=True),
+        sa.Column('transport', sa.Numeric(19,2), nullable=True),
+        sa.Column('taxes', sa.Numeric(19,2), nullable=True),
+        sa.Column('perte_percent', sa.Numeric(19,2), nullable=True),
+        sa.Column('perte_valeur', sa.Numeric(19,2), nullable=True),
     )
 
     op.create_table(
