@@ -22,7 +22,6 @@ Pillow
 openai>=1.37.0
 python-dotenv              # pour charger les variables d'environnement
 
-# Nouvelles dépendances pour l'extraction avancée
 nltk                     # Traitement du langage naturel
 python-dateutil          # Utilitaires pour les dates
 langdetect               # Détection de langue
