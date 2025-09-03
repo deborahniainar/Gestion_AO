@@ -319,15 +319,29 @@ const PriceMO = () => {
       return data.map((m) => {
         const HM = m.horaire_mensuel ? Number(m.horaire_mensuel) : 0
         const SH = m.salaire_horaire ? Number(m.salaire_horaire) : 0
-        const SM = (HM && SH) ? Number((SH * HM).toFixed(2)) : (m.horaire_mensuel ? Number(m.horaire_mensuel) : 0)
         const HS = m.heuresSup ?? m.heures_sup ?? 0
         const CS = m.charges ? Number(m.charges) : 0
         const TD = m.temps ? Number(m.temps) : 0
-        const total = m.total ? Number(m.total) : Number((SH + HS + CS + TD).toFixed(2))
-        // prefer showing personnel fonction when available
-        const personnelId = m.personnelId ?? null
+
+        // determine personnel id (backend may use different keys)
+        const personnelId = m.personnelId ?? m.personnel_id ?? null
         const p = personnelId ? personnels.find(pp => String(pp.id) === String(personnelId)) : null
+
+        // Prefer persisted salaire_mensuel from backend; if missing, prefer personnel.salary; otherwise fall back to SH*HM
+        let SM = 0
+        if (m.salaire_mensuel || m.salaireMensuel) {
+          SM = Number(m.salaire_mensuel ?? m.salaireMensuel)
+        } else if (p && (p.salaire || p.salaire_mensuel)) {
+          SM = Number(p.salaire ?? p.salaire_mensuel)
+        } else if (HM && SH) {
+          SM = Number((SH * HM).toFixed(2))
+        } else {
+          SM = 0
+        }
+
+        const total = m.total ? Number(m.total) : Number((SH + HS + CS + TD).toFixed(2))
         const posteLabel = p?.fonction ?? m.poste ?? ""
+
         return {
           personnelId: personnelId,
           poste: posteLabel,
@@ -350,7 +364,26 @@ const PriceMO = () => {
   const saveRowsForLot = useCallback(async (lotId, rowsToSave) => {
     if (!daoDocId || !lotId) return
     try {
-      await api.put(`/dao/${daoDocId}/lots/${lotId}/workforce`, rowsToSave)
+      // map frontend row shape to backend expected keys to ensure persistence
+      const payload = Array.isArray(rowsToSave) ? rowsToSave.map(r => {
+        const salaireMensuelNum = r.salaireMensuel ? Number(String(r.salaireMensuel).replace(/,/g, '.')) : 0
+        const salaireHoraireNum = r.salaireHoraire ? Number(String(r.salaireHoraire).replace(/,/g, '.')) : 0
+        const hm = r._hm ? Number(r._hm) : 0
+        const computedSM = (salaireMensuelNum > 0) ? salaireMensuelNum : (salaireHoraireNum && hm ? Number((salaireHoraireNum * hm).toFixed(2)) : 0)
+        return {
+          personnel_id: r.personnelId ?? null,
+          poste: r.poste ?? "",
+          salaire_mensuel: computedSM,
+          salaire_horaire: salaireHoraireNum,
+          horaire_mensuel: hm,
+          heures_sup: r.heuresSup ? Number(String(r.heuresSup).replace(/,/g, '.')) : 0,
+          charges: r.charges ? Number(String(r.charges).replace(/,/g, '.')) : 0,
+          temps: r.temps ? Number(String(r.temps).replace(/,/g, '.')) : 0,
+          total: r.total ? Number(String(r.total).replace(/,/g, '.')) : 0,
+        }
+      }) : []
+
+      await api.put(`/dao/${daoDocId}/lots/${lotId}/workforce`, payload)
       console.log('[PriceMO] saved rows for lot', lotId)
     } catch (err) {
       console.warn('[PriceMO] failed to save rows for lot', lotId, err)
