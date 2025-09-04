@@ -302,9 +302,27 @@ class DaoPriceEQU(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     id_lot = Column(Integer, ForeignKey("dao_lots.id", ondelete="CASCADE"), nullable=False, index=True)
     designation = Column(String(255), nullable=False)
+    # basic persisted numbers
     quantite = Column(Numeric(19,2), nullable=True)
     prix_unitaire = Column(Numeric(19,2), nullable=True)
     total = Column(Numeric(19,2), nullable=True)
+
+    # additional fields used by the frontend equipment table/modal
+    materiel_id = Column(Integer, nullable=True)
+    dt_percent = Column(Numeric(7,4), nullable=True)
+    dt_value = Column(Numeric(19,2), nullable=True)
+    vr_plus_taxes = Column(Numeric(19,2), nullable=True)
+    nj = Column(Numeric(19,2), nullable=True)
+    amort_j = Column(Numeric(19,2), nullable=True)
+    cc = Column(Numeric(19,2), nullable=True)
+    cl = Column(Numeric(19,2), nullable=True)
+    cpr = Column(Numeric(19,2), nullable=True)
+    tlpr_percent = Column(Numeric(7,4), nullable=True)
+    tlpr_value = Column(Numeric(19,2), nullable=True)
+    cmo = Column(Numeric(19,2), nullable=True)
+    tj = Column(Numeric(19,2), nullable=True)
+    twm = Column(Numeric(19,2), nullable=True)
+    total_h = Column(Numeric(19,4), nullable=True)
 
     lot = relationship("DaoLot", back_populates="price_equ")
 

@@ -11,63 +11,107 @@ import {
 import { useDao } from "../contexts/DaoContext"
 import api from "../services/api"
 
-// Initial form template
-const INITIAL_FORM = {
-  personnelId: "",
-  poste: "",
-  salaireMensuel: "",
-  valeurHoraireMensuel: "",
-  heuresSup: "",
-  charges: "",
-  temps: "",
+const INITIAL_EQU_FORM = {
+  materielId: '',
+  description: '',
+  vr: '',
+  dt_percent: '',
+  dt_value: '',
+  nj: '',
+  amort_j: '',
+  cc: '',
+  cl: '',
+  cpr: '',
+  tlpr_percent: '',
+  tlpr_value: '',
+  cmo: '',
+  tj: '',
+  twm: '',
+  total_h: '',
 }
 
-/* ----------------------------- Modal Component ----------------------------- */
-const Modal = ({ open, onClose, onSave, personnels = [], initialData = null }) => {
-  const [form, setForm] = useState(INITIAL_FORM)
+/* ----------------------------- Modal Component (Equipment) ----------------------------- */
+const Modal = ({ open, onClose, onSave, initialData = null }) => {
+  const [form, setForm] = useState(INITIAL_EQU_FORM)
   const [errors, setErrors] = useState({})
+  const [materiels, setMateriels] = useState([])
 
-  // initialize form from initialData when editing, otherwise reset
+  useEffect(() => {
+    // load materiels for selection
+    const load = async () => {
+      try {
+        const res = await api.get('/materiels/')
+        const items = Array.isArray(res.data) ? res.data : []
+        setMateriels(items)
+      } catch (err) {
+        console.warn('failed to load materiels', err)
+      }
+    }
+    load()
+  }, [])
+
   useEffect(() => {
     if (open && initialData) {
       setForm({
-        personnelId: initialData.personnelId ?? "",
-        poste: initialData.poste ?? "",
-        salaireMensuel: initialData.salaireMensuel ?? "",
-        valeurHoraireMensuel: initialData.valeurHoraireMensuel ?? (initialData._hm ?? ""),
-        heuresSup: initialData.heuresSup ?? "",
-        charges: initialData.charges ?? "",
-        temps: initialData.temps ?? "",
+        materielId: initialData.materielId ?? '',
+        description: initialData.description ?? initialData.designation ?? '',
+        vr: initialData.vr ?? '',
+        dt_percent: initialData.dt_percent ?? '',
+        dt_value: initialData.dt_value ?? '',
+        nj: initialData.nj ?? '',
+        amort_j: initialData.amort_j ?? '',
+        cc: initialData.cc ?? '',
+        cl: initialData.cl ?? '',
+        cpr: initialData.cpr ?? '',
+        tlpr_percent: initialData.tlpr_percent ?? '',
+        tlpr_value: initialData.tlpr_value ?? '',
+        cmo: initialData.cmo ?? '',
+        tj: initialData.tj ?? '',
+        twm: initialData.twm ?? '',
+        total_h: initialData.total_h ?? '',
       })
       setErrors({})
       return
     }
-    setForm(INITIAL_FORM)
+    setForm(INITIAL_EQU_FORM)
     setErrors({})
   }, [open, initialData])
 
   const handleChange = (e) => {
     const { name, value } = e.target
-    setForm((prev) => ({ ...prev, [name]: value }))
-    setErrors((prev) => ({ ...prev, [name]: "" }))
+    setForm(prev => ({ ...prev, [name]: value }))
+    setErrors(prev => ({ ...prev, [name]: '' }))
   }
 
-  // When a personnel is selected, autofill poste and salaireMensuel
+  // when materiel selected, prefill description
   useEffect(() => {
-    if (!form.personnelId) return
-    const p = personnels.find((x) => String(x.id) === String(form.personnelId))
-    if (p) {
-      setForm((prev) => ({
-        ...prev,
-        poste: ((p.nom || p.prenom) ? `${p.nom || ''} ${p.prenom || ''}`.trim() : '') || p.fonction || prev.poste,
-        salaireMensuel: p.salaire ?? p.salaire_mensuel ?? prev.salaireMensuel,
-      }))
-    }
-  }, [form.personnelId, personnels])
+    if (!form.materielId || materiels.length === 0) return
+    const m = materiels.find(x => String(x.id) === String(form.materielId))
+    if (m) setForm(prev => ({ ...prev, description: m.designation || m.nom || m.design || prev.description }))
+  }, [form.materielId, materiels])
+
+  const computeDerived = (values) => {
+    const vr = Number(values.vr || 0)
+    const dtp = Number(values.dt_percent || 0)
+    const dtv = Number(((vr * dtp) / 100).toFixed(2))
+    const A = vr + dtv // VR + Taxes[T]
+    const nj = Number(values.nj || 0) || 0
+    const amort_j = nj > 0 ? Number((A / nj).toFixed(2)) : 0
+    const cc = Number(values.cc || 0)
+    const cl = Number(values.cl || 0)
+    const cpr = Number(values.cpr || 0)
+    const tlpr_p = Number(values.tlpr_percent || 0)
+    const tlpr_v = Number((((cc + cl + cpr) * tlpr_p) / 100).toFixed(2))
+    const cmo = Number(values.cmo || 0)
+    const tj = Number((amort_j + cc + cl + cpr + tlpr_v + cmo).toFixed(2))
+    const twm = Number(values.twm || 0) || 0
+    const total_h = twm > 0 ? Number((tj / twm).toFixed(2)) : 0
+    return { dtv, A, amort_j, tlpr_v, tj, total_h }
+  }
 
   const validate = () => {
-    // Required fields: personnel selection, poste (from personnel) and HM
-    const required = ['personnelId', 'poste', 'valeurHoraireMensuel']
+    // Required fields: materielId, description, vr, dt_percent, nj, twm
+    const required = ['materielId', 'description', 'vr', 'dt_percent', 'nj', 'twm']
     const newErrors = {}
 
     required.forEach((field) => {
@@ -76,30 +120,27 @@ const Modal = ({ open, onClose, onSave, personnels = [], initialData = null }) =
         newErrors[field] = 'Champ requis'
         return
       }
-
-      // HM must be numeric and > 0
-      if (field === 'valeurHoraireMensuel') {
+      // numeric checks
+      if (['vr', 'dt_percent', 'nj', 'twm'].includes(field)) {
         const num = Number(val)
         if (Number.isNaN(num)) {
           newErrors[field] = 'Doit être un nombre'
           return
         }
-        if (num <= 0) {
+        if ((field === 'vr' || field === 'nj' || field === 'twm') && num <= 0) {
           newErrors[field] = 'Doit être supérieur à 0'
           return
         }
       }
     })
 
-    // Optional numeric fields: validate only if provided
-    const optionalNumeric = ['heuresSup', 'charges', 'temps']
+    // optional numeric fields: validate if provided
+    const optionalNumeric = ['cc', 'cl', 'cpr', 'tlpr_percent', 'cmo']
     for (const field of optionalNumeric) {
       const val = form[field]
       if (val !== '' && val !== null && val !== undefined) {
         const num = Number(val)
-        if (Number.isNaN(num)) {
-          newErrors[field] = 'Doit être un nombre'
-        }
+        if (Number.isNaN(num)) newErrors[field] = 'Doit être un nombre'
       }
     }
 
@@ -110,75 +151,108 @@ const Modal = ({ open, onClose, onSave, personnels = [], initialData = null }) =
   const handleSubmit = () => {
     if (!validate()) return
 
-    // Basic normalization of numeric values
+    const derived = computeDerived(form)
     const payload = {
-      personnelId: form.personnelId || null,
-      poste: form.poste || "",
-      salaireMensuel: form.salaireMensuel ? Number(form.salaireMensuel) : 0,
-      valeurHoraireMensuel: form.valeurHoraireMensuel ? Number(form.valeurHoraireMensuel) : 0,
-      heuresSup: form.heuresSup ? Number(form.heuresSup) : 0,
-      charges: form.charges ? Number(form.charges) : 0,
-      temps: form.temps ? Number(form.temps) : 0,
+      materielId: form.materielId || null,
+      description: form.description || '',
+      vr: Number(form.vr || 0),
+      dt_percent: Number(form.dt_percent || 0),
+      dt_value: derived.dtv,
+      vr_plus_taxes: derived.A,
+      nj: Number(form.nj || 0),
+      amort_j: derived.amort_j,
+      cc: Number(form.cc || 0),
+      cl: Number(form.cl || 0),
+      cpr: Number(form.cpr || 0),
+      tlpr_percent: Number(form.tlpr_percent || 0),
+      tlpr_value: derived.tlpr_v,
+      cmo: Number(form.cmo || 0),
+      tj: derived.tj,
+      twm: Number(form.twm || 0),
+      total_h: derived.total_h,
     }
     onSave(payload)
+    setForm(INITIAL_EQU_FORM)
     onClose()
   }
 
   if (!open) return null
 
   const isFormValid = (
-    form.personnelId !== '' &&
-    form.poste !== '' &&
-    form.valeurHoraireMensuel !== '' && Number(form.valeurHoraireMensuel) > 0
+    form.materielId !== '' &&
+    form.description !== '' &&
+    form.vr !== '' && Number(form.vr) > 0 &&
+    form.dt_percent !== '' &&
+    form.nj !== '' && Number(form.nj) > 0 &&
+    form.twm !== '' && Number(form.twm) > 0
   )
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
       <div className="bg-white dark:bg-primary p-6 rounded-lg shadow-lg w-[440px]">
-        <h2 className="text-lg font-bold mb-4 text-secondary">Ajouter une main d'œuvre</h2>
+        <h2 className="text-lg font-bold mb-4 text-secondary">Ajouter un équipement</h2>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium mb-1">Poste</label>
-            <select
-              name="personnelId"
-              value={form.personnelId}
-              onChange={handleChange}
-              className="w-full border rounded px-2 py-1"
-              required
-            >
-              <option value="">-- Choisir un poste / personnel --</option>
-              {personnels.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nom} {p.prenom}{p.fonction ? ` — ${p.fonction}` : ''}
-                </option>
-              ))}
+            <label className="block text-sm font-medium mb-1">Equipement <span className="text-red-500">*</span></label>
+            <select name="materielId" value={form.materielId} onChange={handleChange} className="w-full border rounded px-2 py-1">
+              <option value="">-- Sélectionner un équipement --</option>
+              {materiels.map(m => (<option key={m.id} value={m.id}>{m.designation || m.nom || m.nombre || (`#${m.id}`)}</option>))}
             </select>
-            {errors.personnelId && <p className="text-xs text-red-600 mt-1">{errors.personnelId}</p>}
+            {errors.materielId && <p className="text-xs text-red-600 mt-1">{errors.materielId}</p>}
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Horaire Mensuel</label>
-            <input name="valeurHoraireMensuel" value={form.valeurHoraireMensuel} onChange={handleChange} type="number" className="w-full border rounded px-2 py-1" placeholder="Valeur Horaire Mensuel" required />
-            {errors.valeurHoraireMensuel && <p className="text-xs text-red-600 mt-1">{errors.valeurHoraireMensuel}</p>}
-          </div>
+          <div className="grid gap-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Valeur de Remplacement (VR) <span className="text-red-500">*</span></label>
+              <input name="vr" value={form.vr} onChange={handleChange} type="number" placeholder="Valeur de Remplacement (VR)" className="w-full border rounded px-2 py-1" />
+              {errors.vr && <p className="text-xs text-red-600 mt-1">{errors.vr}</p>}
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Heure Supplémentaire</label>
-            <input name="heuresSup" value={form.heuresSup} onChange={handleChange} type="number" className="w-full border rounded px-2 py-1" placeholder="Valeur de l'Heure supplémentaire" />
-            {errors.heuresSup && <p className="text-xs text-red-600 mt-1">{errors.heuresSup}</p>}
-          </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Droits & Taxes (%) <span className="text-red-500">*</span></label>
+              <input name="dt_percent" value={form.dt_percent} onChange={handleChange} placeholder="Valeur du pourcentage (ex: 20)" type="number" className="w-full border rounded px-2 py-1" />
+              {errors.dt_percent && <p className="text-xs text-red-600 mt-1">{errors.dt_percent}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Nombre de jours <span className="text-red-500">*</span></label>
+              <input name="nj" value={form.nj} onChange={handleChange} placeholder="Durée de vie utile" type="number" className="w-full border rounded px-2 py-1" />
+              {errors.nj && <p className="text-xs text-red-600 mt-1">{errors.nj}</p>}
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Charges Sociales</label>
-            <input name="charges" value={form.charges} onChange={handleChange} type="number" className="w-full border rounded px-2 py-1" placeholder="Charges Sociales" />
-            {errors.charges && <p className="text-xs text-red-600 mt-1">{errors.charges}</p>}
-          </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Carburant</label>
+              <input name="cc" value={form.cc} onChange={handleChange} type="number" placeholder="Coût Carburant/jour" className="w-full border rounded px-2 py-1" />
+              {errors.cc && <p className="text-xs text-red-600 mt-1">{errors.cc}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Lubrifiant (Lub)</label>
+              <input name="cl" value={form.cl} onChange={handleChange} type="number" placeholder="Coût Lubrifiant/Jour" className="w-full border rounded px-2 py-1" />
+              {errors.cl && <p className="text-xs text-red-600 mt-1">{errors.cl}</p>}
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Temps de Déplacement</label>
-            <input name="temps" value={form.temps} onChange={handleChange} type="number" className="w-full border rounded px-2 py-1" placeholder="Temps de déplacement en heure" />
-            {errors.temps && <p className="text-xs text-red-600 mt-1">{errors.temps}</p>}
+            <div>
+              <label className="block text-sm font-medium mb-1">Pièces Rechange (PR)</label>
+              <input name="cpr" value={form.cpr} onChange={handleChange} type="number" placeholder="Coût des pièces de rechange/jour" className="w-full border rounded px-2 py-1" />
+              {errors.cpr && <p className="text-xs text-red-600 mt-1">{errors.cpr}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">% Taxes Lub & PR</label>
+              <input name="tlpr_percent" value={form.tlpr_percent} onChange={handleChange} type="number" placeholder="Valeur du pourcentage (ex: 20)" className="w-full border rounded px-2 py-1" />
+              {errors.tlpr_percent && <p className="text-xs text-red-600 mt-1">{errors.tlpr_percent}</p>}
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Main d'oeuvre</label>
+              <input name="cmo" value={form.cmo} onChange={handleChange} type="number" placeholder="Coût main d'oeuvre/jour" className="w-full border rounded px-2 py-1" />
+              {errors.cmo && <p className="text-xs text-red-600 mt-1">{errors.cmo}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Temps travail <span className="text-red-500">*</span></label>
+              <input name="twm" value={form.twm} onChange={handleChange} type="number" placeholder="Temps de Travail Journalier Moyen" className="w-full border rounded px-2 py-1" />
+              {errors.twm && <p className="text-xs text-red-600 mt-1">{errors.twm}</p>}
+            </div>
           </div>
         </div>
 
@@ -191,25 +265,32 @@ const Modal = ({ open, onClose, onSave, personnels = [], initialData = null }) =
   )
 }
 
-/* ----------------------------- Table Component ----------------------------- */
-const WorkforceTable = ({ rows, onEdit, onDelete }) => {
+/* ----------------------------- Equipment Table Component ----------------------------- */
+const EquipmentTable = ({ rows, onEdit, onDelete }) => {
   const columns = [
-    { key: "poste", label: "Poste" },
-    { key: "salaireMensuel", label: "Salaire Mensuel" },
-    { key: "salaireHoraire", label: "Salaire Horaire" },
-    { key: "heuresSup", label: "Heures Supplémentaires" },
-    { key: "charges", label: "Charges Sociales" },
-    { key: "temps", label: "Temps de Déplacement" },
-    { key: "total", label: "Total Horaire" },
+    { key: 'description', label: 'Description' },
+    { key: 'vr', label: 'Valeur de Remplacement' },
+    { key: 'dt_value', label: 'Droit et Taxes (valeur)' },
+    { key: 'vr_plus_taxes', label: 'VR+Taxes' },
+    { key: 'nj', label: 'Nombre Jours' },
+    { key: 'amort_j', label: 'Amortissement/Jour' },
+    { key: 'cc', label: 'Coût Carburant/Jour' },
+    { key: 'cl', label: 'Coût Lubrifiant/Jour' },
+    { key: 'cpr', label: 'Coût Pièce de Rechange/Jour' },
+    { key: 'tlpr_value', label: 'Taxe sur Lub & PR/Jour' },
+    { key: 'cmo', label: 'Coût Main d\'oeuvre/Jour' },
+    { key: 'tj', label: 'Total/Jour' },
+    { key: 'twm', label: 'Temps de Travail Journalier Moyen' },
+    { key: 'total_h', label: 'Total/Heure' },
   ]
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border border-secondary border-collapse">
+      <table className="w-full border border-secondary border-collapse text-sm">
         <thead className="bg-gray-100 dark:bg-primary/40">
           <tr>
-            {columns.map((col) => (
-              <th key={col.key} className="text-primary dark:text-muted border border-secondary px-3 py-2 text-left">{col.label}</th>
+            {columns.map(col => (
+              <th key={col.key} className="text-primary dark:text-muted border border-secondary px-2 py-2 text-left">{col.label}</th>
             ))}
             <th className="text-primary dark:text-muted border border-secondary px-3 py-2 text-center">Action</th>
           </tr>
@@ -217,8 +298,8 @@ const WorkforceTable = ({ rows, onEdit, onDelete }) => {
         <tbody>
           {rows.map((row, idx) => (
             <tr key={idx}>
-              {columns.map((col) => (
-                <td key={col.key} className="text-accent dark:text-muted border border-secondary px-3 py-2">{row[col.key] ?? "-"}</td>
+              {columns.map(col => (
+                <td key={col.key} className="text-accent dark:text-muted border border-secondary px-2 py-2">{(row[col.key] !== undefined && row[col.key] !== null) ? String(row[col.key]) : '-'}</td>
               ))}
               <td className="text-center border border-secondary px-3 py-2">
                 <button onClick={() => onEdit(row, idx)} className="text-green-600 hover:text-green-800 mr-2"><Edit fontSize="small" /></button>
@@ -257,7 +338,6 @@ const PriceEQU = () => {
   const [editingIndex, setEditingIndex] = useState(null)
   const [editingInitial, setEditingInitial] = useState(null)
   const [daos, setDaos] = useState([])
-  const [personnels, setPersonnels] = useState([])
   const { savedLots, daoDocId, setSavedLots, setDaoId, setDaoDocId } = useDao()
   const [lot, setLot] = useState("")
 
@@ -289,108 +369,102 @@ const PriceEQU = () => {
 
   useEffect(() => { fetchDaoLots() }, [fetchDaoLots])
 
-  // load personnels for selection
-  const fetchPersonnels = useCallback(async () => {
-    try {
-      const res = await api.get('/personnels/')
-      // backend returns list of personnels; ensure mapping to expected fields
-      const list = Array.isArray(res.data) ? res.data.map(p => ({
-        id: p.id,
-        nom: p.nom,
-        prenom: p.prenom,
-        fonction: p.fonction,
-        salaire: p.salaire_mensuel ?? p.salaire ?? p.salaireMensuel ?? 0,
-      })) : []
-      setPersonnels(list)
-    } catch (err) {
-      console.error('[PriceMO] failed to load personnels', err)
-    }
-  }, [])
-
-  useEffect(() => { fetchPersonnels() }, [fetchPersonnels])
-
-  // Fetch persisted rows for a lot from backend
+  // Fetch persisted rows for a lot from backend (EQUIPMENTS)
   const fetchRowsForLot = useCallback(async (lotId) => {
     if (!daoDocId || !lotId) return []
     try {
-      const res = await api.get(`/dao/${daoDocId}/lots/${lotId}/workforce`)
-      const data = Array.isArray(res.data) ? res.data : []
-      // Map backend DAO shape to frontend table row shape
+      // backend exposes the lot + nested arrays at GET /dao/:document_id
+      const res = await api.get(`/dao/${daoDocId}`)
+      const lots = Array.isArray(res.data?.lots) ? res.data.lots : []
+      const lotObj = lots.find(l => Number(l.id) === Number(lotId) || Number(l.lot_id) === Number(lotId))
+      const data = Array.isArray(lotObj?.priceEQU) ? lotObj.priceEQU : (Array.isArray(lotObj?.price_equ) ? lotObj.price_equ : (Array.isArray(lotObj?.equipements) ? lotObj.equipements : []))
+
       return data.map((m) => {
-        const HM = m.horaire_mensuel ? Number(m.horaire_mensuel) : 0
-        const SH = m.salaire_horaire ? Number(m.salaire_horaire) : 0
-        const HS = m.heuresSup ?? m.heures_sup ?? 0
-        const CS = m.charges ? Number(m.charges) : 0
-        const TD = m.temps ? Number(m.temps) : 0
-
-        // determine personnel id (backend may use different keys)
-        const personnelId = m.personnelId ?? m.personnel_id ?? null
-        const p = personnelId ? personnels.find(pp => String(pp.id) === String(personnelId)) : null
-
-        // Prefer persisted salaire_mensuel from backend; if missing, prefer personnel.salary; otherwise fall back to SH*HM
-        let SM = 0
-        if (m.salaire_mensuel || m.salaireMensuel) {
-          SM = Number(m.salaire_mensuel ?? m.salaireMensuel)
-        } else if (p && (p.salaire || p.salaire_mensuel)) {
-          SM = Number(p.salaire ?? p.salaire_mensuel)
-        } else if (HM && SH) {
-          SM = Number((SH * HM).toFixed(2))
+        // Support multiple possible field names that may come from different sources
+        const vr = Number(m.vr ?? m.vr_value ?? m.valeur_remplacement ?? m.prix_unitaire ?? 0)
+        const dt_percent = Number(m.dt_percent ?? m.dt ?? m.droits ?? 0)
+        let dt_value = 0
+        if (m.dt_value !== undefined && m.dt_value !== null) {
+          dt_value = Number(m.dt_value)
         } else {
-          SM = 0
+          dt_value = Number(((vr * dt_percent) / 100) || 0)
         }
-
-        const total = m.total ? Number(m.total) : Number((SH + HS + CS + TD).toFixed(2))
-        const posteLabel = p?.fonction ?? m.poste ?? ""
+        const vr_plus_taxes = Number((vr + dt_value).toFixed(2))
+        const nj = Number(m.nj ?? m.nb_jours ?? m.quantite ?? 0)
+        const amort_j = nj > 0 ? Number((vr_plus_taxes / nj).toFixed(2)) : 0
+        const cc = Number(m.cc ?? 0)
+        const cl = Number(m.cl ?? 0)
+        const cpr = Number(m.cpr ?? 0)
+        const tlpr_percent = Number(m.tlpr_percent ?? 0)
+        const tlpr_value = Number((((cc + cl + cpr) * tlpr_percent) / 100).toFixed(2))
+        const cmo = Number(m.cmo ?? 0)
+        const tj = Number((amort_j + cc + cl + cpr + tlpr_value + cmo).toFixed(2))
+        const twm = Number(m.twm ?? 0) || 0
+        const total_h = twm > 0 ? Number((tj / twm).toFixed(2)) : 0
 
         return {
-          personnelId: personnelId,
-          poste: posteLabel,
-          salaireMensuel: SM ? Number(SM).toFixed(2) : "0.00",
-          salaireHoraire: SH ? Number(SH).toFixed(2) : "0.00",
-          heuresSup: HS ? Number(HS).toFixed(2) : "0.00",
-          charges: CS ? Number(CS).toFixed(2) : "0.00",
-          temps: TD ? Number(TD).toFixed(2) : "0.00",
-          total: total ? Number(total).toFixed(2) : "0.00",
-          _hm: HM,
+          materielId: m.materiel_id ?? m.materielId ?? m.id ?? null,
+          description: m.description ?? m.designation ?? m.name ?? '',
+          vr: vr ? vr.toFixed(2) : '0.00',
+          dt_percent: dt_percent ? dt_percent.toFixed(2) : '0.00',
+          dt_value: dt_value ? dt_value.toFixed(2) : '0.00',
+          vr_plus_taxes: vr_plus_taxes ? vr_plus_taxes.toFixed(2) : '0.00',
+          nj: nj ? String(nj) : '0',
+          amort_j: amort_j ? amort_j.toFixed(2) : '0.00',
+          cc: cc ? cc.toFixed(2) : '0.00',
+          cl: cl ? cl.toFixed(2) : '0.00',
+          cpr: cpr ? cpr.toFixed(2) : '0.00',
+          tlpr_percent: tlpr_percent ? tlpr_percent.toFixed(2) : '0.00',
+          tlpr_value: tlpr_value ? tlpr_value.toFixed(2) : '0.00',
+          cmo: cmo ? cmo.toFixed(2) : '0.00',
+          tj: tj ? tj.toFixed(2) : '0.00',
+          twm: twm ? twm.toFixed(2) : '0.00',
+          total_h: total_h ? total_h.toFixed(2) : '0.00',
         }
       })
     } catch (err) {
-      console.warn('[PriceMO] failed to fetch rows for lot', lotId, err)
+      console.warn('[PriceEQU] failed to fetch equipment rows for lot', lotId, err)
       return []
-    }
-  }, [daoDocId, personnels])
-
-  // Save rows for a lot to backend (PUT)
-  const saveRowsForLot = useCallback(async (lotId, rowsToSave) => {
-    if (!daoDocId || !lotId) return
-    try {
-      // map frontend row shape to backend expected keys to ensure persistence
-      const payload = Array.isArray(rowsToSave) ? rowsToSave.map(r => {
-        const salaireMensuelNum = r.salaireMensuel ? Number(String(r.salaireMensuel).replace(/,/g, '.')) : 0
-        const salaireHoraireNum = r.salaireHoraire ? Number(String(r.salaireHoraire).replace(/,/g, '.')) : 0
-        const hm = r._hm ? Number(r._hm) : 0
-        const computedSM = (salaireMensuelNum > 0) ? salaireMensuelNum : (salaireHoraireNum && hm ? Number((salaireHoraireNum * hm).toFixed(2)) : 0)
-        return {
-          personnel_id: r.personnelId ?? null,
-          poste: r.poste ?? "",
-          salaire_mensuel: computedSM,
-          salaire_horaire: salaireHoraireNum,
-          horaire_mensuel: hm,
-          heures_sup: r.heuresSup ? Number(String(r.heuresSup).replace(/,/g, '.')) : 0,
-          charges: r.charges ? Number(String(r.charges).replace(/,/g, '.')) : 0,
-          temps: r.temps ? Number(String(r.temps).replace(/,/g, '.')) : 0,
-          total: r.total ? Number(String(r.total).replace(/,/g, '.')) : 0,
-        }
-      }) : []
-
-      await api.put(`/dao/${daoDocId}/lots/${lotId}/workforce`, payload)
-      console.log('[PriceMO] saved rows for lot', lotId)
-    } catch (err) {
-      console.warn('[PriceMO] failed to save rows for lot', lotId, err)
     }
   }, [daoDocId])
 
-  // Export current lot rows as Excel (.xlsx)
+  // Save rows for a lot to backend (PUT) - equipments
+  const saveRowsForLot = useCallback(async (lotId, rowsToSave) => {
+    if (!daoDocId || !lotId) return
+    try {
+      const payload = Array.isArray(rowsToSave) ? rowsToSave.map(r => ({
+        // Primary persisted fields expected by the backend
+        designation: r.description ?? '',
+        materiel_id: r.materielId ?? null,
+        quantite: r.nj ? Number(String(r.nj).replace(/,/g, '.')) : 0,
+        prix_unitaire: r.vr ? Number(String(r.vr).replace(/,/g, '.')) : 0,
+        total: r.tj ? Number(String(r.tj).replace(/,/g, '.')) : 0,
+        // Keep other computed fields in the payload (backend currently ignores them but may be extended later)
+        vr: r.vr ? Number(String(r.vr).replace(/,/g, '.')) : 0,
+        dt_percent: r.dt_percent ? Number(String(r.dt_percent).replace(/,/g, '.')) : 0,
+        dt_value: r.dt_value ? Number(String(r.dt_value).replace(/,/g, '.')) : 0,
+        vr_plus_taxes: r.vr_plus_taxes ? Number(String(r.vr_plus_taxes).replace(/,/g, '.')) : 0,
+        nj: r.nj ? Number(String(r.nj).replace(/,/g, '.')) : 0,
+        amort_j: r.amort_j ? Number(String(r.amort_j).replace(/,/g, '.')) : 0,
+        cc: r.cc ? Number(String(r.cc).replace(/,/g, '.')) : 0,
+        cl: r.cl ? Number(String(r.cl).replace(/,/g, '.')) : 0,
+        cpr: r.cpr ? Number(String(r.cpr).replace(/,/g, '.')) : 0,
+        tlpr_percent: r.tlpr_percent ? Number(String(r.tlpr_percent).replace(/,/g, '.')) : 0,
+        tlpr_value: r.tlpr_value ? Number(String(r.tlpr_value).replace(/,/g, '.')) : 0,
+        cmo: r.cmo ? Number(String(r.cmo).replace(/,/g, '.')) : 0,
+        tj: r.tj ? Number(String(r.tj).replace(/,/g, '.')) : 0,
+        twm: r.twm ? Number(String(r.twm).replace(/,/g, '.')) : 0,
+        total_h: r.total_h ? Number(String(r.total_h).replace(/,/g, '.')) : 0,
+      })) : []
+
+      await api.put(`/dao/${daoDocId}/lots/${lotId}/equipments`, payload)
+      console.log('[PriceEQU] saved equipment rows for lot', lotId)
+    } catch (err) {
+      console.warn('[PriceEQU] failed to save equipment rows for lot', lotId, err)
+    }
+  }, [daoDocId])
+
+  // Export current lot rows as Excel (.xlsx) - Equipment
   const exportCurrentLotExcel = async () => {
     if (!lot) {
       alert('Aucun lot sélectionné pour l\'export')
@@ -399,16 +473,14 @@ const PriceEQU = () => {
     try {
       const XLSX = await import('xlsx')
       const currentRows = rows || []
-      const headers = ['Poste', 'Salaire Mensuel', 'Salaire Horaire', 'Heures Supplémentaires', 'Charges Sociales', 'Temps de Déplacement', 'Total Horaire']
-      // prepare worksheet data: header title, empty row, then column headers and rows
+      const headers = ['Description', 'VR', 'DT (%)', 'DT (valeur)', 'VR+Taxes (T)', 'Nb Jours', 'Amort/J', 'CC/J', 'CL/J', 'CPR/J', 'Taxe L&CPR (%)', 'Taxe L&CPR (val)', 'CMO/J', 'Total/J', 'TWM (h/j)', 'Total/H']
       const lotObj = (savedLots || []).find(s => String(s.id) === String(lot))
       const lotName = lotObj ? (lotObj.name || `lot-${lot}`) : `lot-${lot}`
-      const title = 'Ventilation des prix de base pour la main d\'œuvre (Convertis par Heure)'
-      const wsData = [[title], [] , headers, ...currentRows.map(r => [r.poste ?? '', r.salaireMensuel ?? '', r.salaireHoraire ?? '', r.heuresSup ?? '', r.charges ?? '', r.temps ?? '', r.total ?? ''])]
+      const title = 'Ventilation des coûts d\'équipement'
+      const wsData = [[title], [], headers, ...currentRows.map(r => [r.description ?? '', r.vr ?? '', r.dt_percent ?? '', r.dt_value ?? '', r.vr_plus_taxes ?? '', r.nj ?? '', r.amort_j ?? '', r.cc ?? '', r.cl ?? '', r.cpr ?? '', r.tlpr_percent ?? '', r.tlpr_value ?? '', r.cmo ?? '', r.tj ?? '', r.twm ?? '', r.total_h ?? ''])]
       const ws = XLSX.utils.aoa_to_sheet(wsData)
-      // Optionally freeze header row after title
       const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, 'MainOeuvre')
+      XLSX.utils.book_append_sheet(wb, ws, 'Equipements')
       const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
       const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
       const url = URL.createObjectURL(blob)
@@ -421,12 +493,12 @@ const PriceEQU = () => {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
     } catch (err) {
-      console.error('Excel export failed', err)
+      console.error('[PriceEQU] Excel export failed', err)
       alert('L\'export Excel nécessite la librairie "xlsx". Veuillez installer la dépendance (xlsx) et recharger l\'application.')
     }
   }
 
-  // Export current lot rows as PDF
+  // Export current lot rows as PDF - Equipment
   const exportCurrentLotPDF = async () => {
     if (!lot) {
       alert('Aucun lot sélectionné pour l\'export')
@@ -438,12 +510,11 @@ const PriceEQU = () => {
       const autoTable = autoTableModule && (autoTableModule.default || autoTableModule)
       const doc = new jsPDF({ unit: 'pt', format: 'a4' })
       const margin = 40
-      const title = 'Ventilation des prix de base pour la main d\'œuvre (Convertis par Heure)'
+      const title = 'Ventilation des coûts d\'équipement'
       doc.setFontSize(14)
       doc.text(title, margin, 60)
-      const headers = ['Poste', 'Salaire Mensuel', 'Salaire Horaire', 'Heures Supplémentaires', 'Charges Sociales', 'Temps de Déplacement', 'Total Horaire']
-      const body = (rows || []).map(r => [r.poste ?? '', r.salaireMensuel ?? '', r.salaireHoraire ?? '', r.heuresSup ?? '', r.charges ?? '', r.temps ?? '', r.total ?? ''])
-      // call the autotable function directly (some bundlers don't attach it to jsPDF prototype)
+      const headers = ['Description', 'VR', 'DT (%)', 'DT (valeur)', 'VR+Taxes (T)', 'Nb Jours', 'Amort/J', 'CC/J', 'CL/J', 'CPR/J', 'Taxe L&CPR (%)', 'Taxe L&CPR (val)', 'CMO/J', 'Total/J', 'TWM (h/j)', 'Total/H']
+      const body = (rows || []).map(r => [r.description ?? '', r.vr ?? '', r.dt_percent ?? '', r.dt_value ?? '', r.vr_plus_taxes ?? '', r.nj ?? '', r.amort_j ?? '', r.cc ?? '', r.cl ?? '', r.cpr ?? '', r.tlpr_percent ?? '', r.tlpr_value ?? '', r.cmo ?? '', r.tj ?? '', r.twm ?? '', r.total_h ?? ''])
       if (typeof autoTable === 'function') {
         autoTable(doc, { head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
       } else if (typeof doc.autoTable === 'function') {
@@ -456,41 +527,15 @@ const PriceEQU = () => {
       const filename = `dao-${daoDocId || 'unknown'}_${lotName.replace(/[^a-z0-9\-_]/gi, '_')}.pdf`
       doc.save(filename)
     } catch (err) {
-      console.error('PDF export failed', err)
+      console.error('[PriceEQU] PDF export failed', err)
       alert('L\'export PDF nécessite les librairies "jspdf" et "jspdf-autotable". Veuillez les installer et recharger l\'application.')
     }
   }
 
-  /* ---------- Table actions & calculations ---------- */
+  /* ---------- Table actions & calculations (Equipment) ---------- */
   const addRow = (data) => {
-    // SH = SM / HM
-    const SM = Number(data.salaireMensuel || 0)
-    const HM = Number(data.valeurHoraireMensuel || 0)
-    const SH = HM > 0 ? Number((SM / HM).toFixed(2)) : 0
-
-    // HS, CS, TD treated as additive hourly values provided by user
-    const HS = Number(data.heuresSup || 0)
-    const CS = Number(data.charges || 0)
-    const TD = Number(data.temps || 0)
-
-    const total = Number((SH + HS + CS + TD).toFixed(2))
-
-    const row = {
-      personnelId: data.personnelId || null,
-      // show function of selected personnel when available
-      poste: (data.personnelId ? (personnels.find(p => String(p.id) === String(data.personnelId))?.fonction) : null) || data.poste || "",
-      salaireMensuel: SM ? SM.toFixed(2) : "0.00",
-      salaireHoraire: SH.toFixed(2),
-      heuresSup: HS.toFixed(2),
-      charges: CS.toFixed(2),
-      temps: TD.toFixed(2),
-      total: total.toFixed(2),
-      // keep HM in data but do not display in table
-      _hm: HM,
-    }
-
     setRows((prev) => {
-      const next = [...prev, row]
+      const next = [...prev, data]
       if (lot) {
         setRowsByLot(prevMap => ({ ...prevMap, [lot]: next }))
         saveRowsForLot(lot, next)
@@ -500,31 +545,17 @@ const PriceEQU = () => {
   }
 
   const updateRow = (idx, data) => {
-    const SM = Number(data.salaireMensuel || 0)
-    const HM = Number(data.valeurHoraireMensuel || 0)
-    const SH = HM > 0 ? Number((SM / HM).toFixed(2)) : 0
-    const HS = Number(data.heuresSup || 0)
-    const CS = Number(data.charges || 0)
-    const TD = Number(data.temps || 0)
-    const total = Number((SH + HS + CS + TD).toFixed(2))
-
-    const updated = {
-      personnelId: data.personnelId || null,
-      poste: (data.personnelId ? (personnels.find(p => String(p.id) === String(data.personnelId))?.fonction) : null) || data.poste || "",
-      salaireMensuel: SM ? SM.toFixed(2) : "0.00",
-      salaireHoraire: SH.toFixed(2),
-      heuresSup: HS.toFixed(2),
-      charges: CS.toFixed(2),
-      temps: TD.toFixed(2),
-      total: total.toFixed(2),
-      _hm: HM,
-    }
     setRows((prev) => {
-      const next = prev.map((r, i) => (i === idx ? updated : r))
-      if (lot) {
-        setRowsByLot(prevMap => ({ ...prevMap, [lot]: next }))
-        saveRowsForLot(lot, next)
-      }
+      const next = prev.map((r, i) => (i === idx ? data : r))
+      if (lot) { setRowsByLot(prevMap => ({ ...prevMap, [lot]: next })); saveRowsForLot(lot, next) }
+      return next
+    })
+  }
+
+  const deleteRow = (idx) => {
+    setRows((prev) => {
+      const next = prev.filter((_, i) => i !== idx)
+      if (lot) { setRowsByLot(prevMap => ({ ...prevMap, [lot]: next })); saveRowsForLot(lot, next) }
       return next
     })
   }
@@ -540,14 +571,7 @@ const PriceEQU = () => {
 
   const confirmDelete = () => {
     if (pendingDeleteIdx != null) {
-      setRows((prev) => {
-        const next = prev.filter((_, i) => i !== pendingDeleteIdx)
-        if (lot) {
-          setRowsByLot(prevMap => ({ ...prevMap, [lot]: next }))
-          saveRowsForLot(lot, next)
-        }
-        return next
-      })
+      deleteRow(pendingDeleteIdx)
     }
     setConfirmOpen(false)
     setPendingDeleteIdx(null)
@@ -559,16 +583,7 @@ const PriceEQU = () => {
   }
 
   const editRow = (row, idx) => {
-    // prepare initial data for modal
-    const initial = {
-      personnelId: row.personnelId ?? "",
-      poste: row.poste ?? "",
-      salaireMensuel: row.salaireMensuel ?? "",
-      valeurHoraireMensuel: row._hm ?? "",
-      heuresSup: row.heuresSup ?? "",
-      charges: row.charges ?? "",
-      temps: row.temps ?? "",
-    }
+    const initial = { ...row }
     setEditingIndex(idx)
     setEditingInitial(initial)
     setOpenModal(true)
@@ -590,7 +605,7 @@ const PriceEQU = () => {
       <main className="flex-1 p-4 lg:ml-64 ml-16">
         {/* Header */}
         <header className="flex justify-between items-center px-6 py-6 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
-          <h5 className="text-xl font-bold text-secondary m-0">Ventilation des prix de base pour la main d'œuvre (Convertis par Heure)</h5>
+          <h5 className="text-xl font-bold text-secondary m-0">Ventilation des prix de base pour les équipements (Convertis par Heure)</h5>
         </header>
 
         {/* Main card */}
@@ -628,7 +643,7 @@ const PriceEQU = () => {
                       // save current rows for previous lot in-memory before switching
                       if (lot) {
                         // persist previous lot (do not await UI-blocking, but handle)
-                        saveRowsForLot(lot, rows).catch(() => {})
+                        saveRowsForLot(lot, rows).catch(() => { })
                         setRowsByLot(prev => ({ ...prev, [lot]: rows }))
                       }
 
@@ -671,10 +686,10 @@ const PriceEQU = () => {
           {lot ? (
             <>
               <div className="flex items-center justify-between mb-3">
-                <button onClick={() => setOpenModal(true)} className="inline-flex items-center gap-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md"><Add fontSize="small" />Ajouter une main d'œuvre</button>
+                <button onClick={() => setOpenModal(true)} className="inline-flex items-center gap-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md"><Add fontSize="small" />Ajouter un équipement</button>
               </div>
 
-              <WorkforceTable rows={rows} onDelete={requestDeleteRow} onEdit={editRow} />
+              <EquipmentTable rows={rows} onDelete={requestDeleteRow} onEdit={editRow} />
             </>
           ) : (
             <div className="p-4 text-sm text-gray-500">Sélectionner un Lot.</div>
@@ -684,13 +699,13 @@ const PriceEQU = () => {
         {/* Modal - only available when a lot is selected */}
         {lot && (
           <>
-            <Modal open={openModal} onClose={() => { setOpenModal(false); setEditingIndex(null); setEditingInitial(null); }} onSave={handleSave} personnels={personnels} initialData={editingInitial} />
+            <Modal open={openModal} onClose={() => { setOpenModal(false); setEditingIndex(null); setEditingInitial(null); }} onSave={handleSave} initialData={editingInitial} />
             <ConfirmModal open={confirmOpen} message={"Supprimer cette ligne ?"} onConfirm={confirmDelete} onCancel={cancelDelete} />
           </>
         )}
-       </main>
-     </div>
-   )
- }
+      </main>
+    </div>
+  )
+}
 
- export default PriceEQU
+export default PriceEQU
