@@ -354,11 +354,6 @@ def generate_docx(payload: GenerateDocxRequest, db: Session = Depends(get_db)):
     rel_path = os.path.join("dao", "generated", out_name)
     return {"file_path": rel_path, "url": f"/uploads/{rel_path}"}
 
-# OnlyOffice integration removed. TinyMCE is used client-side; server keeps
-# only upload/generation endpoints.
-
-# OnlyOffice callback removed.
-
 @router.get("/{document_id}/required_documents")
 def required_documents(document_id: int, db: Session = Depends(get_db)):
     doc = db.get(Document, document_id)
