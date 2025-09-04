@@ -143,9 +143,79 @@ const ArticleModal = ({ open, onClose, onSave, initialData = null }) => {
   )
 }
 
+/* Article workspace modal (edit an existing article) */
+const ArticleWorkspaceModal = ({ open, onClose, article = null, onSave }) => {
+  const initialForm = article ? {
+    numero: article.numero ?? '',
+    designation: article.designation ?? article.description ?? '',
+    quantite: article.quantite ?? '',
+    unite: article.unite ?? '',
+    coefficientK: article.coefficientK ?? article.coefficient_k ?? '',
+    productionPerDay: article.productionPerDay ?? article.production_per_day ?? ''
+  } : { numero: '', designation: '', quantite: '', unite: '', coefficientK: '', productionPerDay: '' }
+  const [form, setForm] = useState(initialForm)
+
+  useEffect(() => { setForm(initialForm) }, [open, article])
+
+  const handleChange = (e) => { const { name, value } = e.target; setForm(prev => ({ ...prev, [name]: value })) }
+
+  const handleSave = () => {
+    const payload = {
+      numero: form.numero || '',
+      designation: form.designation || '',
+      quantite: form.quantite ? Number(String(form.quantite).replace(/,/g, '.')) : 0,
+      unite: form.unite || '',
+      coefficientK: form.coefficientK ? Number(String(form.coefficientK).replace(/,/g, '.')) : null,
+      productionPerDay: form.productionPerDay ? Number(String(form.productionPerDay).replace(/,/g, '.')) : null
+    }
+    onSave && onSave(payload)
+  }
+
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+      <div className="bg-white dark:bg-primary p-6 rounded-lg shadow-lg w-[520px] max-w-full">
+        <h2 className="text-lg font-bold mb-4 text-secondary">Espace de travail - Article</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">N°</label>
+            <input name="numero" value={form.numero} onChange={handleChange} className="w-full border rounded px-2 py-1" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Désignation</label>
+            <input name="designation" value={form.designation} onChange={handleChange} className="w-full border rounded px-2 py-1" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Quantité</label>
+            <input name="quantite" value={form.quantite} onChange={handleChange} type="number" className="w-full border rounded px-2 py-1" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Unité</label>
+            <input name="unite" value={form.unite} onChange={handleChange} className="w-full border rounded px-2 py-1" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Coefficient K</label>
+            <input name="coefficientK" value={form.coefficientK} onChange={handleChange} type="number" step="0.01" className="w-full border rounded px-2 py-1" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Production / Jour</label>
+            <input name="productionPerDay" value={form.productionPerDay} onChange={handleChange} type="number" className="w-full border rounded px-2 py-1" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-3 mt-5">
+          <button onClick={() => onClose && onClose()} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Annuler</button>
+          <button onClick={handleSave} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Sauvegarder</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const PriceSDP = () => {
   const [rows, setRows] = useState([])
   const [openArticleModal, setOpenArticleModal] = useState(false)
+  const [openArticleWorkspaceModal, setOpenArticleWorkspaceModal] = useState(false)
+  const [activeArticle, setActiveArticle] = useState(null) // {posteIndex, articleIndex}
   const [currentPosteIndex, setCurrentPosteIndex] = useState(null)
   const [editPosteIndex, setEditPosteIndex] = useState(null)
   const [daos, setDaos] = useState([])
@@ -153,6 +223,10 @@ const PriceSDP = () => {
   const [lot, setLot] = useState("")
   // poste modal state
   const [openPosteModal, setOpenPosteModal] = useState(false)
+  const [currentArticleIndex, setCurrentArticleIndex] = useState(null)
+
+  // workspace (inline) pour l'article sélectionné
+  const [workspaceForm, setWorkspaceForm] = useState(null)
 
   // reset postes list when lot changes
   useEffect(() => {
@@ -185,6 +259,44 @@ const PriceSDP = () => {
   }, [daoDocId, setDaoId, setSavedLots])
 
   useEffect(() => { fetchDaoLots() }, [fetchDaoLots])
+
+  useEffect(() => {
+    if (!activeArticle) { setWorkspaceForm(null); return }
+    const { posteIndex, articleIndex } = activeArticle
+    const art = rows?.[posteIndex]?.articles?.[articleIndex]
+    setWorkspaceForm({
+      numero: art?.numero ?? '',
+      designation: art?.designation ?? art?.description ?? '',
+      quantite: art?.quantite ?? '',
+      unite: art?.unite ?? '',
+      coefficientK: art?.coefficientK ?? art?.coefficient_k ?? '',
+      productionPerDay: art?.productionPerDay ?? art?.production_per_day ?? ''
+    })
+  }, [activeArticle, rows])
+
+  const handleWorkspaceChange = (e) => {
+    const { name, value } = e.target
+    setWorkspaceForm(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleWorkspaceSave = () => {
+    if (!activeArticle) return
+    const { posteIndex, articleIndex } = activeArticle
+    const payload = {
+      numero: workspaceForm.numero || '',
+      designation: workspaceForm.designation || '',
+      quantite: workspaceForm.quantite ? Number(String(workspaceForm.quantite).replace(/,/g, '.')) : 0,
+      unite: workspaceForm.unite || '',
+      coefficientK: workspaceForm.coefficientK ? Number(String(workspaceForm.coefficientK).replace(/,/g, '.')) : null,
+      productionPerDay: workspaceForm.productionPerDay ? Number(String(workspaceForm.productionPerDay).replace(/,/g, '.')) : null
+    }
+    setRows(prev => prev.map((p, pi) => {
+      if (pi !== posteIndex) return p
+      const newArticles = (p.articles || []).map((ar, ai) => ai === articleIndex ? { ...ar, ...payload } : ar)
+      return { ...p, articles: newArticles }
+    }))
+    setActiveArticle(null)
+  }
 
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
@@ -274,13 +386,18 @@ const PriceSDP = () => {
                               <ul className="mt-2 space-y-1">
                                 {r.articles.map((a, ai) => {
                                   const designation = a.designation ?? a.description ?? ''
-                                  const quantite = a.quantite ?? a.quantite ?? 0
+                                  const quantite = a.quantite ?? 0
                                   const unite = a.unite ?? ''
-                                  const coef = a.coefficientK ?? a.coefficient_k ?? null
-                                  const prod = a.productionPerDay ?? a.production_per_day ?? null
                                   const numero = a.numero ? `N°${a.numero} ` : ''
                                   return (
-                                    <li key={ai} className="text-lg text-primary dark:text-muted">Article N°:{`${numero}`}</li>
+                                    <li key={ai}>
+                                      <button
+                                        onClick={() => { setActiveArticle({ posteIndex: i, articleIndex: ai }) }}
+                                        className="w-full text-left text-lg text-primary dark:text-muted hover:underline"
+                                      >
+                                        {`Article ${numero}${designation}${quantite ? ' ×' + quantite : ''}${unite ? ' ' + unite : ''}`}
+                                      </button>
+                                    </li>
                                   )
                                 })}
                               </ul>
@@ -308,21 +425,64 @@ const PriceSDP = () => {
           <>
             <PosteModal open={openPosteModal} onClose={() => { setOpenPosteModal(false); setEditPosteIndex(null) }} initialData={editPosteIndex != null ? rows[editPosteIndex] : null} onSave={(payload) => {
               if (editPosteIndex != null) {
-                // update existing poste, preserve articles
-                setRows(prev => prev.map((p, idx) => idx === editPosteIndex ? { ...p, numero: payload.numero || '', nom: payload.nom || '', articles: p.articles || [] } : p))
+                setRows(prev => prev.map((r, i) => i === editPosteIndex ? { ...r, ...payload } : r))
                 setEditPosteIndex(null)
+                setOpenPosteModal(false)
                 return
               }
-              console.log('[PriceSDP] poste added', payload);
-              setRows(prev => [...prev, { ...payload, articles: [] }]);
+              setRows(prev => [...prev, payload])
+              setOpenPosteModal(false)
             }} />
-            <ArticleModal open={openArticleModal} onClose={() => { setOpenArticleModal(false); setCurrentPosteIndex(null); }} onSave={(payload) => {
-              console.log('[PriceSDP] article added', payload, 'for poste', currentPosteIndex)
-              if (currentPosteIndex == null) return
-              setRows(prev => prev.map((p, idx) => idx === currentPosteIndex ? { ...p, articles: [...(p.articles || []), payload] } : p))
-              setCurrentPosteIndex(null)
-            }} />
+
+            <ArticleModal
+              open={openArticleModal}
+              initialData={(currentPosteIndex != null && currentArticleIndex != null) ? (rows[currentPosteIndex]?.articles?.[currentArticleIndex]) : null}
+              onClose={() => { setOpenArticleModal(false); setCurrentPosteIndex(null); setCurrentArticleIndex(null); }}
+              onSave={(payload) => {
+                // if currentArticleIndex is set, update existing article
+                if (currentPosteIndex != null && currentArticleIndex != null) {
+                  setRows(prev => prev.map((p, idx) => {
+                    if (idx !== currentPosteIndex) return p
+                    const newArticles = (p.articles || []).map((ar, ai) => ai === currentArticleIndex ? { ...ar, ...payload } : ar)
+                    return { ...p, articles: newArticles }
+                  }))
+                  setCurrentArticleIndex(null)
+                  setCurrentPosteIndex(null)
+                  setOpenArticleModal(false)
+                  return
+                }
+                // else append to currentPosteIndex
+                console.log('[PriceSDP] article added', payload, 'for poste', currentPosteIndex)
+                if (currentPosteIndex == null) return
+                setRows(prev => prev.map((p, idx) => idx === currentPosteIndex ? { ...p, articles: [...(p.articles || []), payload] } : p))
+                setCurrentPosteIndex(null)
+                setOpenArticleModal(false)
+              }}
+            />
           </>
+        )}
+
+        {/* Inline workspace for the selected article */}
+        {activeArticle && (
+          <div className="mt-4 p-4 border border-muted-50 rounded-md bg-white/60 dark:bg-primary/30">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-lg font-semibold text-secondary">SDP{rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex]?.numero ?? 'Article'}</div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setActiveArticle(null)} className="px-3 py-1 bg-gray-100 rounded">Fermer</button>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-sm text-primary dark:text-muted">
+              <div><span className="font-medium">N° du prix unitaire:</span> {rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex]?.numero ?? ''}</div>
+              <div><span className="font-medium">Designation du prix Unitaire:</span> {rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex]?.designation ?? rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex]?.description ?? ''}</div>
+              <div><span className="font-medium">Quantité estimé:</span> {`${rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex]?.quantite ?? ''}${rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex]?.unite ? ' ' + rows[activeArticle.posteIndex].articles[activeArticle.articleIndex].unite : ''}`}</div>
+              <div><span className="font-medium">Production par jour:</span> {rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex]?.productionPerDay ?? rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex]?.production_per_day ?? ''}</div>
+            </div>
+
+            <div className="mt-4">
+              <button onClick={() => console.log('Ajouter un Element pour', activeArticle)} className="px-3 py-1 bg-secondary text-white rounded">Ajouter un Element</button>
+            </div>
+          </div>
         )}
       </main>
     </div>
