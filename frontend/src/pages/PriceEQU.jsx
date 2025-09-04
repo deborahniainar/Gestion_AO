@@ -25,16 +25,18 @@ const INITIAL_EQU_FORM = {
   tlpr_percent: '',
   tlpr_value: '',
   cmo: '',
+  cmoId: '',            // { changed code } added field to track selected personnel id
   tj: '',
   twm: '',
   total_h: '',
 }
 
 /* ----------------------------- Modal Component (Equipment) ----------------------------- */
-const Modal = ({ open, onClose, onSave, initialData = null }) => {
+const Modal = ({ open, onClose, onSave, initialData = null, personnels = [], defaultPersonnels = [] }) => {
   const [form, setForm] = useState(INITIAL_EQU_FORM)
   const [errors, setErrors] = useState({})
   const [materiels, setMateriels] = useState([])
+  // personnels & defaultPersonnels are provided via props from PriceEQU
 
   useEffect(() => {
     // load materiels for selection
@@ -49,6 +51,8 @@ const Modal = ({ open, onClose, onSave, initialData = null }) => {
     }
     load()
   }, [])
+
+  // Modal no longer fetches personnels itself; it uses the personnels prop passed by PriceEQU
 
   useEffect(() => {
     if (open && initialData) {
@@ -66,6 +70,7 @@ const Modal = ({ open, onClose, onSave, initialData = null }) => {
         tlpr_percent: initialData.tlpr_percent ?? '',
         tlpr_value: initialData.tlpr_value ?? '',
         cmo: initialData.cmo ?? '',
+        cmoId: initialData.cmoId ?? '', // { changed code } preserve selected personnel when editing
         tj: initialData.tj ?? '',
         twm: initialData.twm ?? '',
         total_h: initialData.total_h ?? '',
@@ -89,6 +94,16 @@ const Modal = ({ open, onClose, onSave, initialData = null }) => {
     const m = materiels.find(x => String(x.id) === String(form.materielId))
     if (m) setForm(prev => ({ ...prev, description: m.designation || m.nom || m.design || prev.description }))
   }, [form.materielId, materiels])
+
+  // when a CMO personnel is selected, set the cmo numeric value to that person's totalHourly
+  useEffect(() => {
+    if (!form.cmoId || personnels.length === 0) return
+    const p = personnels.find(x => String(x.id) === String(form.cmoId))
+    if (p) {
+      setForm(prev => ({ ...prev, cmo: (p.totalHourly ?? 0).toString() }))
+      setErrors(prev => ({ ...prev, cmo: '' }))
+    }
+  }, [form.cmoId, personnels])
 
   const computeDerived = (values) => {
     const vr = Number(values.vr || 0)
@@ -244,7 +259,16 @@ const Modal = ({ open, onClose, onSave, initialData = null }) => {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Main d'oeuvre</label>
-              <input name="cmo" value={form.cmo} onChange={handleChange} type="number" placeholder="Coût main d'oeuvre/jour" className="w-full border rounded px-2 py-1" />
+              <select name="cmoId" value={form.cmoId} onChange={handleChange} className="w-full border rounded px-2 py-1">
+                <option value="">-- Sélectionner une main d'oeuvre (CMO) --</option>
+                {personnels.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {`${p.nom ?? ''} ${p.prenom ?? ''}`.trim() || `#${p.id}`} {p.fonction ? ` — ${p.fonction}` : ''} ({(p.totalHourly ?? 0).toFixed ? (p.totalHourly ?? 0).toFixed(2) : String(p.totalHourly ?? 0)})
+                  </option>
+                ))}
+              </select>
+              {/* show numeric cmo value for clarity (readonly) */}
+              <input readOnly name="cmo" value={form.cmo} type="number" placeholder="Coût main d'oeuvre/jour (total horaire)" className="w-full border rounded px-2 py-1 mt-2 bg-gray-50" />
               {errors.cmo && <p className="text-xs text-red-600 mt-1">{errors.cmo}</p>}
             </div>
 
@@ -340,6 +364,93 @@ const PriceEQU = () => {
   const [daos, setDaos] = useState([])
   const { savedLots, daoDocId, setSavedLots, setDaoId, setDaoDocId } = useDao()
   const [lot, setLot] = useState("")
+  // personnels used for the Modal CMO select. defaultPersonnels is the API fallback.
+  const [personnels, setPersonnels] = useState([])
+  const [defaultPersonnels, setDefaultPersonnels] = useState([])
+
+  // load default personnels from /personnels/ once
+  useEffect(() => {
+    const loadP = async () => {
+      try {
+        const res = await api.get('/personnels/')
+        const list = Array.isArray(res.data) ? res.data.map(p => {
+          const salaireMensuel = p.salaire_mensuel ?? p.salaire ?? p.salaireMensuel ?? 0
+          const horaireMensuel = p.horaire_mensuel ?? p.horaireMensuel ?? 0
+          const salaireHoraire = (horaireMensuel && horaireMensuel > 0) ? Number((salaireMensuel / horaireMensuel).toFixed(2)) : (p.salaire_horaire ?? p.salaireHoraire ?? 0)
+          return {
+            id: p.id,
+            nom: p.nom,
+            prenom: p.prenom,
+            fonction: p.fonction,
+            salaireMensuel,
+            horaireMensuel,
+            salaireHoraire,
+            totalHourly: salaireHoraire,
+            source: 'api'
+          }
+        }) : []
+        setPersonnels(list)
+        setDefaultPersonnels(list)
+      } catch (err) {
+        console.warn('[PriceEQU] failed to load personnels', err)
+      }
+    }
+    loadP()
+  }, [])
+
+  // Extract personnel-like entries from the selected lot (other price sections) to be used as CMO options
+  const fetchPersonnelsForLot = useCallback(async (lotId) => {
+    if (!daoDocId || !lotId) return []
+    try {
+      const res = await api.get(`/dao/${daoDocId}`)
+      const lots = Array.isArray(res.data?.lots) ? res.data.lots : []
+      const lotObj = lots.find(l => Number(l.id) === Number(lotId) || Number(l.lot_id) === Number(lotId))
+      if (!lotObj) return []
+
+      const candidateKeys = ['priceMO','price_mo','mo','priceMTX','price_mtx','mtx','priceSDP','price_sdp','sdp','priceBDE','price_bde','bde','workforce','personnels','priceMO_rows']
+      const rows = []
+      for (const k of candidateKeys) {
+        if (Array.isArray(lotObj[k])) rows.push(...lotObj[k])
+      }
+      for (const key of Object.keys(lotObj)) {
+        const val = lotObj[key]
+        if (val && typeof val === 'object' && Array.isArray(val.rows)) rows.push(...val.rows)
+      }
+
+      const map = new Map()
+      for (const r of rows) {
+        const id = r.cmo_personnel_id ?? r.personnel_id ?? r.id ?? null
+        let totalHourly = null
+        if (r.total_h !== undefined) totalHourly = Number(r.total_h)
+        else if (r.total !== undefined) totalHourly = Number(r.total)
+        else if (r.tj !== undefined && r.twm !== undefined) {
+          const twm = Number(r.twm || 0)
+          const tj = Number(r.tj || 0)
+          totalHourly = twm > 0 ? Number((tj / twm).toFixed(2)) : null
+        } else if (r.cmo !== undefined) totalHourly = Number(r.cmo)
+
+        const nom = r.nom ?? r.name ?? r.personnel_name ?? r.designation ?? r.description ?? ''
+        const prenom = r.prenom ?? ''
+        if (id === null && !nom && (totalHourly === null || Number.isNaN(totalHourly))) continue
+        const key = id ?? `${nom}_${prenom}_${(totalHourly||0)}`
+        if (!map.has(key)) {
+          map.set(key, {
+            id: id ?? key,
+            nom: nom || `Personnel ${(map.size + 1)}`,
+            prenom,
+            fonction: r.fonction ?? '',
+            totalHourly: (Number.isFinite(totalHourly) ? totalHourly : 0),
+            source: 'lot'
+          })
+        }
+      }
+
+      return Array.from(map.values())
+    } catch (err) {
+      console.warn('[PriceEQU] failed to extract personnels from lot', lotId, err)
+      return []
+    }
+  }, [daoDocId])
 
   /* ---------- API Calls ---------- */
   const fetchDaos = useCallback(async () => {
@@ -398,6 +509,7 @@ const PriceEQU = () => {
         const tlpr_percent = Number(m.tlpr_percent ?? 0)
         const tlpr_value = Number((((cc + cl + cpr) * tlpr_percent) / 100).toFixed(2))
         const cmo = Number(m.cmo ?? 0)
+        const cmoId = m.cmo_personnel_id ?? m.cmoId ?? m.cmo_id ?? null // { changed code } try to read persisted personnel id
         const tj = Number((amort_j + cc + cl + cpr + tlpr_value + cmo).toFixed(2))
         const twm = Number(m.twm ?? 0) || 0
         const total_h = twm > 0 ? Number((tj / twm).toFixed(2)) : 0
@@ -417,6 +529,7 @@ const PriceEQU = () => {
           tlpr_percent: tlpr_percent ? tlpr_percent.toFixed(2) : '0.00',
           tlpr_value: tlpr_value ? tlpr_value.toFixed(2) : '0.00',
           cmo: cmo ? cmo.toFixed(2) : '0.00',
+          cmoId: cmoId ?? '', // { changed code } attach cmo personnel id to row for editing
           tj: tj ? tj.toFixed(2) : '0.00',
           twm: twm ? twm.toFixed(2) : '0.00',
           total_h: total_h ? total_h.toFixed(2) : '0.00',
@@ -452,6 +565,7 @@ const PriceEQU = () => {
         tlpr_percent: r.tlpr_percent ? Number(String(r.tlpr_percent).replace(/,/g, '.')) : 0,
         tlpr_value: r.tlpr_value ? Number(String(r.tlpr_value).replace(/,/g, '.')) : 0,
         cmo: r.cmo ? Number(String(r.cmo).replace(/,/g, '.')) : 0,
+        cmo_personnel_id: r.cmoId ?? null, // { changed code } persist selected personnel id when available
         tj: r.tj ? Number(String(r.tj).replace(/,/g, '.')) : 0,
         twm: r.twm ? Number(String(r.twm).replace(/,/g, '.')) : 0,
         total_h: r.total_h ? Number(String(r.total_h).replace(/,/g, '.')) : 0,
@@ -665,6 +779,18 @@ const PriceEQU = () => {
                         setRows(Array.isArray(fetched) ? fetched : [])
                         setRowsByLot(prev => ({ ...prev, [lotId]: Array.isArray(fetched) ? fetched : [] }))
                       }
+
+                      // Prefer lot-derived personnels for CMO select, fallback to defaultPersonnels
+                      if (val) {
+                        const personnelsFromLot = await fetchPersonnelsForLot(Number(val))
+                        if (Array.isArray(personnelsFromLot) && personnelsFromLot.length > 0) {
+                          setPersonnels(personnelsFromLot)
+                        } else {
+                          setPersonnels(defaultPersonnels)
+                        }
+                      } else {
+                        setPersonnels(defaultPersonnels)
+                      }
                     }}
                   >
                     <option value="">Sélectionner un Lot</option>
@@ -699,7 +825,7 @@ const PriceEQU = () => {
         {/* Modal - only available when a lot is selected */}
         {lot && (
           <>
-            <Modal open={openModal} onClose={() => { setOpenModal(false); setEditingIndex(null); setEditingInitial(null); }} onSave={handleSave} initialData={editingInitial} />
+            <Modal open={openModal} onClose={() => { setOpenModal(false); setEditingIndex(null); setEditingInitial(null); }} onSave={handleSave} initialData={editingInitial} personnels={personnels} defaultPersonnels={defaultPersonnels} />
             <ConfirmModal open={confirmOpen} message={"Supprimer cette ligne ?"} onConfirm={confirmDelete} onCancel={cancelDelete} />
           </>
         )}
