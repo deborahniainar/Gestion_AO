@@ -627,6 +627,22 @@ def get_dao(document_id: int, db: Session = Depends(get_db)):
                 "quantite": str(e.quantite) if e.quantite is not None else None,
                 "prix_unitaire": str(e.prix_unitaire) if e.prix_unitaire is not None else None,
                 "total": str(e.total) if e.total is not None else None,
+                # additional persisted fields
+                "materiel_id": int(e.materiel_id) if getattr(e, 'materiel_id', None) is not None else None,
+                "dt_percent": str(e.dt_percent) if getattr(e, 'dt_percent', None) is not None else None,
+                "dt_value": str(e.dt_value) if getattr(e, 'dt_value', None) is not None else None,
+                "vr_plus_taxes": str(e.vr_plus_taxes) if getattr(e, 'vr_plus_taxes', None) is not None else None,
+                "nj": str(e.nj) if getattr(e, 'nj', None) is not None else None,
+                "amort_j": str(e.amort_j) if getattr(e, 'amort_j', None) is not None else None,
+                "cc": str(e.cc) if getattr(e, 'cc', None) is not None else None,
+                "cl": str(e.cl) if getattr(e, 'cl', None) is not None else None,
+                "cpr": str(e.cpr) if getattr(e, 'cpr', None) is not None else None,
+                "tlpr_percent": str(e.tlpr_percent) if getattr(e, 'tlpr_percent', None) is not None else None,
+                "tlpr_value": str(e.tlpr_value) if getattr(e, 'tlpr_value', None) is not None else None,
+                "cmo": str(e.cmo) if getattr(e, 'cmo', None) is not None else None,
+                "tj": str(e.tj) if getattr(e, 'tj', None) is not None else None,
+                "twm": str(e.twm) if getattr(e, 'twm', None) is not None else None,
+                "total_h": str(e.total_h) if getattr(e, 'total_h', None) is not None else None,
             })
         # priceBDE
         bdes = db.query(DaoPriceBDE).filter(DaoPriceBDE.id_lot == l.id).all()
@@ -869,5 +885,92 @@ def put_lot_materials(document_id: int, lot_id: int, payload: List[Dict], db: Se
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Impossible d'enregistrer les matériaux: {str(e)}")
+
+    return {"status": "ok", "saved": len(payload or [])}
+
+@router.put("/{document_id}/lots/{lot_id}/equipments")
+def put_lot_equipments(document_id: int, lot_id: int, payload: List[Dict], db: Session = Depends(get_db)):
+    """Replace DaoPriceEQU rows for a given lot with the provided payload (list of objects).
+
+    Expected payload item keys (any of): designation/description/name, quantite, prix_unitaire/pu/prixUnitaire, total
+    Values will be converted to Decimal when possible.
+    """
+    dao = db.query(DAO).filter(DAO.document_id == document_id).first()
+    if not dao:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DAO introuvable")
+
+    lot = db.query(DaoLot).filter(DaoLot.id == lot_id, DaoLot.id_dao == dao.id).first()
+    if not lot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lot introuvable pour ce DAO")
+
+    from decimal import Decimal
+
+    def to_decimal(v):
+        if v is None or v == "":
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+    try:
+        # Delete existing equipment rows for this lot
+        db.query(DaoPriceEQU).filter(DaoPriceEQU.id_lot == lot.id).delete(synchronize_session=False)
+
+        # Insert new rows
+        for e in payload or []:
+            designation = e.get('designation') or e.get('description') or e.get('name') or ''
+            # Accept multiple possible keys coming from frontend: prefer explicit quantite, else nj/nb_jours
+            quantite = to_decimal(e.get('quantite') or e.get('nj') or e.get('nb_jours') or e.get('quantite_jours') or e.get('quantity') or e.get('quantite_valeur'))
+            # prix_unitaire may be sent as prix_unitaire, vr, pu or price_unit
+            prix_unitaire = to_decimal(e.get('prix_unitaire') or e.get('prixUnitaire') or e.get('pu') or e.get('vr') or e.get('price_unit') or e.get('unit_price') or e.get('valeur_unitaire'))
+            # total may be sent as total, tj, total_h, total_jour
+            total = to_decimal(e.get('total') or e.get('tj') or e.get('total_h') or e.get('total_jour') or e.get('montant') )
+
+            # additional fields
+            materiel_id = e.get('materiel_id') or e.get('materielId') or e.get('materiel') or None
+            dt_percent = to_decimal(e.get('dt_percent') or e.get('dt') or e.get('dtPercent') )
+            dt_value = to_decimal(e.get('dt_value') or e.get('dtValue') )
+            vr_plus_taxes = to_decimal(e.get('vr_plus_taxes') or e.get('vrPlusTaxes') or e.get('vr_plus_taxes_value') )
+            nj = to_decimal(e.get('nj') or e.get('nb_jours') or e.get('quantite'))
+            amort_j = to_decimal(e.get('amort_j') or e.get('amort_jour') or e.get('amort_j_value'))
+            cc = to_decimal(e.get('cc') or e.get('carburant') )
+            cl = to_decimal(e.get('cl') or e.get('lub') or e.get('lubrifiant'))
+            cpr = to_decimal(e.get('cpr') or e.get('pr') or e.get('pieces_rechange'))
+            tlpr_percent = to_decimal(e.get('tlpr_percent') or e.get('tlpr') or e.get('taxe_l_pr_percent'))
+            tlpr_value = to_decimal(e.get('tlpr_value') or e.get('tlprValue') )
+            cmo = to_decimal(e.get('cmo') or e.get('main_oeuvre') or e.get('cmo_val'))
+            tj = to_decimal(e.get('tj') or e.get('total_jour') or e.get('total'))
+            twm = to_decimal(e.get('twm') or e.get('twm_hours') or e.get('twm_h'))
+            total_h = to_decimal(e.get('total_h') or e.get('total_h_val') or e.get('totalHour'))
+
+            ne = DaoPriceEQU(
+                id_lot=lot.id,
+                designation=designation,
+                quantite=quantite,
+                prix_unitaire=prix_unitaire,
+                total=total,
+                materiel_id=materiel_id,
+                dt_percent=dt_percent,
+                dt_value=dt_value,
+                vr_plus_taxes=vr_plus_taxes,
+                nj=nj,
+                amort_j=amort_j,
+                cc=cc,
+                cl=cl,
+                cpr=cpr,
+                tlpr_percent=tlpr_percent,
+                tlpr_value=tlpr_value,
+                cmo=cmo,
+                tj=tj,
+                twm=twm,
+                total_h=total_h,
+            )
+            db.add(ne)
+
+        db.commit()
+    except Exception as ex:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Impossible d'enregistrer les équipements: {str(ex)}")
 
     return {"status": "ok", "saved": len(payload or [])}
