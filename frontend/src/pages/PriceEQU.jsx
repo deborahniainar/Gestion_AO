@@ -261,11 +261,11 @@ const Modal = ({ open, onClose, onSave, initialData = null, personnels = [], def
               <label className="block text-sm font-medium mb-1">Main d'oeuvre</label>
               <select name="cmoId" value={form.cmoId} onChange={handleChange} className="w-full border rounded px-2 py-1">
                 <option value="">-- Sélectionner une main d'oeuvre (CMO) --</option>
-                {personnels.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {`${p.nom ?? ''} ${p.prenom ?? ''}`.trim() || `#${p.id}`} {p.fonction ? ` — ${p.fonction}` : ''} ({(p.totalHourly ?? 0).toFixed ? (p.totalHourly ?? 0).toFixed(2) : String(p.totalHourly ?? 0)})
-                  </option>
-                ))}
+                {personnels.map(p => {
+                  // display only the function (fonction). fallback to poste or id if missing or empty
+                  const display = (p.fonction && String(p.fonction).trim()) || (p.poste && String(p.poste).trim()) || `#${p.id}`
+                  return (<option key={p.id} value={p.id}>{display}</option>)
+                })}
               </select>
               {/* show numeric cmo value for clarity (readonly) */}
               <input readOnly name="cmo" value={form.cmo} type="number" placeholder="Coût main d'oeuvre/jour (total horaire)" className="w-full border rounded px-2 py-1 mt-2 bg-gray-50" />
@@ -436,9 +436,11 @@ const PriceEQU = () => {
         if (!map.has(key)) {
           map.set(key, {
             id: id ?? key,
-            nom: nom || `Personnel ${(map.size + 1)}`,
+            // keep raw name parts; prefer to use fonction/poste at render time
+            nom: nom || '',
             prenom,
             fonction: r.fonction ?? '',
+            poste: r.poste ?? r.poste_name ?? r.poste_nom ?? r.poste_designation ?? r.poste_label ?? '',
             totalHourly: (Number.isFinite(totalHourly) ? totalHourly : 0),
             source: 'lot'
           })
@@ -587,11 +589,11 @@ const PriceEQU = () => {
     try {
       const XLSX = await import('xlsx')
       const currentRows = rows || []
-      const headers = ['Description', 'VR', 'DT (%)', 'DT (valeur)', 'VR+Taxes (T)', 'Nb Jours', 'Amort/J', 'CC/J', 'CL/J', 'CPR/J', 'Taxe L&CPR (%)', 'Taxe L&CPR (val)', 'CMO/J', 'Total/J', 'TWM (h/j)', 'Total/H']
+      const headers = ['Description', 'Valeur de Remplacement (VR)', 'Droit et Taxes', 'VR + Taxes', 'Nombre de Jour de Durée de Vie Utile', 'Amortissement/Jour', 'Coût Carburant/Jour', 'Coût Lubrifiant/Jour', 'Coût Pièce de Rechange (PR)/Jour', 'Taxe sur Lub et PR', 'Cout Main d\'Oeuvre/Jour', 'Total/Jour', 'Temps de Travail Journalier Moyen', 'Total/Heure']
       const lotObj = (savedLots || []).find(s => String(s.id) === String(lot))
       const lotName = lotObj ? (lotObj.name || `lot-${lot}`) : `lot-${lot}`
       const title = 'Ventilation des coûts d\'équipement'
-      const wsData = [[title], [], headers, ...currentRows.map(r => [r.description ?? '', r.vr ?? '', r.dt_percent ?? '', r.dt_value ?? '', r.vr_plus_taxes ?? '', r.nj ?? '', r.amort_j ?? '', r.cc ?? '', r.cl ?? '', r.cpr ?? '', r.tlpr_percent ?? '', r.tlpr_value ?? '', r.cmo ?? '', r.tj ?? '', r.twm ?? '', r.total_h ?? ''])]
+      const wsData = [[title], [], headers, ...currentRows.map(r => [r.description ?? '', r.vr ?? '', r.dt_value ?? '', r.vr_plus_taxes ?? '', r.nj ?? '', r.amort_j ?? '', r.cc ?? '', r.cl ?? '', r.cpr ?? '', r.tlpr_value ?? '', r.cmo ?? '', r.tj ?? '', r.twm ?? '', r.total_h ?? ''])]
       const ws = XLSX.utils.aoa_to_sheet(wsData)
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Equipements')
@@ -627,8 +629,8 @@ const PriceEQU = () => {
       const title = 'Ventilation des coûts d\'équipement'
       doc.setFontSize(14)
       doc.text(title, margin, 60)
-      const headers = ['Description', 'VR', 'DT (%)', 'DT (valeur)', 'VR+Taxes (T)', 'Nb Jours', 'Amort/J', 'CC/J', 'CL/J', 'CPR/J', 'Taxe L&CPR (%)', 'Taxe L&CPR (val)', 'CMO/J', 'Total/J', 'TWM (h/j)', 'Total/H']
-      const body = (rows || []).map(r => [r.description ?? '', r.vr ?? '', r.dt_percent ?? '', r.dt_value ?? '', r.vr_plus_taxes ?? '', r.nj ?? '', r.amort_j ?? '', r.cc ?? '', r.cl ?? '', r.cpr ?? '', r.tlpr_percent ?? '', r.tlpr_value ?? '', r.cmo ?? '', r.tj ?? '', r.twm ?? '', r.total_h ?? ''])
+      const headers = ['Description', 'Valeur de Remplacement (VR)', 'Droit et Taxes', 'VR + Taxes', 'Nombre de Jour de Durée de Vie Utile', 'Amortissement/Jour', 'Coût Carburant/Jour', 'Coût Lubrifiant/Jour', 'Coût Pièce de Rechange (PR)/Jour', 'Taxe sur Lub et PR', 'Cout Main d\'Oeuvre/Jour', 'Total/Jour', 'Temps de Travail Journalier Moyen', 'Total/Heure']
+      const body = (rows || []).map(r => [r.description ?? '', r.vr ?? '', r.dt_value ?? '', r.vr_plus_taxes ?? '', r.nj ?? '', r.amort_j ?? '', r.cc ?? '', r.cl ?? '', r.cpr ?? '', r.tlpr_value ?? '', r.cmo ?? '', r.tj ?? '', r.twm ?? '', r.total_h ?? ''])
       if (typeof autoTable === 'function') {
         autoTable(doc, { head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
       } else if (typeof doc.autoTable === 'function') {
