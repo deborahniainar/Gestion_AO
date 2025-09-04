@@ -4,6 +4,10 @@ import { Description, CloudDownload, Add, Edit, Delete } from "@mui/icons-materi
 import { useDao } from '../contexts/DaoContext'
 import api from '../services/api'
 
+/***********************
+ * Modals for Poste and Article
+ ***********************/
+
 /* Small Modal to add a Poste (lightweight, local) */
 const PosteModal = ({ open, onClose, onSave, initialData = null }) => {
   const initialForm = { numero: '', nom: '' }
@@ -211,6 +215,10 @@ const ArticleWorkspaceModal = ({ open, onClose, article = null, onSave }) => {
   )
 }
 
+/***********************
+ * Main PriceSDP Component
+ ***********************/
+
 const PriceSDP = () => {
   const [rows, setRows] = useState([])
   const [openArticleModal, setOpenArticleModal] = useState(false)
@@ -227,6 +235,61 @@ const PriceSDP = () => {
 
   // workspace (inline) pour l'article sélectionné
   const [workspaceForm, setWorkspaceForm] = useState(null)
+
+  // add-element form inside workspace
+  const [showAddElementForm, setShowAddElementForm] = useState(false)
+  const [elementForm, setElementForm] = useState({ elementType: "Main d'oeuvre", designation: '', quantity: '', unit: '' })
+  const [designationOptions, setDesignationOptions] = useState([])
+  const [loadingDesignations, setLoadingDesignations] = useState(false)
+
+  // load designation options from the selected lot depending on element type
+  const loadDesignationOptions = useCallback(async (type) => {
+    if (!daoDocId || !lot) return []
+    setLoadingDesignations(true)
+    try {
+      const res = await api.get(`/dao/${daoDocId}`)
+      const lots = Array.isArray(res.data?.lots) ? res.data.lots : []
+      const lotObj = lots.find(l => Number(l.id) === Number(lot) || Number(l.lot_id) === Number(lot))
+      if (!lotObj) return []
+
+      const mapArr = (keys) => {
+        const out = []
+        for (const k of keys) {
+          if (Array.isArray(lotObj[k])) out.push(...lotObj[k])
+        }
+        // also check nested objects with rows
+        for (const key of Object.keys(lotObj)) {
+          const val = lotObj[key]
+          if (val && typeof val === 'object' && Array.isArray(val.rows)) out.push(...val.rows)
+        }
+        return out
+      }
+
+      let candidates = []
+      if (type === "Main d'oeuvre") {
+        candidates = mapArr(['priceMO', 'price_mo', 'mo', 'priceMO_rows', 'workforce', 'personnels'])
+      } else if (type === 'Matériaux') {
+        candidates = mapArr(['priceMTX', 'price_mtx', 'mtx', 'priceMTX_rows', 'materials', 'matieres'])
+      } else if (type === 'Equipements') {
+        candidates = mapArr(['priceEQU', 'price_equ', 'equipements', 'equipments', 'priceEQU_rows'])
+      }
+
+      // Build options
+      const opts = candidates.map((c, idx) => {
+        const label = (c.designation ?? c.description ?? c.nom ?? c.name ?? (c.poste ? String(c.poste) : '')) || (c.numero ? `Poste ${c.numero}` : `item-${idx}`)
+        const value = JSON.stringify({ idx, id: c.id ?? c.personnel_id ?? c.cmo_personnel_id ?? null, rawKey: idx })
+        return { label, value, raw: c }
+      })
+      setDesignationOptions(opts)
+      return opts
+    } catch (err) {
+      console.warn('[PriceSDP] failed to load designations for lot', lot, err)
+      setDesignationOptions([])
+      return []
+    } finally {
+      setLoadingDesignations(false)
+    }
+  }, [daoDocId, lot])
 
   // reset postes list when lot changes
   useEffect(() => {
@@ -280,22 +343,53 @@ const PriceSDP = () => {
   }
 
   const handleWorkspaceSave = () => {
+    const payload = {
+      numero: form.numero || '',
+      designation: form.designation || '',
+      quantite: form.quantite ? Number(String(form.quantite).replace(/,/g, '.')) : 0,
+      unite: form.unite || '',
+      coefficientK: form.coefficientK ? Number(String(form.coefficientK).replace(/,/g, '.')) : null,
+      productionPerDay: form.productionPerDay ? Number(String(form.productionPerDay).replace(/,/g, '.')) : null
+    }
+    onSave && onSave(payload)
+  }
+
+  const handleElementChange = (e) => {
+    const { name, value } = e.target
+    setElementForm(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleStartAddElement = async () => {
+    setShowAddElementForm(true)
+    setElementForm({ elementType: "Main d'oeuvre", designation: '', quantity: '', unit: '' })
+    await loadDesignationOptions("Main d'oeuvre")
+  }
+
+  const handleElementTypeChange = async (e) => {
+    const val = e.target.value
+    setElementForm(prev => ({ ...prev, elementType: val, designation: '' }))
+    await loadDesignationOptions(val)
+  }
+
+  const handleAddElement = () => {
     if (!activeArticle) return
     const { posteIndex, articleIndex } = activeArticle
     const payload = {
-      numero: workspaceForm.numero || '',
-      designation: workspaceForm.designation || '',
-      quantite: workspaceForm.quantite ? Number(String(workspaceForm.quantite).replace(/,/g, '.')) : 0,
-      unite: workspaceForm.unite || '',
-      coefficientK: workspaceForm.coefficientK ? Number(String(workspaceForm.coefficientK).replace(/,/g, '.')) : null,
-      productionPerDay: workspaceForm.productionPerDay ? Number(String(workspaceForm.productionPerDay).replace(/,/g, '.')) : null
+      type: elementForm.elementType,
+      designation: elementForm.designation,
+      quantity: elementForm.quantity ? Number(String(elementForm.quantity).replace(/,/g, '.')) : 0,
+      unit: elementForm.unit || ''
     }
     setRows(prev => prev.map((p, pi) => {
       if (pi !== posteIndex) return p
-      const newArticles = (p.articles || []).map((ar, ai) => ai === articleIndex ? { ...ar, ...payload } : ar)
-      return { ...p, articles: newArticles }
+      const articles = Array.isArray(p.articles) ? [...p.articles] : []
+      const a = { ...(articles[articleIndex] || {}) }
+      a.elements = Array.isArray(a.elements) ? [...a.elements, payload] : [payload]
+      articles[articleIndex] = a
+      return { ...p, articles }
     }))
-    setActiveArticle(null)
+    setShowAddElementForm(false)
+    setElementForm({ elementType: "Main d'oeuvre", designation: '', quantity: '', unit: '' })
   }
 
   return (
@@ -479,9 +573,59 @@ const PriceSDP = () => {
               <div><span className="font-medium">Production par jour:</span> {rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex]?.productionPerDay ?? rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex]?.production_per_day ?? ''}</div>
             </div>
 
+            {/* keep the original trigger button in the workspace */}
             <div className="mt-4">
-              <button onClick={() => console.log('Ajouter un Element pour', activeArticle)} className="px-3 py-1 bg-secondary text-white rounded">Ajouter un Element</button>
+              <button onClick={handleStartAddElement} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">
+                <Add fontSize="small" className="mr-2" /> Ajouter un élément
+              </button>
             </div>
+
+            {/* Add Element Modal (uses the same form fields as before, now in a modal) */}
+            {showAddElementForm && (
+              <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+                <div className="bg-white dark:bg-primary p-6 rounded-lg shadow-lg w-[520px] max-w-full">
+                  <h2 className="text-lg font-bold mb-4 text-secondary">Ajouter un élément</h2>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Type d'élément</label>
+                        <select name="elementType" value={elementForm.elementType} onChange={handleElementTypeChange} className="w-full border rounded px-2 py-1">
+                          <option value="Main d'oeuvre">Main d'oeuvre</option>
+                          <option value="Matériaux">Matériaux</option>
+                          <option value="Equipements">Equipements</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Désignation</label>
+                        <select name="designation" value={elementForm.designation} onChange={handleElementChange} className="w-full border rounded px-2 py-1" disabled={loadingDesignations}>
+                          <option value="">Sélectionner une désignation</option>
+                          {designationOptions.map((opt, idx) => (
+                            <option key={idx} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                        {loadingDesignations && <div className="text-sm text-muted">Chargement des désignations...</div>}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Quantité</label>
+                        <input name="quantity" value={elementForm.quantity} onChange={handleElementChange} type="number" className="w-full border rounded px-2 py-1" placeholder="0" />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Unité</label>
+                        <input name="unit" value={elementForm.unit} onChange={handleElementChange} className="w-full border rounded px-2 py-1" placeholder="Unité" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 mt-4">
+                    <button onClick={() => setShowAddElementForm(false)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Annuler</button>
+                    <button onClick={handleAddElement} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Ajouter l'élément</button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
