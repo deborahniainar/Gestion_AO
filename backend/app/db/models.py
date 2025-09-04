@@ -232,7 +232,7 @@ class Subtask(Base):
     task = relationship("Task", back_populates="subtasks")
 
 
-# --- Modèles pour persister les DAO, leurs lots et les tableaux de prix/tâches ---
+# --- Modèles pour les DAO, leurs lots et les tableaux de prix/tâches ---
 class DAO(Base):
     __tablename__ = "dao"
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
@@ -285,12 +285,10 @@ class DaoPriceMTX(Base):
     quantite = Column(Numeric(19,2), nullable=True)
     prix_unitaire = Column(Numeric(19,2), nullable=True)
     total = Column(Numeric(19,2), nullable=True)
-    # Persist transport, taxes and perte (percent & valeur) for materials
     transport = Column(Numeric(19,2), nullable=True)
     taxes = Column(Numeric(19,2), nullable=True)
     perte_percent = Column(Numeric(19,2), nullable=True)
     perte_valeur = Column(Numeric(19,2), nullable=True)
-    # Persist unité and origine
     unite = Column(String(64), nullable=True)
     origine = Column(String(255), nullable=True)
 
@@ -302,12 +300,9 @@ class DaoPriceEQU(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     id_lot = Column(Integer, ForeignKey("dao_lots.id", ondelete="CASCADE"), nullable=False, index=True)
     designation = Column(String(255), nullable=False)
-    # basic persisted numbers
     quantite = Column(Numeric(19,2), nullable=True)
     prix_unitaire = Column(Numeric(19,2), nullable=True)
     total = Column(Numeric(19,2), nullable=True)
-
-    # additional fields used by the frontend equipment table/modal
     materiel_id = Column(Integer, nullable=True)
     dt_percent = Column(Numeric(7,4), nullable=True)
     dt_value = Column(Numeric(19,2), nullable=True)
