@@ -133,7 +133,7 @@ const ArticleModal = ({ open, onClose, onSave, initialData = null }) => {
               <input name="coefficientK" value={form.coefficientK} onChange={handleChange} type="number" step="0.01" className="w-full border rounded px-2 py-1" placeholder="K" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Production / Jour</label>
+              <label className="block text-sm font-medium mb-1">Production/Jour</label>
               <input name="productionPerDay" value={form.productionPerDay} onChange={handleChange} type="number" className="w-full border rounded px-2 py-1" placeholder="0" />
             </div>
           </div>
@@ -371,15 +371,32 @@ const PriceSDP = () => {
     await loadDesignationOptions(val)
   }
 
+  // Replace handleAddElement: include selected raw designation and persist it
   const handleAddElement = () => {
     if (!activeArticle) return
     const { posteIndex, articleIndex } = activeArticle
+
+    // try to attach the original raw object for later price calculations
+    let selectedRaw = null
+    let selectedLabel = null
+    try {
+      const sel = designationOptions.find(o => o.value === elementForm.designation)
+      selectedRaw = sel ? sel.raw : null
+      selectedLabel = sel ? sel.label : null
+    } catch (err) {
+      selectedRaw = null
+      selectedLabel = null
+    }
+
     const payload = {
       type: elementForm.elementType,
       designation: elementForm.designation,
+      label: selectedLabel,
       quantity: elementForm.quantity ? Number(String(elementForm.quantity).replace(/,/g, '.')) : 0,
-      unit: elementForm.unit || ''
+      unit: elementForm.unit || '',
+      raw: selectedRaw
     }
+
     setRows(prev => prev.map((p, pi) => {
       if (pi !== posteIndex) return p
       const articles = Array.isArray(p.articles) ? [...p.articles] : []
@@ -388,6 +405,7 @@ const PriceSDP = () => {
       articles[articleIndex] = a
       return { ...p, articles }
     }))
+
     setShowAddElementForm(false)
     setElementForm({ elementType: "Main d'oeuvre", designation: '', quantity: '', unit: '' })
   }
@@ -608,7 +626,7 @@ const PriceSDP = () => {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-1">Quantité</label>
+                        <label className="block text-sm font-medium mb-1">Quantité Unitaire</label>
                         <input name="quantity" value={elementForm.quantity} onChange={handleElementChange} type="number" className="w-full border rounded px-2 py-1" placeholder="0" />
                       </div>
 
@@ -626,6 +644,192 @@ const PriceSDP = () => {
                 </div>
               </div>
             )}
+
+            {/* Tableau structuré : n'apparaît que si l'article a des éléments */}
+            {activeArticle && (() => {
+              const art = rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex] || {}
+              const elems = Array.isArray(art.elements) ? art.elements : []
+              if (elems.length === 0) return null
+
+              const isType = (e, key) => (String(e.type || '').toLowerCase()).includes(key)
+
+              // Tri des éléments par type : Main d'oeuvre -> Matériaux -> Equipements
+              const orderPriority = (el) => {
+                const t = String(el?.type || '').toLowerCase()
+                if (t.includes('main')) return 0
+                if (t.includes('mat')) return 1
+                if (t.includes('equip')) return 2
+                return 3
+              }
+
+              // ensure we have a sorted array of elements by the defined priority
+              const sortedElems = [...elems].sort((a, b) => {
+                const oa = orderPriority(a)
+                const ob = orderPriority(b)
+                return oa - ob
+              })
+
+              // build grouped arrays (Main, Matériaux, Equipements, others)
+              const mains = sortedElems.filter(e => isType(e, 'main'))
+              const mats = sortedElems.filter(e => isType(e, 'mat'))
+              const equips = sortedElems.filter(e => isType(e, 'equip'))
+              const others = sortedElems.filter(e => !isType(e, 'main') && !isType(e, 'mat') && !isType(e, 'equip'))
+
+              // helper to compute totals for an element (without mutating outer sums)
+              const computeRowTotals = (e) => {
+                const qUnit = Number(e.quantity || 0)
+                const production = Number(art.productionPerDay ?? art.production_per_day ?? 1) || 1
+                const DH = qUnit * production
+                const raw = e.raw || {}
+                const unit = e.unit || art.unite || ''
+
+                const puMO = Number(
+                  raw.total_h ?? raw.total_hour ?? raw.total ?? raw.th ?? raw.th_mo ?? raw.prix_h ?? raw.prix_horaire ?? raw.tarif_horaire ?? raw.price_unit ?? raw.pu ?? raw.price ?? 0
+                ) || 0
+                const puMTX = Number(
+                  raw.total ?? raw.total_m ?? raw.total_unit ?? raw.total_price ?? raw.price_unit ?? raw.pu ?? raw.price ?? 0
+                ) || 0
+
+                const moTotal = isType(e, 'main') ? (DH * puMO) : 0
+                const mtxTotal = isType(e, 'mat') ? (DH * puMTX) : 0
+
+                const amortTotal = Number(raw.amortissement ?? raw.amortissement_total ?? raw.A ?? 0) || 0
+                const carburantTotal = Number(raw.carburant ?? raw.carburant_total ?? raw.CL ?? raw.cl ?? 0) || 0
+                const entretienTotal = Number(raw.entretien ?? raw.cpr ?? 0) || 0
+                const twm = Number(raw.twm ?? raw.twm_equ ?? raw.TWM ?? 1) || 1
+
+                const amortH = twm ? (amortTotal / twm) : 0
+                const carburantH = twm ? (carburantTotal / twm) : 0
+                const entretienH = twm ? (entretienTotal / twm) : 0
+                const equPerH = amortH + carburantH + entretienH
+                const equTotal = isType(e, 'equip') ? (DH * equPerH) : 0
+
+                return { qUnit, production, DH, unit, puMO, puMTX, moTotal, mtxTotal, amortH, carburantH, entretienH, equTotal }
+              }
+
+              // compute group subtotals without mutating sums
+              const sumMO = mains.reduce((acc, el) => acc + computeRowTotals(el).moTotal, 0)
+              const sumMTX = mats.reduce((acc, el) => acc + computeRowTotals(el).mtxTotal, 0)
+              const sumEQU = equips.reduce((acc, el) => acc + computeRowTotals(el).equTotal, 0)
+
+              const renderElementRow = (e, keyIdx) => {
+                const { qUnit, DH, unit, puMO, puMTX, moTotal, mtxTotal, amortH, carburantH, entretienH, equTotal } = computeRowTotals(e)
+                const raw = e.raw || {}
+
+                return (
+                  <tr key={keyIdx} className="odd:bg-white even:bg-gray-50">
+                    <td className="border p-2 align-top">{e.label ?? raw.designation ?? raw.description ?? raw.nom ?? raw.name ?? (raw.prenom ? `${raw.prenom} ${raw.nom}` : '') ?? e.designation ?? ''}</td>
+                    <td className="border p-2 text-right">{qUnit !== 0 ? qUnit : ''}</td>
+                    <td className="border p-2 text-right">{DH ? DH.toFixed(2) : ''}</td>
+                    <td className="border p-2">{unit}</td>
+
+                    {/* MO columns */}
+                    <td className="border p-2 text-right">{isType(e, 'main') ? (puMO ? puMO.toFixed(2) : '') : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'main') ? (moTotal ? moTotal.toFixed(2) : '') : ''}</td>
+
+                    {/* MAT columns */}
+                    <td className="border p-2 text-right">{isType(e, 'mat') ? (puMTX ? puMTX.toFixed(2) : '') : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'mat') ? (mtxTotal ? mtxTotal.toFixed(2) : '') : ''}</td>
+
+                    {/* EQU columns */}
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? (amortH ? amortH.toFixed(2) : '') : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? (carburantH ? carburantH.toFixed(2) : '') : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? (entretienH ? entretienH.toFixed(2) : '') : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? (equTotal ? equTotal.toFixed(2) : '') : ''}</td>
+
+                    <td className="border p-2 text-right">{((isType(e, 'main') ? moTotal : 0) + (isType(e, 'mat') ? mtxTotal : 0) + (isType(e, 'equip') ? equTotal : 0)) ? (((isType(e, 'main') ? moTotal : 0) + (isType(e, 'mat') ? mtxTotal : 0) + (isType(e, 'equip') ? equTotal : 0)).toFixed(2)) : ''}</td>
+                  </tr>
+                )
+              }
+
+              const rowsJsx = []
+
+              const pushGroup = (label, items, groupTotal) => {
+                if (!items || items.length === 0) return
+                rowsJsx.push(
+                  <tr key={`group-${label}`} className="bg-gray-100 font-semibold">
+                    <td className="border p-2" colSpan={13}>{label}</td>
+                  </tr>
+                )
+                items.forEach((it, i) => rowsJsx.push(renderElementRow(it, `${label}-${i}`)))
+                // subtotal row for this group in the last column
+                rowsJsx.push(
+                  <tr key={`subtotal-${label}`} className="bg-gray-50 font-semibold">
+                    <td className="border p-2" colSpan={12}>{`Total ${label}`}</td>
+                    <td className="border p-2 text-right">{groupTotal ? groupTotal.toFixed(2) : ''}</td>
+                  </tr>
+                )
+              }
+
+              pushGroup("Main d'oeuvre", mains, sumMO)
+              pushGroup('Matériaux', mats, sumMTX)
+              pushGroup('Equipements', equips, sumEQU)
+              pushGroup('Autres', others, 0)
+
+              const totalT = sumMO + sumMTX + sumEQU
+              const coefK = Number(art.coefficientK ?? art.coefficient_k ?? 1) || 1
+              const productionForNet = Number(art.productionPerDay ?? art.production_per_day ?? 1) || 1
+              const costNetPerUnit = productionForNet !== 0 ? ((coefK * totalT) / productionForNet) : 0
+
+              return (
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="bg-muted">
+                        <th className="border p-2 text-left">ÉLÉMENTS DU PRIX / DÉSIGNATION</th>
+                        <th className="border p-2">Qté unitaire</th>
+                        <th className="border p-2">Quantité OU DUREE EN HEURE/Jour</th>
+                        <th className="border p-2">Unité</th>
+                        <th className="border p-2 text-center">Prix unitaire (MO)</th>
+                        <th className="border p-2 text-center">TOTAL /jour (MO)</th>
+                        <th className="border p-2 text-center">Prix unitaire (MAT)</th>
+                        <th className="border p-2 text-center">TOTAL /jour (MAT)</th>
+                        <th className="border p-2 text-center">AMORTISSEMENT MGA/h (EQU)</th>
+                        <th className="border p-2 text-center">CARBURANT-LUBRIFIANTS MGA/h (EQU)</th>
+                        <th className="border p-2 text-center">ENTRETIEN /h (EQU)</th>
+                        <th className="border p-2 text-center">TOTAL /jour (EQU)</th>
+                        <th className="border p-2">TOTAUX/jour</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rowsJsx}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-muted font-semibold">
+                        <td className="p-2">Totaux</td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2 text-right">{totalT ? totalT.toFixed(2) : ''}</td>
+                      </tr>
+                      <tr className="bg-muted font-semibold">
+                        <td className="p-2">Coût Net / Unité</td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2"></td>
+                        <td className="p-2 text-right">{costNetPerUnit ? costNetPerUnit.toFixed(2) : ''}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )
+            })()}
           </div>
         )}
       </main>
