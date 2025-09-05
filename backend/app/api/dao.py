@@ -14,6 +14,9 @@ from ..services.nlp_processing import summarize as llm_summarize
 
 from fastapi import Request
 import time, json, requests
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dao", tags=["DAO"])
 
@@ -477,12 +480,19 @@ def save_dao(payload: SaveDAORequest, db: Session = Depends(get_db), force: bool
                     db.add(p)
                     db.flush()
                     for art in post.get('articles') or post.get('items') or []:
+                        designation = art.get('designation') or art.get('name') or ''
+                        quant_a = to_decimal(art.get('quantite'))
+                        pu = to_decimal(art.get('prix_unitaire') or art.get('prixUnitaire') or art.get('pu'))
+                        total_a = to_decimal(art.get('total'))
+                        # persist optional workspace elements as JSON text
+                        elements_payload = art.get('elements') if isinstance(art.get('elements'), (list, dict)) else None
                         a = DaoPriceSDPArticle(
                             id_post=p.id,
-                            designation=art.get('designation') or art.get('name') or '',
-                            quantite=to_decimal(art.get('quantite')),
-                            prix_unitaire=to_decimal(art.get('prix_unitaire') or art.get('prixUnitaire')),
-                            total=to_decimal(art.get('total')),
+                            designation=designation,
+                            quantite=quant_a,
+                            prix_unitaire=pu,
+                            total=total_a,
+                            elements=(json.dumps(elements_payload, ensure_ascii=False) if elements_payload is not None else None),
                         )
                         db.add(a)
 
@@ -662,15 +672,26 @@ def get_dao(document_id: int, db: Session = Depends(get_db)):
             }
             posts = db.query(DaoPriceSDPPost).filter(DaoPriceSDPPost.id_sdp == s.id).all()
             for p in posts:
-                p_obj = {"id": p.id, "titre": p.titre, "articles": []}
+                p_obj = {"id": p.id, "titre": p.titre, "numero": getattr(p, 'numero', None), "articles": []}
                 arts = db.query(DaoPriceSDPArticle).filter(DaoPriceSDPArticle.id_post == p.id).all()
                 for a in arts:
+                    # try to parse persisted elements JSON, if present
+                    try:
+                        parsed_elements = json.loads(a.elements) if getattr(a, 'elements', None) else []
+                    except Exception:
+                        parsed_elements = []
+
                     p_obj["articles"].append({
                         "id": a.id,
+                        "numero": getattr(a, 'numero', None),
                         "designation": a.designation,
                         "quantite": str(a.quantite) if a.quantite is not None else None,
+                        "unite": getattr(a, 'unite', None),
                         "prix_unitaire": str(a.prix_unitaire) if a.prix_unitaire is not None else None,
                         "total": str(a.total) if a.total is not None else None,
+                        "coefficientK": str(getattr(a, 'coefficient_k', None)) if getattr(a, 'coefficient_k', None) is not None else None,
+                        "productionPerDay": str(getattr(a, 'production_per_day', None)) if getattr(a, 'production_per_day', None) is not None else None,
+                        "elements": parsed_elements,
                     })
                 s_obj["posts"].append(p_obj)
             lot["priceSDP"].append(s_obj)
@@ -969,3 +990,108 @@ def put_lot_equipments(document_id: int, lot_id: int, payload: List[Dict], db: S
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Impossible d'enregistrer les équipements: {str(ex)}")
 
     return {"status": "ok", "saved": len(payload or [])}
+
+@router.put("/{document_id}/lots/{lot_id}/sdp")
+def put_lot_sdp(document_id: int, lot_id: int, payload: List[Dict], db: Session = Depends(get_db)):
+    """Replace DaoPriceSDP (sous-détail de prix) rows for a given lot with the provided payload (list of objects).
+
+    Expected payload structure: [ { description?, quantite?, prix_unitaire?, total?, posts: [ { titre?, ordre?, articles: [ { designation?, quantite?, prix_unitaire?, total? }, ... ] }, ... ] }, ... ]
+    """
+    logger.info("put_lot_sdp called: document_id=%s lot_id=%s payload_items=%s", document_id, lot_id, len(payload or []))
+    try:
+        logger.debug("payload preview: %s", json.dumps((payload or [])[:5], ensure_ascii=False))
+    except Exception:
+        # don't fail on logging
+        logger.debug("payload contains non-serializable items, skipping preview")
+
+    dao = db.query(DAO).filter(DAO.document_id == document_id).first()
+    if not dao:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DAO introuvable")
+
+    lot = db.query(DaoLot).filter(DaoLot.id == lot_id, DaoLot.id_dao == dao.id).first()
+    if not lot:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lot introuvable pour ce DAO")
+
+    from decimal import Decimal
+
+    def to_decimal(v):
+        if v is None or v == "":
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+    try:
+        # Delete existing SDP entries (cascade will remove posts/articles)
+        existing_sdps = db.query(DaoPriceSDP).filter(DaoPriceSDP.id_lot == lot.id).all()
+        logger.debug("existing sdps count=%s", len(existing_sdps))
+        for s in existing_sdps:
+            db.delete(s)
+        db.flush()
+
+        saved = 0
+        for sdp in payload or []:
+            description = sdp.get('description') or sdp.get('titre') or sdp.get('name') or None
+            quantite = to_decimal(sdp.get('quantite'))
+            prix_unitaire = to_decimal(sdp.get('prix_unitaire') or sdp.get('prixUnitaire') or sdp.get('pu'))
+            total = to_decimal(sdp.get('total'))
+
+            s = DaoPriceSDP(
+                id_lot=lot.id,
+                description=description,
+                quantite=quantite,
+                prix_unitaire=prix_unitaire,
+                total=total,
+            )
+            db.add(s)
+            db.flush()
+
+            for post in sdp.get('posts') or sdp.get('posts_list') or []:
+                titre = post.get('titre') or post.get('title') or post.get('name') or ''
+                # debug: log incoming post numéro if present
+                try:
+                    logger.debug("persisting post for sdp_id=%s: titre=%s, numero=%s, keys=%s", s.id, titre, post.get('numero'), list(post.keys()))
+                except Exception:
+                    logger.debug("persisting post: unable to show numero or keys")
+                p = DaoPriceSDPPost(id_sdp=s.id, titre=titre, ordre=post.get('ordre'), numero=post.get('numero') or post.get('numero_poste') or None)
+                db.add(p)
+                db.flush()
+
+                for art in post.get('articles') or post.get('items') or []:
+                    designation = art.get('designation') or art.get('name') or ''
+                    quant_a = to_decimal(art.get('quantite'))
+                    pu = to_decimal(art.get('prix_unitaire') or art.get('prixUnitaire') or art.get('pu'))
+                    total_a = to_decimal(art.get('total'))
+                    # persist optional workspace elements as JSON text
+                    elements_payload = art.get('elements') if isinstance(art.get('elements'), (list, dict)) else None
+                    if elements_payload is not None and not isinstance(elements_payload, (list, dict)):
+                        # ensure elements are serializable as list
+                        try:
+                            elements_payload = list(elements_payload)
+                        except Exception:
+                            elements_payload = None
+                    a = DaoPriceSDPArticle(
+                        id_post=p.id,
+                        designation=designation,
+                        numero=art.get('numero') or art.get('numero_article') or None,
+                        quantite=quant_a,
+                        unite=art.get('unite') or art.get('unit') or None,
+                        prix_unitaire=pu,
+                        total=total_a,
+                        coefficient_k=to_decimal(art.get('coefficientK') or art.get('coefficient_k')),
+                        production_per_day=to_decimal(art.get('productionPerDay') or art.get('production_per_day')),
+                        elements=(json.dumps(elements_payload, ensure_ascii=False) if elements_payload is not None else None),
+                    )
+                    db.add(a)
+
+            saved += 1
+
+        db.commit()
+    except Exception as e:
+        logger.exception("Failed to persist SDP for document_id=%s lot_id=%s", document_id, lot_id)
+        db.rollback()
+        # return a richer error to the caller for debugging (kept French message for consistency)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Impossible d'enregistrer le sous-détail de prix: {str(e)}")
+
+    return {"status": "ok", "saved": saved}

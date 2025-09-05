@@ -399,6 +399,53 @@ const PriceSDP = () => {
 
   useEffect(() => { fetchDaoLots() }, [fetchDaoLots])
 
+  // Load persisted SDP rows for the selected lot
+  const loadSDPForLot = useCallback(async () => {
+    if (!daoDocId || !lot) return
+    try {
+      const res = await api.get(`/dao/${daoDocId}`)
+      const lots = Array.isArray(res.data?.lots) ? res.data.lots : []
+      const lotObj = lots.find(l => Number(l.id) === Number(lot) || Number(l.lot_id) === Number(lot))
+      if (!lotObj) { setRows([]); return }
+
+      const sdpArr = Array.isArray(lotObj.priceSDP) ? lotObj.priceSDP : []
+      const newRows = []
+      // Flatten posts into rows (support multiple SDP blocks)
+      for (const sdp of sdpArr) {
+        for (const p of (sdp.posts || [])) {
+          const articles = (p.articles || []).map(a => ({
+            id: a.id,
+            numero: a.numero ?? null,
+            designation: a.designation ?? a.description ?? '',
+            quantite: a.quantite ?? null,
+            unite: a.unite ?? null,
+            prix_unitaire: a.prix_unitaire ?? a.pu ?? null,
+            total: a.total ?? null,
+            coefficientK: a.coefficientK ?? a.coefficient_k ?? null,
+            productionPerDay: a.productionPerDay ?? a.production_per_day ?? null,
+            elements: Array.isArray(a.elements) ? a.elements : [],
+          }))
+
+          newRows.push({
+            id: p.id,
+            titre: p.titre || p.name || '',
+            nom: p.titre || p.name || '',
+            numero: p.numero ?? p.numero_poste ?? null,
+            ordre: p.ordre ?? null,
+            articles,
+          })
+        }
+      }
+
+      setRows(newRows)
+    } catch (err) {
+      console.error('[PriceSDP] failed to load persisted SDP for lot', lot, err)
+      setRows([])
+    }
+  }, [daoDocId, lot])
+
+  useEffect(() => { loadSDPForLot() }, [loadSDPForLot])
+
   useEffect(() => {
     if (!activeArticle) { setWorkspaceForm(null); return }
     const { posteIndex, articleIndex } = activeArticle
@@ -696,6 +743,57 @@ const PriceSDP = () => {
     }
   }
 
+  // Persist workspace (posts/articles/elements) to backend
+  const persistWorkspace = async (rowsToSend = null) => {
+    if (!daoDocId || !lot) return
+
+    const payload = [
+      {
+        // top-level SDP wrapper — keep flexible/null for numeric fields
+        description: null,
+        quantite: null,
+        prix_unitaire: null,
+        total: null,
+        posts: (rowsToSend || rows || []).map((r) => ({
+          titre: r.titre || r.nom || r.numero || r.name || '',
+          numero: r.numero ?? null,
+          ordre: r.ordre ?? null,
+          articles: (r.articles || []).map((a) => ({
+            designation: a.designation || a.description || '',
+            quantite: a.quantite ?? null,
+            prix_unitaire: a.prix_unitaire ?? a.pu ?? null,
+            total: a.total ?? null,
+            numero: a.numero ?? null,
+            unite: a.unite ?? null,
+            coefficientK: a.coefficientK ?? a.coefficient_k ?? null,
+            productionPerDay: a.productionPerDay ?? a.production_per_day ?? null,
+            elements: Array.isArray(a.elements) ? a.elements : [], // always send array
+          }))
+        }))
+      }
+    ]
+
+    try {
+      // debug log payload being sent
+      console.debug('[PriceSDP] persisting payload', JSON.parse(JSON.stringify(payload)));
+      // use the existing axios instance which has baseURL '/api'
+      await api.put(`/dao/${daoDocId}/lots/${lot}/sdp`, payload)
+    } catch (err) {
+      console.error('Error persisting SDP workspace', err)
+    }
+  }
+
+  // Auto-save workspace when rows change (debounced)
+  useEffect(() => {
+    // only persist when dao and lot selected
+    if (!daoDocId || !lot) return
+    // debounce to avoid excessive calls
+    const t = setTimeout(() => {
+      persistWorkspace()
+    }, 1000)
+    return () => clearTimeout(t)
+  }, [rows, daoDocId, lot])
+
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
       <Sidebar />
@@ -797,7 +895,7 @@ const PriceSDP = () => {
                                         onClick={() => { setActiveArticle({ posteIndex: i, articleIndex: ai }) }}
                                         className="w-full text-left text-lg text-primary dark:text-muted hover:underline"
                                       >
-                                        {`Article ${numero}${designation}${quantite ? ' ×' + quantite : ''}${unite ? ' ' + unite : ''}`}
+                                        {`Article ${numero}`}
                                       </button>
                                     </li>
                                   )
