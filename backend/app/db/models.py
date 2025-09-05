@@ -340,6 +340,7 @@ class DaoPriceSDPPost(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     id_sdp = Column(Integer, ForeignKey("dao_price_sdp.id", ondelete="CASCADE"), nullable=False, index=True)
     titre = Column(String(255), nullable=False)
+    numero = Column(String(64), nullable=True)
     ordre = Column(Integer, nullable=True, default=0)
 
     sdp = relationship("DaoPriceSDP", back_populates="posts")
@@ -351,9 +352,14 @@ class DaoPriceSDPArticle(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     id_post = Column(Integer, ForeignKey("dao_price_sdp_posts.id", ondelete="CASCADE"), nullable=False, index=True)
     designation = Column(String(512), nullable=False)
+    numero = Column(String(64), nullable=True)
     quantite = Column(Numeric(19,2), nullable=True)
     prix_unitaire = Column(Numeric(19,2), nullable=True)
     total = Column(Numeric(19,2), nullable=True)
+    unite = Column(String(64), nullable=True)
+    coefficient_k = Column(Numeric(19,4), nullable=True)
+    production_per_day = Column(Numeric(19,4), nullable=True)
+    elements = Column(Text, nullable=True)  # JSON serialized workspace elements (array)
 
     post = relationship("DaoPriceSDPPost", back_populates="articles")
 
