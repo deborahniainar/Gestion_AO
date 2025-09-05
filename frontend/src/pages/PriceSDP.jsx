@@ -693,18 +693,33 @@ const PriceSDP = () => {
                 const moTotal = isType(e, 'main') ? (DH * puMO) : 0
                 const mtxTotal = isType(e, 'mat') ? (DH * puMTX) : 0
 
-                const amortTotal = Number(raw.amortissement ?? raw.amortissement_total ?? raw.A ?? 0) || 0
-                const carburantTotal = Number(raw.carburant ?? raw.carburant_total ?? raw.CL ?? raw.cl ?? 0) || 0
-                const entretienTotal = Number(raw.entretien ?? raw.cpr ?? 0) || 0
-                const twm = Number(raw.twm ?? raw.twm_equ ?? raw.TWM ?? 1) || 1
+                // For equipment: expect per-day values in the equipment raw row and a TWM on the same row
+                // amortissement/H = amortissement_jour / twm
+                const amortPerDay = Number(
+                  raw.amortissement_jour ?? raw.amortissement_j ?? raw.amortissement_day ?? raw.amortissement ?? raw.amortissement_total ?? raw.amort_j ?? raw.A ?? 0
+                ) || 0
+                const carburantPerDay = Number(
+                  raw.carburant_jour ?? raw.carburant_j ?? raw.carburant_day ?? raw.carburant ?? raw.carburant_total ?? raw.cc ?? 0
+                ) || 0
+                const lubrifiantPerDay = Number(
+                  raw.lubrifiant_jour ?? raw.lubrifiant_j ?? raw.lubrifiant_day ?? raw.lubrifiant ?? raw.cl ?? raw.CL ?? 0
+                ) || 0
+                // prefer cpr (coût pièces de rechange) as the entretien per-day value if present
+                const entretienPerDay = Number(
+                  raw.cpr ?? raw.entretien_jour ?? raw.entretien_j ?? raw.entretien_day ?? raw.entretien ?? 0
+                ) || 0
 
-                const amortH = twm ? (amortTotal / twm) : 0
-                const carburantH = twm ? (carburantTotal / twm) : 0
-                const entretienH = twm ? (entretienTotal / twm) : 0
-                const equPerH = amortH + carburantH + entretienH
+                const twm = Number(raw.twm ?? raw.twm_equ ?? raw.TWM ?? raw.taux_mise ?? 1) || 1
+
+                const amortH = twm ? (amortPerDay / twm) : 0
+                const carburantH = twm ? (carburantPerDay / twm) : 0
+                const lubrifiantH = twm ? (lubrifiantPerDay / twm) : 0
+                const sumCarLubH = carburantH + lubrifiantH
+                const entretienH = twm ? (entretienPerDay / twm) : 0
+                const equPerH = amortH + sumCarLubH + entretienH
                 const equTotal = isType(e, 'equip') ? (DH * equPerH) : 0
 
-                return { qUnit, production, DH, unit, puMO, puMTX, moTotal, mtxTotal, amortH, carburantH, entretienH, equTotal }
+                return { qUnit, production, DH, unit, puMO, puMTX, moTotal, mtxTotal, amortH, carburantH: carburantH, lubrifiantH: lubrifiantH, sumCarLubH, entretienH, equTotal }
               }
 
               // compute group subtotals without mutating sums
@@ -713,7 +728,7 @@ const PriceSDP = () => {
               const sumEQU = equips.reduce((acc, el) => acc + computeRowTotals(el).equTotal, 0)
 
               const renderElementRow = (e, keyIdx) => {
-                const { qUnit, DH, unit, puMO, puMTX, moTotal, mtxTotal, amortH, carburantH, entretienH, equTotal } = computeRowTotals(e)
+                const { qUnit, DH, unit, puMO, puMTX, moTotal, mtxTotal, amortH, sumCarLubH, entretienH, equTotal } = computeRowTotals(e)
                 const raw = e.raw || {}
 
                 return (
@@ -724,20 +739,20 @@ const PriceSDP = () => {
                     <td className="border p-2">{unit}</td>
 
                     {/* MO columns */}
-                    <td className="border p-2 text-right">{isType(e, 'main') ? (puMO ? puMO.toFixed(2) : '') : ''}</td>
-                    <td className="border p-2 text-right">{isType(e, 'main') ? (moTotal ? moTotal.toFixed(2) : '') : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'main') ? puMO.toFixed(2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'main') ? moTotal.toFixed(2) : ''}</td>
 
                     {/* MAT columns */}
-                    <td className="border p-2 text-right">{isType(e, 'mat') ? (puMTX ? puMTX.toFixed(2) : '') : ''}</td>
-                    <td className="border p-2 text-right">{isType(e, 'mat') ? (mtxTotal ? mtxTotal.toFixed(2) : '') : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'mat') ? puMTX.toFixed(2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'mat') ? mtxTotal.toFixed(2) : ''}</td>
 
                     {/* EQU columns */}
-                    <td className="border p-2 text-right">{isType(e, 'equip') ? (amortH ? amortH.toFixed(2) : '') : ''}</td>
-                    <td className="border p-2 text-right">{isType(e, 'equip') ? (carburantH ? carburantH.toFixed(2) : '') : ''}</td>
-                    <td className="border p-2 text-right">{isType(e, 'equip') ? (entretienH ? entretienH.toFixed(2) : '') : ''}</td>
-                    <td className="border p-2 text-right">{isType(e, 'equip') ? (equTotal ? equTotal.toFixed(2) : '') : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? amortH.toFixed(2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? sumCarLubH.toFixed(2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? entretienH.toFixed(2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? equTotal.toFixed(2) : ''}</td>
 
-                    <td className="border p-2 text-right">{((isType(e, 'main') ? moTotal : 0) + (isType(e, 'mat') ? mtxTotal : 0) + (isType(e, 'equip') ? equTotal : 0)) ? (((isType(e, 'main') ? moTotal : 0) + (isType(e, 'mat') ? mtxTotal : 0) + (isType(e, 'equip') ? equTotal : 0)).toFixed(2)) : ''}</td>
+                    <td className="border p-2 text-right">{(((isType(e, 'main') ? moTotal : 0) + (isType(e, 'mat') ? mtxTotal : 0) + (isType(e, 'equip') ? equTotal : 0))).toFixed(2)}</td>
                   </tr>
                 )
               }
@@ -756,7 +771,7 @@ const PriceSDP = () => {
                 rowsJsx.push(
                   <tr key={`subtotal-${label}`} className="bg-gray-50 font-semibold">
                     <td className="border p-2" colSpan={12}>{`Total ${label}`}</td>
-                    <td className="border p-2 text-right">{groupTotal ? groupTotal.toFixed(2) : ''}</td>
+                    <td className="border p-2 text-right">{groupTotal.toFixed(2)}</td>
                   </tr>
                 )
               }
@@ -781,13 +796,13 @@ const PriceSDP = () => {
                         <th className="border p-2">Quantité OU DUREE EN HEURE/Jour</th>
                         <th className="border p-2">Unité</th>
                         <th className="border p-2 text-center">Prix unitaire (MO)</th>
-                        <th className="border p-2 text-center">TOTAL /jour (MO)</th>
+                        <th className="border p-2 text-center">TOTAL/jour (MO)</th>
                         <th className="border p-2 text-center">Prix unitaire (MAT)</th>
-                        <th className="border p-2 text-center">TOTAL /jour (MAT)</th>
-                        <th className="border p-2 text-center">AMORTISSEMENT MGA/h (EQU)</th>
-                        <th className="border p-2 text-center">CARBURANT-LUBRIFIANTS MGA/h (EQU)</th>
-                        <th className="border p-2 text-center">ENTRETIEN /h (EQU)</th>
-                        <th className="border p-2 text-center">TOTAL /jour (EQU)</th>
+                        <th className="border p-2 text-center">TOTAL/jour (MAT)</th>
+                        <th className="border p-2 text-center">AMORTISSEMENT/h (EQU)</th>
+                        <th className="border p-2 text-center">CARBURANT-LUBRIFIANTS/h (EQU)</th>
+                        <th className="border p-2 text-center">ENTRETIEN/h (EQU)</th>
+                        <th className="border p-2 text-center">TOTAL/jour (EQU)</th>
                         <th className="border p-2">TOTAUX/jour</th>
                       </tr>
                     </thead>
