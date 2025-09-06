@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import { NotificationService, NotificationMessages } from '../services/notifications'
 import { soumissionsWorkspacesAPI } from '../services/api'
+import api from '../services/api'
 import {
   CloudDownload,
   Add,
@@ -38,55 +39,86 @@ const Soumissions = () => {
     'Copie du RIB'
   ];
 
-  const [appelOffre, setAppelOffre] = useState('Nom Appel d’Offre actuel');
-  const [lot, setLot] = useState('Lot 1');
-  const [lotNames, setLotNames] = useState([]);
+  const [appelOffre, setAppelOffre] = useState('')
+  const [lot, setLot] = useState('')
+  const [lotNames, setLotNames] = useState([])
+  const [daos, setDaos] = useState([])
+  const [daoDocId, setDaoDocId] = useState(null)
   const [loadingLots, setLoadingLots] = useState(false);
   const [loadingWorkspace, setLoadingWorkspace] = useState(false);
+  const workspaceReady = !!lot // vrai seulement si un lot est sélectionné
   // const navigate = useNavigate();
 
   // Listes et map des contenus sont entièrement gérées par le backend
   const [listes, setListes] = useState([]);
 
   useEffect(() => {
-    // Initial load
+    // Initial load: fetch DAOs to populate selector (match PriceMO behavior)
     (async () => {
-      setLoadingLots(true);
       try {
-        const res = await soumissionsWorkspacesAPI.listLots(appelOffre);
-        const names = Array.isArray(res.data) ? res.data : [];
-        setLotNames(names);
-        if (names.length > 0) {
-          const selected = names.includes(lot) ? lot : names[0];
-          setLot(selected);
-          setLoadingWorkspace(true);
-          const ws = await soumissionsWorkspacesAPI.getWorkspace(selected, appelOffre, { createIfMissing: true });
-          setListes(Array.isArray(ws.data.listes) ? ws.data.listes : []);
+        const res = await api.get('/dao/')
+        const list = Array.isArray(res.data) ? res.data : []
+        setDaos(list)
+        if (list.length > 0) {
+          const first = list[0]
+          const id = first.document_id ?? first.id ?? null
+          setDaoDocId(id)
+          // keep appelOffre param in sync (string) so backend workspace API receives a value
+          setAppelOffre(id ? String(id) : '')
+          // also set lotNames if DAO contains lots
+          if (Array.isArray(first.lots)) {
+            const names = first.lots.map(l => l.lot_name || l.name || l.titre).filter(Boolean)
+            setLotNames(names)
+            if (names.length > 0) setLot(names[0])
+          }
+        } else {
+          setDaoDocId(null)
         }
       } catch (e) {
-        NotificationService.error('Chargement échoué');
-      } finally {
-        setLoadingLots(false);
-        setLoadingWorkspace(false);
+        NotificationService.error('Impossible de charger les DAOs')
+        setDaos([])
+        setDaoDocId(null)
       }
     })();
   }, []);
 
   useEffect(() => {
-    // refresh lots when appel d'offre changes
+    // refresh lots when daoDocId (selected DAO) or appelOffre changes
     (async () => {
       setLoadingLots(true);
       try {
-        const res = await soumissionsWorkspacesAPI.listLots(appelOffre);
-        const names = Array.isArray(res.data) ? res.data : [];
-        setLotNames(names);
+        // if a DAO is selected, prefer fetching its lots from /dao/:id
+        if (daoDocId) {
+          try {
+            const resDao = await api.get(`/dao/${daoDocId}`)
+            const lots = Array.isArray(resDao.data?.lots) ? resDao.data.lots : []
+            const names = lots.map(l => l.lot_name || l.name || l.titre).filter(Boolean)
+            setLotNames(names)
+            if (names.length > 0) setLot(prev => (prev && names.includes(prev)) ? prev : names[0])
+            else setLot('')
+          } catch (err) {
+            // fall back to workspace listLots
+            const res = await soumissionsWorkspacesAPI.listLots(appelOffre);
+            const names = Array.isArray(res.data) ? res.data : [];
+            setLotNames(names);
+            if (names.length > 0) setLot(prev => (prev && names.includes(prev)) ? prev : names[0])
+            else setLot('')
+          }
+        } else {
+          const res = await soumissionsWorkspacesAPI.listLots(appelOffre);
+          const names = Array.isArray(res.data) ? res.data : [];
+          setLotNames(names);
+          if (names.length > 0) setLot(prev => (prev && names.includes(prev)) ? prev : names[0])
+          else setLot('')
+        }
       } catch (e) {
-        // ignore
+        setLotNames([]);
+        setLot('')
       } finally {
         setLoadingLots(false);
       }
     })();
-  }, [appelOffre]);
+  }, [daoDocId, appelOffre]);
 
   useEffect(() => {
     // load workspace when lot changes
@@ -219,7 +251,7 @@ const Soumissions = () => {
       return { ...l, sousTaches: remaining };
     });
     if (!moved) return;
-    const newListes = withoutFrom.map(l => l.id !== targetListId ? l : { ...l, sousTaches: [ ...(l.sousTaches || []), moved ] });
+    const newListes = withoutFrom.map(l => l.id !== targetListId ? l : { ...l, sousTaches: [...(l.sousTaches || []), moved] });
     setListes(newListes);
     await persistWorkspace(newListes);
     handleDragEndSubtask();
@@ -277,7 +309,7 @@ const Soumissions = () => {
       if (!target) {
         const newTask = { id: crypto.randomUUID(), titre: 'Tâches En Cours', sousTaches: [] };
         newListes.push(newTask);
-        target = newListes[newListes.length-1];
+        target = newListes[newListes.length - 1];
       }
       // remove from source
       sourceList.sousTaches = (sourceList.sousTaches || []).filter(s => s.id !== sousTacheId);
@@ -293,7 +325,7 @@ const Soumissions = () => {
       if (!target) {
         const newTask = { id: crypto.randomUUID(), titre: 'Tâches Terminées', sousTaches: [] };
         newListes.push(newTask);
-        target = newListes[newListes.length-1];
+        target = newListes[newListes.length - 1];
       }
       sourceList.sousTaches = (sourceList.sousTaches || []).filter(s => s.id !== sousTacheId);
       target.sousTaches = [...(target.sousTaches || []), { ...sub, done: true }];
@@ -345,36 +377,58 @@ const Soumissions = () => {
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-secondary/10 text-secondary">
                 <Description fontSize="small" />
               </span>
+
               <label className="text-secondary font-medium whitespace-nowrap">Appel d’Offre :</label>
+
               <select
-                className="ml-auto border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-64"
-                value={appelOffre}
-                onChange={(e) => setAppelOffre(e.target.value)}
+                className="text-primary dark:text-muted ml-auto border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-64"
+                value={daoDocId ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (!val) {
+                    setDaoDocId(null)
+                    setAppelOffre('')
+                    setLotNames([])
+                    setLot('')
+                    return
+                  }
+                  setDaoDocId(val)
+                  setAppelOffre(String(val))
+                }}
               >
-                <option value="Nom Appel d’Offre actuel">Nom Appel d’Offre actuel</option>
+                <option value="">Sélectionner un DAO</option>
+                {(daos || []).map(d => {
+                  const display = d.original_name || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`
+                  const id = d.document_id ?? d.id
+                  return (<option key={id} value={id}>{display}</option>)
+                })}
               </select>
-              <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
-              <select
-                className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40"
-                value={lot}
-                onChange={(e) => setLot(e.target.value)}
-              >
-                <option value="">Sélectionner un Lot</option>
-                {(lotNames || []).map(nomLot => (
-                  <option key={nomLot} value={nomLot}>{nomLot}</option>
-                ))}
-              </select>
-               {(loadingLots || loadingWorkspace) && (
-                 <span className="ml-2 inline-block h-5 w-5 border-2 border-secondary/70 border-t-transparent rounded-full animate-spin" aria-label="Chargement..."></span>
-               )}
-              
+
+              {appelOffre ? (
+                <>
+                  <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
+                  <select
+                    className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40"
+                    value={lot}
+                    onChange={(e) => setLot(e.target.value)}
+                  >
+                    <option value="">Sélectionner un Lot</option>
+                    {(lotNames || []).map(nomLot => (
+                      <option key={nomLot} value={nomLot}>{nomLot}</option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <div className="ml-3 text-sm text-gray-500">Aucun DAO sélectionné.</div>
+              )}
+
+              {(loadingLots || loadingWorkspace) && (
+                <span className="ml-2 inline-block h-5 w-5 border-2 border-secondary/70 border-t-transparent rounded-full animate-spin" aria-label="Chargement..."></span>
+              )}
+
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={handleSupprimerLot} className="inline-flex items-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 text-sm px-3 py-2 rounded-md">
-                <Delete fontSize="small" />
-                Supprimer le lot
-              </button>
               <button onClick={handleExporter} className="inline-flex items-center gap-2 bg-secondary hover:bg-secondary/90 text-white text-sm px-3 py-2 rounded-md">
                 <CloudDownload fontSize="small" />
                 Exporter
@@ -384,7 +438,11 @@ const Soumissions = () => {
 
           {/* Action ajouter carte */}
           <div className="flex items-center justify-between mb-3">
-            <button onClick={() => setModal({ open: true, type: 'addList', payload: {}, value: '' })} className="inline-flex items-center gap-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md">
+            <button
+              onClick={() => { if (!workspaceReady) return; setModal({ open: true, type: 'addList', payload: {}, value: '' }) }}
+              disabled={!workspaceReady}
+              className={`inline-flex items-center gap-2 text-sm px-3 py-2 rounded-md ${workspaceReady ? 'bg-gray-100 hover:bg-gray-200 text-gray-700' : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
+            >
               <Add fontSize="small" />
               Ajouter une tâche
             </button>
@@ -393,129 +451,133 @@ const Soumissions = () => {
           {/* Corps avec colonnes de cartes */}
           <div className="flex gap-4">
             {/* Colonnes */}
-            <div className="flex gap-4 overflow-x-auto pb-2">
-              {listes.map(liste => (
-                <div
-                  key={liste.id}
-                  className={`w-full md:w-96 bg-white/60 dark:bg-primary/30 border ${dragOverListId===liste.id ? 'border-secondary' : 'border-muted-50'} rounded-lg p-4 shrink-0`}
-                  onDragOver={(e) => handleDragOverList(liste.id, e)}
-                  onDrop={() => handleDropOnList(liste.id)}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <h6 className="text-sm font-semibold text-secondary">{liste.titre}</h6>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setModal({ open: true, type: 'renameList', payload: { listeId: liste.id }, value: liste.titre })} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-gray-200/70 text-gray-700" title="Modifier">
-                        <Edit fontSize="small" />
-                      </button>
-                      <button onClick={() => setModal({ open: true, type: 'confirmDeleteList', payload: { listeId: liste.id }, value: '' })} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 text-red-600" title="Supprimer">
-                        <Delete fontSize="small" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                    {(liste.sousTaches || []).map(st => (
-                      <div
-                        key={st.id}
-                        className={`group flex items-center justify-between bg-white dark:bg-primary border ${dragOverSubtaskId===st.id ? 'border-secondary' : 'border-muted-50'} rounded-md px-3 py-2 text-sm shadow-sm`}
-                        draggable
-                        onDragStart={() => handleDragStartSubtask(liste.id, st.id)}
-                        onDragEnd={handleDragEndSubtask}
-                        onDragOver={(e) => handleDragOverSubtask(liste.id, st.id, e)}
-                        onDrop={() => handleDropOnSubtask(liste.id, st.id)}
-                      >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <input
-                            type="checkbox"
-                            aria-label="Marquer comme terminé"
-                            checked={!!st.done}
-                            onChange={(e) => { e.stopPropagation(); handleToggleSousTache(liste.id, st.id); }}
-                            className="h-4 w-4 accent-secondary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                          />
-                          <span
-                            className={`truncate cursor-pointer hover:underline ${st.done ? 'line-through text-gray-400' : ''}`}
-                            onClick={(e) => { e.stopPropagation(); handleOpenSubtask(liste.id, st); }}
-                            title="Ouvrir l'espace de travail"
-                          >
-                            {st.titre}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 ml-2">
-                          <button onClick={(e) => { e.stopPropagation(); setModal({ open: true, type: 'renameSubtask', payload: { listeId: liste.id, sousTacheId: st.id }, value: st.titre }); }} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-gray-200/70 text-gray-700" title="Modifier">
-                            <Edit fontSize="small" />
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); setModal({ open: true, type: 'confirmDeleteSubtask', payload: { listeId: liste.id, sousTacheId: st.id }, value: '' }); }} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 text-red-600" title="Supprimer">
-                            <Delete fontSize="small" />
-                          </button>
-                        </div>
+            {workspaceReady ? (
+              <div className="flex gap-4 overflow-x-auto pb-2">
+                {listes.map(liste => (
+                  <div
+                    key={liste.id}
+                    className={`w-full md:w-96 bg-white/60 dark:bg-primary/30 border ${dragOverListId === liste.id ? 'border-secondary' : 'border-muted-50'} rounded-lg p-4 shrink-0`}
+                    onDragOver={(e) => handleDragOverList(liste.id, e)}
+                    onDrop={() => handleDropOnList(liste.id)}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <h6 className="text-sm font-semibold text-secondary">{liste.titre}</h6>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setModal({ open: true, type: 'renameList', payload: { listeId: liste.id }, value: liste.titre })} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-gray-200/70 text-gray-700" title="Modifier">
+                          <Edit fontSize="small" />
+                        </button>
+                        <button onClick={() => setModal({ open: true, type: 'confirmDeleteList', payload: { listeId: liste.id }, value: '' })} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 text-red-600" title="Supprimer">
+                          <Delete fontSize="small" />
+                        </button>
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                      {(liste.sousTaches || []).map(st => (
+                        <div
+                          key={st.id}
+                          className={`group flex items-center justify-between bg-white dark:bg-primary border ${dragOverSubtaskId === st.id ? 'border-secondary' : 'border-muted-50'} rounded-md px-3 py-2 text-sm shadow-sm`}
+                          draggable
+                          onDragStart={() => handleDragStartSubtask(liste.id, st.id)}
+                          onDragEnd={handleDragEndSubtask}
+                          onDragOver={(e) => handleDragOverSubtask(liste.id, st.id, e)}
+                          onDrop={() => handleDropOnSubtask(liste.id, st.id)}
+                        >
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <input
+                              type="checkbox"
+                              aria-label="Marquer comme terminé"
+                              checked={!!st.done}
+                              onChange={(e) => { e.stopPropagation(); handleToggleSousTache(liste.id, st.id); }}
+                              className="h-4 w-4 accent-secondary opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                            />
+                            <span
+                              className={`truncate cursor-pointer hover:underline ${st.done ? 'line-through text-gray-400' : ''}`}
+                              onClick={(e) => { e.stopPropagation(); handleOpenSubtask(liste.id, st); }}
+                              title="Ouvrir l'espace de travail"
+                            >
+                              {st.titre}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 ml-2">
+                            <button onClick={(e) => { e.stopPropagation(); setModal({ open: true, type: 'renameSubtask', payload: { listeId: liste.id, sousTacheId: st.id }, value: st.titre }); }} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-gray-200/70 text-gray-700" title="Modifier">
+                              <Edit fontSize="small" />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); setModal({ open: true, type: 'confirmDeleteSubtask', payload: { listeId: liste.id, sousTacheId: st.id }, value: '' }); }} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-red-50 text-red-600" title="Supprimer">
+                              <Delete fontSize="small" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <button onClick={() => setModal({ open: true, type: 'addSubtask', payload: { listeId: liste.id }, value: '' })} className="mt-4 text-sm text-secondary underline underline-offset-2">
+                      Ajouter une sous-tâche
+                    </button>
                   </div>
-                  <button onClick={() => setModal({ open: true, type: 'addSubtask', payload: { listeId: liste.id }, value: '' })} className="mt-4 text-sm text-secondary underline underline-offset-2">
-                    Ajouter une sous-tâche
-                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="p-6 text-sm text-gray-500">Sélectionner un Lot pour afficher le workspace.</div>
+            )}
+          </div>
+        </div>
+
+        {/* Modal */}
+        {modal.open && (
+          <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-md bg-white dark:bg-primary border border-muted-50 rounded-lg shadow-xl">
+              <div className="px-5 py-4 border-b border-muted-50 flex items-center justify-between">
+                <h6 className="text-sm font-semibold text-secondary">
+                  {modal.type === 'addList' && 'Nouvelle tâche'}
+                  {modal.type === 'addSubtask' && 'Nouvelle sous-tâche'}
+                  {modal.type === 'renameList' && 'Renommer la tâche'}
+                  {modal.type === 'renameSubtask' && 'Renommer la sous-tâche'}
+                  {modal.type === 'confirmDeleteList' && 'Supprimer la tâche ?'}
+                  {modal.type === 'confirmDeleteSubtask' && 'Supprimer la sous-tâche ?'}
+                </h6>
+                <button onClick={closeModal} className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-primary/40">×</button>
+              </div>
+
+              {(modal.type === 'addList' || modal.type === 'addSubtask' || modal.type === 'renameList' || modal.type === 'renameSubtask') && (
+                <div className="px-5 py-4 space-y-3">
+                  {modal.type === 'addList' && (
+                    <div className="flex flex-wrap gap-2">
+                      {['Tâches à faire', 'Tâches En Cours', 'Tâches Terminées'].map(opt => (
+                        <button key={opt} onClick={() => setModal(m => ({ ...m, value: opt }))} className={`text-xs px-2 py-1 rounded border ${modal.value === opt ? 'bg-secondary text-white border-secondary' : 'bg-white dark:bg-primary border-muted-50'}`}>{opt}</button>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    autoFocus
+                    value={modal.value}
+                    onChange={(e) => setModal(m => ({ ...m, value: e.target.value }))}
+                    placeholder={modal.type === 'addList' ? 'Titre de la tâche' : 'Nom'}
+                    className="w-full border border-muted-50 rounded px-3 py-2 bg-white dark:bg-primary"
+                    list={modal.type === 'addSubtask' ? 'suggested-sous-taches' : undefined}
+                  />
+                  {modal.type === 'addSubtask' && (
+                    <datalist id="suggested-sous-taches">
+                      {SUGGESTED_SOUS_TACHES.map(opt => (
+                        <option key={opt} value={opt} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
-              ))}
+              )}
+
+              {(modal.type === 'confirmDeleteList' || modal.type === 'confirmDeleteSubtask') && (
+                <div className="px-5 py-4">
+                  <p className="text-sm">Cette action est irréversible.</p>
+                </div>
+              )}
+
+              <div className="px-5 py-4 border-t border-muted-50 flex justify-end gap-2">
+                <button onClick={closeModal} className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm">Annuler</button>
+                <button onClick={confirmModal} className="px-3 py-2 rounded bg-secondary hover:bg-secondary/90 text-white text-sm">Confirmer</button>
+              </div>
             </div>
           </div>
-        </div>
-
-      {/* Modal */}
-      {modal.open && (
-        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md bg-white dark:bg-primary border border-muted-50 rounded-lg shadow-xl">
-            <div className="px-5 py-4 border-b border-muted-50 flex items-center justify-between">
-              <h6 className="text-sm font-semibold text-secondary">
-                {modal.type === 'addList' && 'Nouvelle tâche'}
-                {modal.type === 'addSubtask' && 'Nouvelle sous-tâche'}
-                {modal.type === 'renameList' && 'Renommer la tâche'}
-                {modal.type === 'renameSubtask' && 'Renommer la sous-tâche'}
-                {modal.type === 'confirmDeleteList' && 'Supprimer la tâche ?'}
-                {modal.type === 'confirmDeleteSubtask' && 'Supprimer la sous-tâche ?'}
-              </h6>
-              <button onClick={closeModal} className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-primary/40">×</button>
-            </div>
-
-            {(modal.type === 'addList' || modal.type === 'addSubtask' || modal.type === 'renameList' || modal.type === 'renameSubtask') && (
-              <div className="px-5 py-4 space-y-3">
-                {modal.type === 'addList' && (
-                  <div className="flex flex-wrap gap-2">
-                    {['Tâches à faire','Tâches En Cours','Tâches Terminées'].map(opt => (
-                      <button key={opt} onClick={() => setModal(m => ({ ...m, value: opt }))} className={`text-xs px-2 py-1 rounded border ${modal.value===opt ? 'bg-secondary text-white border-secondary' : 'bg-white dark:bg-primary border-muted-50'}`}>{opt}</button>
-                    ))}
-                  </div>
-                )}
-                <input
-                  autoFocus
-                  value={modal.value}
-                  onChange={(e) => setModal(m => ({ ...m, value: e.target.value }))}
-                  placeholder={modal.type === 'addList' ? 'Titre de la tâche' : 'Nom'}
-                  className="w-full border border-muted-50 rounded px-3 py-2 bg-white dark:bg-primary"
-                  list={modal.type === 'addSubtask' ? 'suggested-sous-taches' : undefined}
-                />
-                {modal.type === 'addSubtask' && (
-                  <datalist id="suggested-sous-taches">
-                    {SUGGESTED_SOUS_TACHES.map(opt => (
-                      <option key={opt} value={opt} />
-                    ))}
-                  </datalist>
-                )}
-              </div>
-            )}
-
-            {(modal.type === 'confirmDeleteList' || modal.type === 'confirmDeleteSubtask') && (
-              <div className="px-5 py-4">
-                <p className="text-sm">Cette action est irréversible.</p>
-              </div>
-            )}
-
-            <div className="px-5 py-4 border-t border-muted-50 flex justify-end gap-2">
-              <button onClick={closeModal} className="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm">Annuler</button>
-              <button onClick={confirmModal} className="px-3 py-2 rounded bg-secondary hover:bg-secondary/90 text-white text-sm">Confirmer</button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
 
       </main>
     </div>
