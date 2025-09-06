@@ -762,6 +762,7 @@ const PriceSDP = () => {
             designation: a.designation || a.description || '',
             quantite: a.quantite ?? null,
             prix_unitaire: a.prix_unitaire ?? a.pu ?? null,
+            costNetPerUnit: a.costNetPerUnit ?? a.prix_unitaire ?? a.pu ?? null,
             total: a.total ?? null,
             numero: a.numero ?? null,
             unite: a.unite ?? null,
