@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from ..db import models
 from ..db.session import get_db
 import uuid
+from jose import jwt
+import time
 
 
 router = APIRouter(prefix="/soumissions/workspaces", tags=["Soumissions - Workspaces"])
@@ -96,21 +98,25 @@ def save_workspace(lot: str, payload: Dict[str, Any], appel_offre: str = Query("
         for sidx, st in enumerate(l.get("sousTaches") or []):
             sid = st.get("id") or str(uuid.uuid4().hex)
             incoming_sub_ids.add(sid)
-            sub = db.query(models.Subtask).filter(models.Subtask.id == sid, models.Subtask.id_task == task.id).first()
+            # find subtask by id (may belong to another task if it was moved)
+            sub = db.query(models.Subtask).filter(models.Subtask.id == sid).first()
             if not sub:
-                sub = models.Subtask(id=sid, titre=st.get("titre") or "", done=bool(st.get("done")), ordre=sidx, id_task=task.id)
+                sub = models.Subtask(
+                    id=sid,
+                    titre=st.get("titre") or "",
+                    done=bool(st.get("done")),
+                    ordre=sidx,
+                    id_task=task.id
+                )
                 db.add(sub)
             else:
+                # update fields and attach/move to the current task
                 sub.titre = st.get("titre") or sub.titre
                 sub.done = bool(st.get("done"))
                 sub.ordre = sidx
+                sub.id_task = task.id
                 db.add(sub)
-            db.commit()
-        # delete subtasks not present
-        existing_subs = db.query(models.Subtask).filter(models.Subtask.id_task == task.id).all()
-        for ex in existing_subs:
-            if ex.id not in incoming_sub_ids:
-                db.delete(ex)
+        # commit once after processing all subtasks for this task
         db.commit()
     # delete tasks not present
     existing_tasks = db.query(models.Task).filter(models.Task.id_lot == lot_obj.id).all()
@@ -243,14 +249,49 @@ def get_onlyoffice_url(lot: str, sub_id: str, request: Request, appel_offre: str
     ds = settings.ONLYOFFICE_DS_URL or ""
     if not ds:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ONLYOFFICE_DS_URL non configuré")
-    from urllib.parse import quote, urlencode
+    from urllib.parse import quote, urlencode, quote as q
     lot_enc = quote(lot, safe="")
     sub_enc = quote(sub_id, safe="")
     query = urlencode({"appel_offre": appel_offre})
-    rel = f"/api/soumissions/workspaces/{lot_enc}/subtasks/{sub_enc}/docx?{query}"
+
+    # Build two candidate file URLs: one without /api (backend routes are at root),
+    # and one with /api for cases where a frontend proxy exposes the API under /api.
+    rel_no_api = f"/soumissions/workspaces/{lot_enc}/subtasks/{sub_enc}/docx?{query}"
+    rel_api = f"/api/soumissions/workspaces/{lot_enc}/subtasks/{sub_enc}/docx?{query}"
+
     base = settings.BACKEND_PUBLIC_URL.rstrip('/') if settings.BACKEND_PUBLIC_URL else str(request.base_url).rstrip('/')
-    file_url = base + rel
-    from urllib.parse import quote as q
-    return {"url": f"{ds.rstrip('/')}/?fileUrl={q(file_url, safe=':/?&=%')}"}
+    file_url_primary = base + rel_no_api
+    file_url_fallback = base + rel_api
+
+    # Escape file URLs for insertion into OnlyOffice query
+    file_url_primary_escaped = q(file_url_primary, safe=':/?&=%')
+    file_url_fallback_escaped = q(file_url_fallback, safe=':/?&=%')
+    onlyoffice_base = ds.rstrip('/')
+
+    primary_ds_url = f"{onlyoffice_base}/?fileUrl={file_url_primary_escaped}"
+    fallback_ds_url = f"{onlyoffice_base}/?fileUrl={file_url_fallback_escaped}"
+
+    # If OnlyOffice JWT is enabled, sign a short-lived JWT and append as token param to both URLs
+    if settings.ONLYOFFICE_JWT_ENABLED:
+        secret = settings.ONLYOFFICE_JWT_SECRET
+        if not secret:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="ONLYOFFICE_JWT_SECRET non configuré")
+        try:
+            payload = {
+                "fileUrl": file_url_primary,
+                # short expiry to minimise risk; DS will validate
+                "exp": int(time.time()) + 300
+            }
+            token = jwt.encode(payload, secret, algorithm='HS256')
+            primary_ds_url = f"{primary_ds_url}&token={q(token)}"
+
+            # sign fallback token as well (payload.fileUrl points to fallback)
+            payload_fallback = {"fileUrl": file_url_fallback, "exp": int(time.time()) + 300}
+            token_fb = jwt.encode(payload_fallback, secret, algorithm='HS256')
+            fallback_ds_url = f"{fallback_ds_url}&token={q(token_fb)}"
+        except Exception:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Erreur génération token OnlyOffice")
+
+    return {"url": primary_ds_url, "fallback_url": fallback_ds_url}
 
 
