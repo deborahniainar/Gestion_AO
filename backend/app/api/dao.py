@@ -482,16 +482,27 @@ def save_dao(payload: SaveDAORequest, db: Session = Depends(get_db), force: bool
                     for art in post.get('articles') or post.get('items') or []:
                         designation = art.get('designation') or art.get('name') or ''
                         quant_a = to_decimal(art.get('quantite'))
-                        pu = to_decimal(art.get('prix_unitaire') or art.get('prixUnitaire') or art.get('pu'))
+                        # Accept explicit prix_unitaire or any of the costNetPerUnit aliases from the frontend.
+                        # read both a generic unit price and the explicit costNetPerUnit alias
+                        pu_direct = to_decimal(art.get('prix_unitaire') or art.get('prixUnitaire') or art.get('pu'))
+                        pu_net = to_decimal(art.get('costNetPerUnit') or art.get('cost_per_unit') or art.get('costPerUnit') or art.get('cost_net_per_unit'))
+                        # prefer explicit prix_unitaire if provided, else use costNetPerUnit
+                        pu = pu_direct if pu_direct is not None else pu_net
                         total_a = to_decimal(art.get('total'))
-                        # persist optional workspace elements as JSON text
+                        # persist optional workspace elements as JSON text (no computation based on them)
                         elements_payload = art.get('elements') if isinstance(art.get('elements'), (list, dict)) else None
                         a = DaoPriceSDPArticle(
                             id_post=p.id,
                             designation=designation,
+                            numero=art.get('numero') or art.get('numero_article') or None,
                             quantite=quant_a,
+                            unite=art.get('unite') or art.get('unit') or None,
                             prix_unitaire=pu,
+                            # also store the explicit cost_net_per_unit column when provided
+                            cost_net_per_unit=pu_net,
                             total=total_a,
+                            coefficient_k=to_decimal(art.get('coefficientK') or art.get('coefficient_k')),
+                            production_per_day=to_decimal(art.get('productionPerDay') or art.get('production_per_day')),
                             elements=(json.dumps(elements_payload, ensure_ascii=False) if elements_payload is not None else None),
                         )
                         db.add(a)
@@ -681,14 +692,23 @@ def get_dao(document_id: int, db: Session = Depends(get_db)):
                     except Exception:
                         parsed_elements = []
 
+                    # Prefer the explicit cost_net_per_unit column if present; mirror into prix_unitaire for frontend
+                    persisted_net = getattr(a, 'cost_net_per_unit', None)
+                    persisted_pu = getattr(a, 'prix_unitaire', None)
+                    # final prix_unitaire to present: prefer stored prix_unitaire, else cost_net_per_unit
+                    out_prix_unitaire = (str(persisted_pu) if persisted_pu is not None else (str(persisted_net) if persisted_net is not None else None))
+                    out_cost_net = (str(persisted_net) if persisted_net is not None else (str(persisted_pu) if persisted_pu is not None else None))
+
                     p_obj["articles"].append({
                         "id": a.id,
                         "numero": getattr(a, 'numero', None),
                         "designation": a.designation,
                         "quantite": str(a.quantite) if a.quantite is not None else None,
                         "unite": getattr(a, 'unite', None),
-                        "prix_unitaire": str(a.prix_unitaire) if a.prix_unitaire is not None else None,
+                        "prix_unitaire": out_prix_unitaire,
                         "total": str(a.total) if a.total is not None else None,
+                        # expose the persisted cost_net_per_unit under the costNetPerUnit alias for frontend compatibility
+                        "costNetPerUnit": out_cost_net,
                         "coefficientK": str(getattr(a, 'coefficient_k', None)) if getattr(a, 'coefficient_k', None) is not None else None,
                         "productionPerDay": str(getattr(a, 'production_per_day', None)) if getattr(a, 'production_per_day', None) is not None else None,
                         "elements": parsed_elements,
@@ -1049,7 +1069,7 @@ def put_lot_sdp(document_id: int, lot_id: int, payload: List[Dict], db: Session 
 
             for post in sdp.get('posts') or sdp.get('posts_list') or []:
                 titre = post.get('titre') or post.get('title') or post.get('name') or ''
-                # debug: log incoming post numéro if present
+                # debug: log incoming post numéro if présent
                 try:
                     logger.debug("persisting post for sdp_id=%s: titre=%s, numero=%s, keys=%s", s.id, titre, post.get('numero'), list(post.keys()))
                 except Exception:
@@ -1061,16 +1081,12 @@ def put_lot_sdp(document_id: int, lot_id: int, payload: List[Dict], db: Session 
                 for art in post.get('articles') or post.get('items') or []:
                     designation = art.get('designation') or art.get('name') or ''
                     quant_a = to_decimal(art.get('quantite'))
-                    pu = to_decimal(art.get('prix_unitaire') or art.get('prixUnitaire') or art.get('pu'))
+                    # Accept explicit prix_unitaire or client-provided aliases and persist directly
+                    pu_direct = to_decimal(art.get('prix_unitaire') or art.get('prixUnitaire') or art.get('pu'))
+                    pu_net = to_decimal(art.get('costNetPerUnit') or art.get('cost_per_unit') or art.get('costPerUnit') or art.get('cost_net_per_unit'))
+                    pu = pu_direct if pu_direct is not None else pu_net
                     total_a = to_decimal(art.get('total'))
-                    # persist optional workspace elements as JSON text
                     elements_payload = art.get('elements') if isinstance(art.get('elements'), (list, dict)) else None
-                    if elements_payload is not None and not isinstance(elements_payload, (list, dict)):
-                        # ensure elements are serializable as list
-                        try:
-                            elements_payload = list(elements_payload)
-                        except Exception:
-                            elements_payload = None
                     a = DaoPriceSDPArticle(
                         id_post=p.id,
                         designation=designation,
@@ -1078,6 +1094,8 @@ def put_lot_sdp(document_id: int, lot_id: int, payload: List[Dict], db: Session 
                         quantite=quant_a,
                         unite=art.get('unite') or art.get('unit') or None,
                         prix_unitaire=pu,
+                        # also store the explicit cost_net_per_unit column when provided
+                        cost_net_per_unit=pu_net,
                         total=total_a,
                         coefficient_k=to_decimal(art.get('coefficientK') or art.get('coefficient_k')),
                         production_per_day=to_decimal(art.get('productionPerDay') or art.get('production_per_day')),

@@ -355,11 +355,12 @@ class DaoPriceSDPArticle(Base):
     numero = Column(String(64), nullable=True)
     quantite = Column(Numeric(19,2), nullable=True)
     prix_unitaire = Column(Numeric(19,2), nullable=True)
+    cost_net_per_unit = Column(Numeric(19,2), nullable=True)
     total = Column(Numeric(19,2), nullable=True)
     unite = Column(String(64), nullable=True)
     coefficient_k = Column(Numeric(19,4), nullable=True)
     production_per_day = Column(Numeric(19,4), nullable=True)
-    elements = Column(Text, nullable=True)  # JSON serialized workspace elements (array)
+    elements = Column(Text, nullable=True)
 
     post = relationship("DaoPriceSDPPost", back_populates="articles")
 
