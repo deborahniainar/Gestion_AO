@@ -62,6 +62,9 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
     }
   });
 
+  // État pour le nettoyage des DAOs orphelins
+  const [isCleaningOrphans, setIsCleaningOrphans] = useState(false);
+
   useEffect(() => {
     try {
       if (!daoDocId) { setSavedBadge(null); return; }
@@ -327,7 +330,7 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
       setSavedBadge(ts);
       // store returned dao_id and optionally lots
       const daoIdReturned = res?.data?.dao_id;
-      const lotsCreated = res?.data?.lots_created ?? payload.lots.length;
+      // const lotsCreated = res?.data?.lots_created ?? payload.lots.length;
       if (daoIdReturned) setDaoId(daoIdReturned);
       if (Array.isArray(payload.lots) && payload.lots.length > 0) {
         // store savedLots as simple names/ids map
@@ -361,8 +364,27 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
       if (res?.data?.dao_id) setDaoId(res.data.dao_id);
       if (Array.isArray(res?.data?.lots)) setSavedLots(res.data.lots.map(l => ({ id: l.id, name: l.lot_name })));
       showSuccess('DAO écrasé et enregistré avec succès');
-    } catch (e) {
+    } catch {
       showError('Échec lors de l\'écrasement du DAO');
+    }
+  };
+
+  // Fonction pour nettoyer les DAOs orphelins
+  const handleCleanupOrphans = async () => {
+    if (isCleaningOrphans) return;
+    setIsCleaningOrphans(true);
+    try {
+      const response = await apiWithNotifications.delete('/dao/cleanup_orphaned');
+      const data = response.data;
+      if (data.deleted_count > 0) {
+        showSuccess(`${data.deleted_count} DAO(s) orphelin(s) supprimé(s)`);
+      } else {
+        showInfo('Aucun DAO orphelin trouvé');
+      }
+    } catch {
+      showError('Erreur lors du nettoyage des DAOs orphelins');
+    } finally {
+      setIsCleaningOrphans(false);
     }
   };
 
@@ -372,6 +394,21 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
       <main className='flex-1 p-4 lg:ml-64 ml-16'>
         <header className="flex justify-between items-center px-6 py-6 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
           <h5 className="text-xl font-bold text-secondary m-0">Gestion des documents d'Appel d'Offre</h5>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleCleanupOrphans}
+              disabled={isCleaningOrphans}
+              className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                isCleaningOrphans
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+              }`}
+              title="Nettoyer les DAOs sans documents associés"
+            >
+              <Settings fontSize="small" />
+              {isCleaningOrphans ? 'Nettoyage...' : 'Nettoyer DAOs'}
+            </button>
+          </div>
         </header>
 
         {/* Top progress replaced by per-section timeline to the left */}
