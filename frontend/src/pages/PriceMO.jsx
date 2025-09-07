@@ -612,7 +612,7 @@ const PriceMO = () => {
               }}>
                 <option value="">Sélectionner un DAO</option>
                 {daos.map((d, i) => {
-                  const display = d.original_name || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`
+                  const display = d.original_name || d.original_filename || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`
                   return (<option key={i} value={d.document_id}>{display}</option>)
                 })}
               </select>
