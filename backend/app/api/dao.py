@@ -741,16 +741,42 @@ def list_daos(db: Session = Depends(get_db)):
     daos = db.query(DAO).all()
     out = []
     for d in daos:
+        # Skip DAOs without valid document_id or without existing document
+        if d.document_id is None:
+            continue
         doc = db.get(Document, d.document_id)
+        if doc is None:
+            continue
+        
         out.append({
             "dao_id": d.id,
             "document_id": d.document_id,
             "reference": getattr(d, 'reference', None),
-            "original_name": getattr(doc, 'original_name', None) if doc is not None else None,
-            "original_filename": getattr(doc, 'original_filename', None) if doc is not None else None,
-            "filename": getattr(doc, 'filename', None) if doc is not None else None,
+            "original_name": getattr(doc, 'original_name', None),
+            "original_filename": getattr(doc, 'original_filename', None),
+            "filename": getattr(doc, 'filename', None),
         })
     return out
+
+
+@router.delete("/cleanup_orphaned", status_code=status.HTTP_200_OK)
+def cleanup_orphaned_daos(db: Session = Depends(get_db)):
+    """Supprime les DAOs orphelins (sans document associé valide)."""
+    # Trouver les DAOs orphelins
+    orphaned_daos = db.query(DAO).filter(DAO.document_id.is_(None)).all()
+    orphaned_count = len(orphaned_daos)
+    
+    if orphaned_count == 0:
+        return {"message": "Aucun DAO orphelin trouvé", "deleted_count": 0}
+    
+    # Supprimer les DAOs orphelins (cascade supprimera automatiquement les lots et données associées)
+    for dao in orphaned_daos:
+        db.delete(dao)
+    
+    db.commit()
+    
+    return {"message": f"{orphaned_count} DAO(s) orphelin(s) supprimé(s)", "deleted_count": orphaned_count}
+
 
 @router.get("/{document_id}/lots/{lot_id}/workforce")
 def get_lot_workforce(document_id: int, lot_id: int, db: Session = Depends(get_db)):
