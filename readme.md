@@ -91,7 +91,7 @@ Gestion_AO/
 │   │   ├── tasks/                 # Celery (optionnel)
 │   │   ├── main.py                # Entrée FastAPI
 │   │   └── dependencies.py        # Dépendances (auth, DB, etc.)
-│   │   └── main_legacy.py        # Dépendances (auth, DB, etc.)
+│   │   └── main_legacy.py        
 │   ├── files
 │   ├── venv
 │   ├── .env
@@ -103,7 +103,7 @@ Gestion_AO/
 │   ├── public/
 │   ├── src/
 │   │   ├── components/            # Sidebar.jsx, DocumentViewer.jsx         
-│   │   ├── pages/         
+│   │   ├── pages/                 # Pages Principale
 │   │   │   ├── DAO.jsx        
 │   │   │   ├── Dashboard.jsx
 │   │   │   ├── Document.jsx
