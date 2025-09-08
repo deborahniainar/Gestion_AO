@@ -2,11 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react'
 import Sidebar from '../components/Sidebar'
 import {
   CloudDownload,
-  Help,
-  Add,
   Description,
-  Edit,
-  Delete
+  Help,
 } from "@mui/icons-material";
 import { useDao } from '../contexts/DaoContext'
 import api from '../services/api'
@@ -212,6 +209,77 @@ const PriceBDE = () => {
 
   useEffect(() => { buildBDEFromLot() }, [buildBDEFromLot])
 
+  // Export BDE as XLSX (per-poste tables with subtotals and grand total)
+  const exportBDEExcel = async () => {
+    if (!lot) { alert('Aucun lot sélectionné pour l\'export'); return }
+    try {
+      const XLSX = await import('xlsx')
+      const sdpRows = (bdeRows || []).filter(r => r.source === 'SDP')
+      if (sdpRows.length === 0) { alert('Aucun poste SDP pour ce lot'); return }
+
+      const groups = {}
+      const order = []
+      sdpRows.forEach(r => {
+        const key = (r.numero_poste ?? r.poste) || 'Sans poste'
+        if (!groups[key]) { groups[key] = []; order.push(key) }
+        groups[key].push(r)
+      })
+
+      const parseNum = (v) => {
+        if (v === null || v === undefined || v === '') return null
+        const n = Number(String(v).replace(/,/g, '.'))
+        return Number.isFinite(n) ? n : null
+      }
+
+      const wsData = []
+      const title = `Bordereau de Prix - DAO ${daoDocId || ''} - Lot ${lot || ''}`
+      wsData.push([title])
+      wsData.push([])
+
+      let grandTotal = 0
+
+      order.forEach((key) => {
+        const items = groups[key] || []
+        const displayName = (items && items[0] && (items[0].poste ?? items[0].titre ?? items[0].numero_poste ?? '')) || ''
+        wsData.push([`Poste ${key}${displayName ? ` : ${displayName}` : ''}`])
+        wsData.push(['N° Prix', 'Désignation', 'Unité', 'Quantité', 'Prix unitaire', 'Montant'])
+        let subtotal = 0
+        items.forEach(r => {
+          const pu = parseNum(r.prix_unitaire)
+          const qty = parseNum(r.quantite ?? r.qte)
+          const montant = (pu !== null && qty !== null) ? (pu * qty) : (parseNum(r.total) ?? 0)
+          subtotal += montant || 0
+          wsData.push([r.numero_article ?? '', r.designation ?? '', r.unite ?? '', r.quantite ?? '', pu !== null ? (Number(pu).toFixed(2)) : '', montant !== null ? (Number(montant).toFixed(2)) : ''])
+        })
+        wsData.push([])
+        wsData.push([`Sous-total N° ${key}`, '', '', '', '', subtotal.toFixed(2)])
+        wsData.push([])
+        grandTotal += subtotal
+      })
+
+      wsData.push([])
+      wsData.push(['Total général', '', '', '', '', grandTotal.toFixed(2)])
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'BDE')
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const filename = `bde-dao-${daoDocId || 'unknown'}_lot-${lot || 'unknown'}.xlsx`
+      a.href = url
+      a.setAttribute('download', filename)
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('[PriceBDE] Excel export failed', err)
+      alert('Échec de l\'export Excel. Vérifiez la console pour plus de détails.')
+    }
+  }
+
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
       <Sidebar />
@@ -263,13 +331,12 @@ const PriceBDE = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm ${lot ? 'bg-secondary hover:bg-secondary/90 text-white' : 'bg-secondary/60 disabled:opacity-50 text-white cursor-not-allowed'}`} disabled={!lot} onClick={() => { /* export handler placeholder */ }}>
+              <button className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm ${lot ? 'bg-secondary hover:bg-secondary/90 text-white' : 'bg-secondary/60 disabled:opacity-50 text-white cursor-not-allowed'}`} disabled={!lot} onClick={exportBDEExcel}>
                 <CloudDownload fontSize="small" />Exporter
               </button>
             </div>
           </div>
 
-          {/* here you can add the rest of BDE page content (table/form) */}
           {lot ? (
             <div className="mt-4">
               {/* group rows by poste */}
@@ -280,62 +347,113 @@ const PriceBDE = () => {
                   return (<div className="p-4 text-sm text-gray-500">Aucun poste SDP ajouté pour ce lot.</div>)
                 }
 
-                const groups = sdpRows.reduce((acc, r) => {
+                // group rows while preserving the order of first appearance
+                const groups = {}
+                const order = []
+                sdpRows.forEach(r => {
                   const key = (r.numero_poste ?? r.poste) || 'Sans poste'
-                  if (!acc[key]) acc[key] = []
-                  acc[key].push(r)
-                  return acc
-                }, {})
-
-                return Object.keys(groups).map((posteKey, gi) => {
-                  const items = groups[posteKey]
-                  return (
-                    <div key={gi} className="mb-6 overflow-x-auto">
-                      <div className="mb-2 font-semibold">Poste: {posteKey}</div>
-                      <table className="w-full border-collapse text-sm">
-                        <thead>
-                          <tr className="bg-muted">
-                            <th className="border p-2">N° Prix</th>
-                            <th className="border p-2">Désignation</th>
-                            <th className="border p-2">Unité</th>
-                            <th className="border p-2 text-right">Quantité</th>
-                            <th className="border p-2 text-right">Prix unitaire</th>
-                            <th className="border p-2 text-right">Montant</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {items.map((r, idx) => {
-                            // keep prix_unitaire as nullable number (do not coerce to 0)
-                            const parseNum = (v) => {
-                              if (v === null || v === undefined || v === '') return null
-                              const n = Number(String(v).replace(/,/g, '.'))
-                              return Number.isFinite(n) ? n : null
-                            }
-
-                            const pu = parseNum(r.prix_unitaire)
-                            const qty = parseNum(r.quantite ?? r.qte)
-                            const montant = (pu !== null && qty !== null) ? (pu * qty) : (parseNum(r.total) ?? null)
-
-                            return (
-                              <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                                <td className="border p-2">{r.numero_article ?? ''}</td>
-                                <td className="border p-2">{r.designation}</td>
-                                <td className="border p-2">{r.unite ?? ''}</td>
-                                <td className="border p-2 text-right">{r.quantite ?? ''}</td>
-                                <td className="border p-2 text-right">{pu !== null && !Number.isNaN(pu) ? pu.toFixed(2) : ''}</td>
-                                <td className="border p-2 text-right">{montant !== null && !Number.isNaN(montant) ? montant.toFixed(2) : ''}</td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )
+                  if (!groups[key]) { groups[key] = []; order.push(key) }
+                  groups[key].push(r)
                 })
+
+                // build subtotals and render each poste (respecting original order), then show a grand total
+                return (() => {
+                  const posteKeys = order
+                  // helper to parse numbers consistently
+                  const parseNum = (v) => {
+                    if (v === null || v === undefined || v === '') return null
+                    const n = Number(String(v).replace(/,/g, '.'))
+                    return Number.isFinite(n) ? n : null
+                  }
+
+                  // format numbers with thousand separators (French locale) and fixed decimals
+                  const formatNumber = (value, decimals = 2) => {
+                    if (value === null || value === undefined || value === '') return ''
+                    const n = Number(String(value).replace(/,/g, '.'))
+                    if (!Number.isFinite(n)) return ''
+                    return n.toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+                  }
+
+                  // compute subtotals per poste
+                  const subtotals = {}
+                  posteKeys.forEach((k) => {
+                    const items = groups[k] || []
+                    const subtotal = items.reduce((acc, r) => {
+                      const pu = parseNum(r.prix_unitaire)
+                      const qty = parseNum(r.quantite ?? r.qte)
+                      const montant = (pu !== null && qty !== null) ? (pu * qty) : (parseNum(r.total) ?? null)
+                      return acc + (montant !== null ? montant : 0)
+                    }, 0)
+                    subtotals[k] = subtotal
+                  })
+
+                  // render poste tables
+                  const rendered = posteKeys.map((posteKey, gi) => {
+                    const items = groups[posteKey] || []
+                    const displayPosteName = (items && items[0] && (items[0].poste ?? items[0].titre ?? items[0].numero_poste ?? '')) || ''
+                    const subtotal = subtotals[posteKey] || 0
+
+                    return (
+                      <div key={gi} className="mb-6 overflow-x-auto">
+                        <div className="mb-2 font-semibold">Poste {posteKey}{displayPosteName ? ` : ${displayPosteName}` : ' : '}</div>
+                        <table className="w-full border-collapse text-sm">
+                          <thead>
+                            <tr className="bg-muted">
+                              <th className="border p-2">N° Prix</th>
+                              <th className="border p-2">Désignation</th>
+                              <th className="border p-2">Unité</th>
+                              <th className="border p-2 text-right">Quantité</th>
+                              <th className="border p-2 text-right">Prix unitaire</th>
+                              <th className="border p-2 text-right">Montant</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {items.map((r, idx) => {
+                              const pu = parseNum(r.prix_unitaire)
+                              const qty = parseNum(r.quantite ?? r.qte)
+                              const montant = (pu !== null && qty !== null) ? (pu * qty) : (parseNum(r.total) ?? null)
+
+                              return (
+                                <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                  <td className="border p-2 text-center">{r.numero_article ?? ''}</td>
+                                  <td className="border p-2">{r.designation}</td>
+                                  <td className="border p-2 text-center">{r.unite ?? ''}</td>
+                                  <td className="border p-2 text-right">{qty !== null ? (Number.isInteger(qty) ? formatNumber(qty, 0) : formatNumber(qty, 2)) : ''}</td>
+                                  <td className="border p-2 text-right">{pu !== null ? formatNumber(pu, 2) : ''}</td>
+                                  <td className="border p-2 text-right">{montant !== null ? formatNumber(montant, 2) : ''}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-gray-100">
+                              <td colSpan={5} className="border p-2 font-semibold">Sous-total Poste {posteKey}</td>
+                              <td className="border p-2 text-right font-semibold">{Number.isFinite(subtotal) ? formatNumber(subtotal, 2) : '0.00'}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    )
+                  })
+
+                  const grandTotal = Object.values(subtotals).reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0)
+
+                  return (
+                    <>
+                      {rendered}
+                      <div className="mt-4 p-4 bg-white dark:bg-primary rounded-md border border-gray-200">
+                        <div className="flex justify-between items-center gap-4">
+                          <div className="text-xl font-bold text-primary dark:text-main">Total général :</div>
+                          <div className="text-lg font-bold text-secondary">{Number.isFinite(grandTotal) ? formatNumber(grandTotal, 2) : '0.00'}</div>
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()
               })()}
             </div>
           ) : (
-            <div className="p-4 text-sm text-gray-500">Veuillez sélectionner un lot pour afficher les données du bordereau.</div>
+            <div className="p-4 text-sm text-gray-500">Sélectionner un lot.</div>
           )}
         </div>
       </main>
