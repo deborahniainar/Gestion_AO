@@ -203,6 +203,16 @@ const WorkforceTable = ({ rows, onEdit, onDelete }) => {
     { key: "total", label: "Total Horaire" },
   ]
 
+  const numericKeys = ['salaireMensuel', 'salaireHoraire', 'heuresSup', 'charges', 'temps', 'total']
+
+  // format numbers with thousand separators (French locale)
+  const formatNumber = (value, decimals = 2) => {
+    if (value === null || value === undefined || value === '') return '-'
+    const n = Number(String(value).replace(/,/g, '.'))
+    if (!Number.isFinite(n)) return String(value)
+    return n.toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full border border-secondary border-collapse">
@@ -217,9 +227,14 @@ const WorkforceTable = ({ rows, onEdit, onDelete }) => {
         <tbody>
           {rows.map((row, idx) => (
             <tr key={idx}>
-              {columns.map((col) => (
-                <td key={col.key} className="text-accent dark:text-muted border border-secondary px-3 py-2">{row[col.key] ?? "-"}</td>
-              ))}
+              {columns.map((col) => {
+                const val = row[col.key]
+                return (
+                  <td key={col.key} className="text-accent dark:text-muted border border-secondary px-3 py-2">{
+                    numericKeys.includes(col.key) ? (val !== undefined && val !== null && val !== '' ? formatNumber(val, 2) : '-') : (val ?? '-')
+                  }</td>
+                )
+              })}
               <td className="text-center border border-secondary px-3 py-2">
                 <button onClick={() => onEdit(row, idx)} className="text-green-600 hover:text-green-800 mr-2"><Edit fontSize="small" /></button>
                 <button onClick={() => onDelete(idx)} className="text-red-600 hover:text-red-800"><Delete fontSize="small" /></button>
@@ -404,7 +419,7 @@ const PriceMO = () => {
       const lotObj = (savedLots || []).find(s => String(s.id) === String(lot))
       const lotName = lotObj ? (lotObj.name || `lot-${lot}`) : `lot-${lot}`
       const title = 'Ventilation des prix de base pour la main d\'œuvre (Convertis par Heure)'
-      const wsData = [[title], [] , headers, ...currentRows.map(r => [r.poste ?? '', r.salaireMensuel ?? '', r.salaireHoraire ?? '', r.heuresSup ?? '', r.charges ?? '', r.temps ?? '', r.total ?? ''])]
+      const wsData = [[title], [], headers, ...currentRows.map(r => [r.poste ?? '', r.salaireMensuel ?? '', r.salaireHoraire ?? '', r.heuresSup ?? '', r.charges ?? '', r.temps ?? '', r.total ?? ''])]
       const ws = XLSX.utils.aoa_to_sheet(wsData)
       // Optionally freeze header row after title
       const wb = XLSX.utils.book_new()
@@ -423,41 +438,6 @@ const PriceMO = () => {
     } catch (err) {
       console.error('Excel export failed', err)
       alert('L\'export Excel nécessite la librairie "xlsx". Veuillez installer la dépendance (xlsx) et recharger l\'application.')
-    }
-  }
-
-  // Export current lot rows as PDF
-  const exportCurrentLotPDF = async () => {
-    if (!lot) {
-      alert('Aucun lot sélectionné pour l\'export')
-      return
-    }
-    try {
-      const { jsPDF } = await import('jspdf')
-      const autoTableModule = await import('jspdf-autotable')
-      const autoTable = autoTableModule && (autoTableModule.default || autoTableModule)
-      const doc = new jsPDF({ unit: 'pt', format: 'a4' })
-      const margin = 40
-      const title = 'Ventilation des prix de base pour la main d\'œuvre (Convertis par Heure)'
-      doc.setFontSize(14)
-      doc.text(title, margin, 60)
-      const headers = ['Poste', 'Salaire Mensuel', 'Salaire Horaire', 'Heures Supplémentaires', 'Charges Sociales', 'Temps de Déplacement', 'Total Horaire']
-      const body = (rows || []).map(r => [r.poste ?? '', r.salaireMensuel ?? '', r.salaireHoraire ?? '', r.heuresSup ?? '', r.charges ?? '', r.temps ?? '', r.total ?? ''])
-      // call the autotable function directly (some bundlers don't attach it to jsPDF prototype)
-      if (typeof autoTable === 'function') {
-        autoTable(doc, { head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
-      } else if (typeof doc.autoTable === 'function') {
-        doc.autoTable({ head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
-      } else {
-        throw new Error('jspdf-autotable not available')
-      }
-      const lotObj = (savedLots || []).find(s => String(s.id) === String(lot))
-      const lotName = lotObj ? (lotObj.name || `lot-${lot}`) : `lot-${lot}`
-      const filename = `dao-${daoDocId || 'unknown'}_${lotName.replace(/[^a-z0-9\-_]/gi, '_')}.pdf`
-      doc.save(filename)
-    } catch (err) {
-      console.error('PDF export failed', err)
-      alert('L\'export PDF nécessite les librairies "jspdf" et "jspdf-autotable". Veuillez les installer et recharger l\'application.')
     }
   }
 
@@ -628,7 +608,7 @@ const PriceMO = () => {
                       // save current rows for previous lot in-memory before switching
                       if (lot) {
                         // persist previous lot (do not await UI-blocking, but handle)
-                        saveRowsForLot(lot, rows).catch(() => {})
+                        saveRowsForLot(lot, rows).catch(() => { })
                         setRowsByLot(prev => ({ ...prev, [lot]: rows }))
                       }
 
@@ -662,8 +642,15 @@ const PriceMO = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={exportCurrentLotExcel} title="Exporter en Excel (.xlsx)" className="inline-flex items-center gap-2 bg-secondary hover:bg-secondary/90 text-white text-sm px-3 py-2 rounded-md"><CloudDownload fontSize="small" />XLSX</button>
-              <button onClick={exportCurrentLotPDF} title="Exporter en PDF" className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-2 rounded-md"><CloudDownload fontSize="small" />PDF</button>
+              <button
+                onClick={() => { if (lot) exportCurrentLotExcel() }}
+                title={lot ? "Exporter en Excel (.xlsx)" : "Sélectionnez un lot pour pouvoir exporter"}
+                disabled={!lot}
+                aria-disabled={!lot}
+                className={`inline-flex items-center gap-2 text-sm px-3 py-2 rounded-md ${lot ? 'bg-secondary hover:bg-secondary/90 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60'}`}
+              >
+                <CloudDownload fontSize="small" />Exporter
+              </button>
             </div>
           </div>
 
@@ -688,9 +675,9 @@ const PriceMO = () => {
             <ConfirmModal open={confirmOpen} message={"Supprimer cette ligne ?"} onConfirm={confirmDelete} onCancel={cancelDelete} />
           </>
         )}
-       </main>
-     </div>
-   )
- }
+      </main>
+    </div>
+  )
+}
 
- export default PriceMO
+export default PriceMO

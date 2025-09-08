@@ -289,6 +289,14 @@ const Modal = ({ open, onClose, onSave, initialData = null, personnels = [] }) =
   )
 }
 
+// format numbers with thousand separators (French locale)
+const formatNumber = (value, decimals = 2) => {
+  if (value === null || value === undefined || value === '') return '-'
+  const n = Number(String(value).replace(/,/g, '.'))
+  if (!Number.isFinite(n)) return String(value)
+  return n.toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+}
+
 /* ----------------------------- Equipment Table Component ----------------------------- */
 const EquipmentTable = ({ rows, onEdit, onDelete }) => {
   const columns = [
@@ -307,6 +315,7 @@ const EquipmentTable = ({ rows, onEdit, onDelete }) => {
     { key: 'twm', label: 'Temps de Travail Journalier Moyen' },
     { key: 'total_h', label: 'Total/Heure' },
   ]
+  const numericKeys = columns.map(c => c.key)
 
   return (
     <div className="overflow-x-auto">
@@ -323,7 +332,7 @@ const EquipmentTable = ({ rows, onEdit, onDelete }) => {
           {rows.map((row, idx) => (
             <tr key={idx}>
               {columns.map(col => (
-                <td key={col.key} className="text-accent dark:text-muted border border-secondary px-2 py-2">{(row[col.key] !== undefined && row[col.key] !== null) ? String(row[col.key]) : '-'}</td>
+                <td key={col.key} className="text-accent dark:text-muted border border-secondary px-2 py-2">{(row[col.key] !== undefined && row[col.key] !== null) ? (numericKeys.includes(col.key) ? formatNumber(row[col.key], 2) : String(row[col.key])) : '-'}</td>
               ))}
               <td className="text-center border border-secondary px-3 py-2">
                 <button onClick={() => onEdit(row, idx)} className="text-green-600 hover:text-green-800 mr-2"><Edit fontSize="small" /></button>
@@ -407,7 +416,7 @@ const PriceEQU = () => {
       const lotObj = lots.find(l => Number(l.id) === Number(lotId) || Number(l.lot_id) === Number(lotId))
       if (!lotObj) return []
 
-      const candidateKeys = ['priceMO','price_mo','mo','priceMTX','price_mtx','mtx','priceSDP','price_sdp','sdp','priceBDE','price_bde','bde','workforce','personnels','priceMO_rows']
+      const candidateKeys = ['priceMO', 'price_mo', 'mo', 'priceMTX', 'price_mtx', 'mtx', 'priceSDP', 'price_sdp', 'sdp', 'priceBDE', 'price_bde', 'bde', 'workforce', 'personnels', 'priceMO_rows']
       const rows = []
       for (const k of candidateKeys) {
         if (Array.isArray(lotObj[k])) rows.push(...lotObj[k])
@@ -432,7 +441,7 @@ const PriceEQU = () => {
         const nom = r.nom ?? r.name ?? r.personnel_name ?? r.designation ?? r.description ?? ''
         const prenom = r.prenom ?? ''
         if (id === null && !nom && (totalHourly === null || Number.isNaN(totalHourly))) continue
-        const key = id ?? `${nom}_${prenom}_${(totalHourly||0)}`
+        const key = id ?? `${nom}_${prenom}_${(totalHourly || 0)}`
         if (!map.has(key)) {
           map.set(key, {
             id: id ?? key,
@@ -614,40 +623,6 @@ const PriceEQU = () => {
     }
   }
 
-  // Export current lot rows as PDF - Equipment
-  const exportCurrentLotPDF = async () => {
-    if (!lot) {
-      alert('Aucun lot sélectionné pour l\'export')
-      return
-    }
-    try {
-      const { jsPDF } = await import('jspdf')
-      const autoTableModule = await import('jspdf-autotable')
-      const autoTable = autoTableModule && (autoTableModule.default || autoTableModule)
-      const doc = new jsPDF({ unit: 'pt', format: 'a4' })
-      const margin = 40
-      const title = 'Ventilation des coûts d\'équipement'
-      doc.setFontSize(14)
-      doc.text(title, margin, 60)
-      const headers = ['Description', 'Valeur de Remplacement (VR)', 'Droit et Taxes', 'VR + Taxes', 'Nombre de Jour de Durée de Vie Utile', 'Amortissement/Jour', 'Coût Carburant/Jour', 'Coût Lubrifiant/Jour', 'Coût Pièce de Rechange (PR)/Jour', 'Taxe sur Lub et PR', 'Cout Main d\'Oeuvre/Jour', 'Total/Jour', 'Temps de Travail Journalier Moyen', 'Total/Heure']
-      const body = (rows || []).map(r => [r.description ?? '', r.vr ?? '', r.dt_value ?? '', r.vr_plus_taxes ?? '', r.nj ?? '', r.amort_j ?? '', r.cc ?? '', r.cl ?? '', r.cpr ?? '', r.tlpr_value ?? '', r.cmo ?? '', r.tj ?? '', r.twm ?? '', r.total_h ?? ''])
-      if (typeof autoTable === 'function') {
-        autoTable(doc, { head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
-      } else if (typeof doc.autoTable === 'function') {
-        doc.autoTable({ head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
-      } else {
-        throw new Error('jspdf-autotable not available')
-      }
-      const lotObj = (savedLots || []).find(s => String(s.id) === String(lot))
-      const lotName = lotObj ? (lotObj.name || `lot-${lot}`) : `lot-${lot}`
-      const filename = `dao-${daoDocId || 'unknown'}_${lotName.replace(/[^a-z0-9\-_]/gi, '_')}.pdf`
-      doc.save(filename)
-    } catch (err) {
-      console.error('[PriceEQU] PDF export failed', err)
-      alert('L\'export PDF nécessite les librairies "jspdf" et "jspdf-autotable". Veuillez les installer et recharger l\'application.')
-    }
-  }
-
   /* ---------- Table actions & calculations (Equipment) ---------- */
   const addRow = (data) => {
     setRows((prev) => {
@@ -805,8 +780,15 @@ const PriceEQU = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={exportCurrentLotExcel} title="Exporter en Excel (.xlsx)" className="inline-flex items-center gap-2 bg-secondary hover:bg-secondary/90 text-white text-sm px-3 py-2 rounded-md"><CloudDownload fontSize="small" />XLSX</button>
-              <button onClick={exportCurrentLotPDF} title="Exporter en PDF" className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-2 rounded-md"><CloudDownload fontSize="small" />PDF</button>
+              <button
+                onClick={() => { if (lot) exportCurrentLotExcel() }}
+                title={lot ? "Exporter en Excel (.xlsx)" : "Sélectionnez un lot pour pouvoir exporter"}
+                disabled={!lot}
+                className={`inline-flex items-center gap-2 text-sm px-3 py-2 rounded-md ${lot ? 'bg-secondary hover:bg-secondary/90 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60'}`}
+                aria-disabled={!lot}
+              >
+                <CloudDownload fontSize="small" />Exporter
+              </button>
             </div>
           </div>
 
