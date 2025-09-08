@@ -189,7 +189,7 @@ const ArticleWorkspaceModal = ({ open, onClose, article = null, onSave }) => {
   const [form, setForm] = useState(initialForm)
   const [errors, setErrors] = useState({})
 
-  useEffect(() => { setForm(initialForm) }, [open, article])
+  useEffect(() => { setForm(initialForm) }, [])
   useEffect(() => { if (open) setErrors({}) }, [open])
 
   const handleChange = (e) => { const { name, value } = e.target; setForm(prev => ({ ...prev, [name]: value })) }
@@ -254,7 +254,7 @@ const ArticleWorkspaceModal = ({ open, onClose, article = null, onSave }) => {
         </div>
         <div className="flex justify-end gap-3 mt-5">
           <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Annuler</button>
-          <button onClick={handleSave} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Enregistrer</button>
+          <button onClick={handleSubmit} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Enregistrer</button>
         </div>
       </div>
     </div>
@@ -310,6 +310,14 @@ const PriceSDP = () => {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmMessage, setConfirmMessage] = useState('')
   const [confirmAction, setConfirmAction] = useState(null)
+
+  // helper to format numbers with thousand separators (French locale)
+  const formatNumber = (value, decimals = 2) => {
+    if (value === null || value === undefined || value === '') return ''
+    const n = Number(String(value).replace(/,/g, '.'))
+    if (!Number.isFinite(n)) return ''
+    return n.toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+  }
 
   // load designation options from the selected lot depending on element type
   const loadDesignationOptions = useCallback(async (type) => {
@@ -453,7 +461,7 @@ const PriceSDP = () => {
 
     // Calculate cost net per unit using the same logic as in the display
     const isType = (e, key) => (String(e.type || '').toLowerCase()).includes(key)
-    
+
     const computeElementTotal = (e) => {
       const qUnit = Number(e.quantity || 0)
       const production = Number(art.productionPerDay ?? art.production_per_day ?? 1) || 1
@@ -676,7 +684,7 @@ const PriceSDP = () => {
     const equPerH = amortH + sumCarLubH + entretienH
     const equTotal = (String(e.type || '').toLowerCase().includes('equip')) ? (DH * equPerH) : 0
 
-    return { qUnit, production, DH, unit, puMO, puMTX, moTotal, mtxTotal, amortH, sumCarLubH, entretienH, equTotal }
+    return { qUnit, production, DH, unit, puMO, puMTX, moTotal, mtxTotal, amortH, carburantH: carburantH, lubrifiantH: lubrifiantH, sumCarLubH, entretienH, equTotal }
   }
 
   // Export the current active article workspace to Excel
@@ -693,17 +701,17 @@ const PriceSDP = () => {
         return [
           e.label ?? e.designation ?? (e.raw && (e.raw.designation || e.raw.description || e.raw.nom)) ?? '',
           t.qUnit || '',
-          t.DH ? t.DH.toFixed(2) : '',
+          t.DH ? formatNumber(t.DH, 2) : '',
           t.unit || '',
-          (String(e.type || '').toLowerCase().includes('main') ? (t.puMO ? t.puMO.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('main') ? (t.moTotal ? t.moTotal.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('mat') ? (t.puMTX ? t.puMTX.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('mat') ? (t.mtxTotal ? t.mtxTotal.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('equip') ? (t.amortH ? t.amortH.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('equip') ? (t.sumCarLubH ? t.sumCarLubH.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('equip') ? (t.entretienH ? t.entretienH.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('equip') ? (t.equTotal ? t.equTotal.toFixed(2) : '') : ''),
-          (((String(e.type || '').toLowerCase().includes('main') ? t.moTotal : 0) + (String(e.type || '').toLowerCase().includes('mat') ? t.mtxTotal : 0) + (String(e.type || '').toLowerCase().includes('equip') ? t.equTotal : 0))).toFixed(2)
+          (String(e.type || '').toLowerCase().includes('main') ? (t.puMO ? formatNumber(t.puMO, 2) : '') : ''),
+          (String(e.type || '').toLowerCase().includes('main') ? (t.moTotal ? formatNumber(t.moTotal, 2) : '') : ''),
+          (String(e.type || '').toLowerCase().includes('mat') ? (t.puMTX ? formatNumber(t.puMTX, 2) : '') : ''),
+          (String(e.type || '').toLowerCase().includes('mat') ? (t.mtxTotal ? formatNumber(t.mtxTotal, 2) : '') : ''),
+          (String(e.type || '').toLowerCase().includes('equip') ? (t.amortH ? formatNumber(t.amortH, 2) : '') : ''),
+          (String(e.type || '').toLowerCase().includes('equip') ? (t.sumCarLubH ? formatNumber(t.sumCarLubH, 2) : '') : ''),
+          (String(e.type || '').toLowerCase().includes('equip') ? (t.entretienH ? formatNumber(t.entretienH, 2) : '') : ''),
+          (String(e.type || '').toLowerCase().includes('equip') ? (t.equTotal ? formatNumber(t.equTotal, 2) : '') : ''),
+          (((String(e.type || '').toLowerCase().includes('main') ? t.moTotal : 0) + (String(e.type || '').toLowerCase().includes('mat') ? t.mtxTotal : 0) + (String(e.type || '').toLowerCase().includes('equip') ? t.equTotal : 0))) ? formatNumber(((String(e.type || '').toLowerCase().includes('main') ? t.moTotal : 0) + (String(e.type || '').toLowerCase().includes('mat') ? t.mtxTotal : 0) + (String(e.type || '').toLowerCase().includes('equip') ? t.equTotal : 0)), 2) : ''
         ]
       })
 
@@ -726,58 +734,6 @@ const PriceSDP = () => {
     } catch (err) {
       console.error('Excel export failed', err)
       alert('L\'export Excel nécessite la librairie "xlsx". Veuillez installer la dépendance (xlsx) et recharger l\'application.')
-    }
-  }
-
-  // Export the current active article workspace to PDF
-  const exportWorkspacePDF = async () => {
-    if (!activeArticle) { alert('Aucun article actif à exporter'); return }
-    const { posteIndex, articleIndex } = activeArticle
-    const art = rows?.[posteIndex]?.articles?.[articleIndex] || {}
-    const elems = Array.isArray(art.elements) ? art.elements : []
-    try {
-      const { jsPDF } = await import('jspdf')
-      const autoTableModule = await import('jspdf-autotable')
-      const autoTable = autoTableModule && (autoTableModule.default || autoTableModule)
-      const doc = new jsPDF({ unit: 'pt', format: 'a4' })
-      const margin = 40
-      const title = `SDP${art.numero || ''}`
-      doc.setFontSize(14)
-      doc.text(title, margin, 60)
-      const headers = ['Désignation', 'Qté unitaire', 'Durée (h/j)', 'Unité', 'Prix unitaire (MO)', 'TOTAL/jour (MO)', 'Prix unitaire (MAT)', 'TOTAL/jour (MAT)', 'AMORTISSEMENT/h (EQU)', 'CARBURANT-LUBRIFIANTS/h (EQU)', 'ENTRETIEN/h (EQU)', 'TOTAL/jour (EQU)', 'TOTAUX/jour']
-      const body = elems.map(e => {
-        const t = computeRowTotalsForExport(e, art)
-        return [
-          e.label ?? e.designation ?? (e.raw && (e.raw.designation || e.raw.description || e.raw.nom)) ?? '',
-          t.qUnit || '',
-          t.DH ? t.DH.toFixed(2) : '',
-          t.unit || '',
-          (String(e.type || '').toLowerCase().includes('main') ? (t.puMO ? t.puMO.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('main') ? (t.moTotal ? t.moTotal.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('mat') ? (t.puMTX ? t.puMTX.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('mat') ? (t.mtxTotal ? t.mtxTotal.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('equip') ? (t.amortH ? t.amortH.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('equip') ? (t.sumCarLubH ? t.sumCarLubH.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('equip') ? (t.entretienH ? t.entretienH.toFixed(2) : '') : ''),
-          (String(e.type || '').toLowerCase().includes('equip') ? (t.equTotal ? t.equTotal.toFixed(2) : '') : ''),
-          (((String(e.type || '').toLowerCase().includes('main') ? t.moTotal : 0) + (String(e.type || '').toLowerCase().includes('mat') ? t.mtxTotal : 0) + (String(e.type || '').toLowerCase().includes('equip') ? t.equTotal : 0))).toFixed(2)
-        ]
-      })
-
-      if (typeof autoTable === 'function') {
-        autoTable(doc, { head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
-      } else if (typeof doc.autoTable === 'function') {
-        doc.autoTable({ head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
-      } else {
-        throw new Error('jspdf-autotable not available')
-      }
-
-      const numero = art.numero || `unknown`
-      const filename = `SDP+${String(numero).replace(/[^a-z0-9\-_]/gi, '_')}.pdf`
-      doc.save(filename)
-    } catch (err) {
-      console.error('PDF export failed', err)
-      alert('L\'export PDF nécessite les librairies "jspdf" et "jspdf-autotable". Veuillez les installer et recharger l\'application.')
     }
   }
 
@@ -877,10 +833,9 @@ const PriceSDP = () => {
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* <div className="flex items-center gap-2">
               <button disabled={!activeArticle} onClick={exportWorkspaceExcel} title="Exporter workspace actif en Excel (.xlsx)" className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm ${activeArticle ? 'bg-secondary hover:bg-secondary/90 text-white' : 'bg-secondary/60 disabled:opacity-50 text-white cursor-not-allowed'}`}><CloudDownload fontSize="small" />XLSX</button>
-              <button disabled={!activeArticle} onClick={exportWorkspacePDF} title="Exporter workspace actif en PDF" className={`inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm ${activeArticle ? 'bg-gray-100 hover:bg-gray-200 text-gray-700' : 'bg-gray-100 disabled:opacity-50 text-gray-400 cursor-not-allowed'}`}><CloudDownload fontSize="small" />PDF</button>
-            </div>
+            </div> */}
           </div>
 
           {lot ? (
@@ -1005,12 +960,9 @@ const PriceSDP = () => {
               <div className="text-lg font-semibold text-secondary">SDP{rows?.[activeArticle.posteIndex]?.articles?.[activeArticle.articleIndex]?.numero ?? 'Article'}</div>
               <div className="flex items-center gap-2">
                 {/* Export workspace buttons (active article) */}
-                {/* <button title="Exporter workspace en Excel (XLSX)" onClick={exportWorkspaceExcel} className="inline-flex items-center gap-2 bg-secondary/60 text-white text-sm px-2 py-1 rounded-md hover:bg-secondary/90">
-                  <CloudDownload fontSize="small" />XLSX
+                <button title="Exporter workspace en Excel (XLSX)" onClick={exportWorkspaceExcel} className="inline-flex items-center gap-2 bg-secondary text-white text-sm px-2 py-1 rounded-md">
+                  <CloudDownload fontSize="small" />Exporter
                 </button>
-                <button title="Exporter workspace en PDF" onClick={exportWorkspacePDF} className="inline-flex items-center gap-2 bg-gray-100 text-gray-700 text-sm px-2 py-1 rounded-md hover:bg-gray-200">
-                  <CloudDownload fontSize="small" />PDF
-                </button> */}
 
                 {/* Edit article */}
                 <button title="Éditer l'article" onClick={() => {
@@ -1199,25 +1151,25 @@ const PriceSDP = () => {
                 return (
                   <tr key={keyIdx} className="odd:bg-white even:bg-gray-50">
                     <td className="border p-2 align-top">{e.label ?? raw.designation ?? raw.description ?? raw.nom ?? raw.name ?? (raw.prenom ? `${raw.prenom} ${raw.nom}` : '') ?? e.designation ?? ''}</td>
-                    <td className="border p-2 text-right">{qUnit !== 0 ? qUnit : ''}</td>
-                    <td className="border p-2 text-right">{DH ? DH.toFixed(2) : ''}</td>
+                    <td className="border p-2 text-right">{qUnit ? formatNumber(qUnit, 0) : ''}</td>
+                    <td className="border p-2 text-right">{DH ? formatNumber(DH, 2) : ''}</td>
                     <td className="border p-2">{unit}</td>
 
                     {/* MO columns */}
-                    <td className="border p-2 text-right">{isType(e, 'main') ? puMO.toFixed(2) : ''}</td>
-                    <td className="border p-2 text-right">{isType(e, 'main') ? moTotal.toFixed(2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'main') ? formatNumber(puMO, 2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'main') ? formatNumber(moTotal, 2) : ''}</td>
 
                     {/* MAT columns */}
-                    <td className="border p-2 text-right">{isType(e, 'mat') ? puMTX.toFixed(2) : ''}</td>
-                    <td className="border p-2 text-right">{isType(e, 'mat') ? mtxTotal.toFixed(2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'mat') ? formatNumber(puMTX, 2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'mat') ? formatNumber(mtxTotal, 2) : ''}</td>
 
                     {/* EQU columns */}
-                    <td className="border p-2 text-right">{isType(e, 'equip') ? amortH.toFixed(2) : ''}</td>
-                    <td className="border p-2 text-right">{isType(e, 'equip') ? sumCarLubH.toFixed(2) : ''}</td>
-                    <td className="border p-2 text-right">{isType(e, 'equip') ? entretienH.toFixed(2) : ''}</td>
-                    <td className="border p-2 text-right">{isType(e, 'equip') ? equTotal.toFixed(2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? formatNumber(amortH, 2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? formatNumber(sumCarLubH, 2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? formatNumber(entretienH, 2) : ''}</td>
+                    <td className="border p-2 text-right">{isType(e, 'equip') ? formatNumber(equTotal, 2) : ''}</td>
 
-                    <td className="border p-2 text-right">{(((isType(e, 'main') ? moTotal : 0) + (isType(e, 'mat') ? mtxTotal : 0) + (isType(e, 'equip') ? equTotal : 0))).toFixed(2)}</td>
+                    <td className="border p-2 text-right">{formatNumber(((isType(e, 'main') ? moTotal : 0) + (isType(e, 'mat') ? mtxTotal : 0) + (isType(e, 'equip') ? equTotal : 0)), 2)}</td>
 
                     {/* Action column */}
                     <td className="border p-2 text-center">
@@ -1246,7 +1198,7 @@ const PriceSDP = () => {
                 rowsJsx.push(
                   <tr key={`subtotal-${label}`} className="bg-gray-50 font-semibold">
                     <td className="border p-2" colSpan={12}>{`Total ${label}`}</td>
-                    <td className="border p-2 text-right">{groupTotal.toFixed(2)}</td>
+                    <td className="border p-2 text-right">{formatNumber(groupTotal, 2)}</td>
                   </tr>
                 )
               }
@@ -1299,7 +1251,7 @@ const PriceSDP = () => {
                         <td className="p-2"></td>
                         <td className="p-2"></td>
                         <td className="p-2"></td>
-                        <td className="p-2 text-right">{totalT ? totalT.toFixed(2) : ''}</td>
+                        <td className="p-2 text-right">{totalT ? formatNumber(totalT, 2) : ''}</td>
                         <td className="p-2 border"></td>
                       </tr>
                       <tr className="bg-muted font-semibold">
@@ -1315,7 +1267,7 @@ const PriceSDP = () => {
                         <td className="p-2"></td>
                         <td className="p-2"></td>
                         <td className="p-2"></td>
-                        <td className="p-2 text-right">{costNetPerUnit ? costNetPerUnit.toFixed(2) : ''}</td>
+                        <td className="p-2 text-right">{costNetPerUnit ? formatNumber(costNetPerUnit, 2) : ''}</td>
                         <td className="p-2 border"></td>
                       </tr>
                     </tfoot>
