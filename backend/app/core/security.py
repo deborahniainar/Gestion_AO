@@ -8,7 +8,7 @@ from .config import settings
 
 
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 360  # 6 heures
 
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
