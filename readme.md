@@ -92,7 +92,6 @@ Gestion_AO/
 │   │   ├── main.py                # Entrée FastAPI
 │   │   └── dependencies.py        # Dépendances (auth, DB, etc.)
 │   │   └── main_legacy.py        # Dépendances (auth, DB, etc.)
-│   │   └── main.py        # Dépendances (auth, DB, etc.)
 │   ├── files
 │   ├── venv
 │   ├── .env

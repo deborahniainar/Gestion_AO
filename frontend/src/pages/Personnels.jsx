@@ -1413,36 +1413,34 @@ const Personnels = () => {
           </div>
         )}
 
-        {/* Bouton Aide flottant */}
+        {/* Modal de visualisation des documents */}
+        <DocumentViewer
+          isOpen={showDocumentModal}
+          document={currentDocument}
+          onClose={handleCloseDocumentModal}
+        />
+
+        <ConfirmModal
+          open={confirmOpen}
+          title="Confirmer la suppression"
+          message="Voulez-vous vraiment supprimer ce personnel ? "
+          confirmLabel="Supprimer"
+          cancelLabel="Annuler"
+          destructive
+          onConfirm={handleConfirmDelete}
+          onCancel={() => { setConfirmOpen(false); setPendingDeleteId(null); }}
+        />
         <button
           className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
           onClick={() => {
-            alert("Aide / Guide utilisateur en cours de développement !");
+            showInfo('Aide / Guide utilisateur en cours de développement !')
           }}
         >
-          <Help style={{ fontSize: '4rem' }} />
+          <Help style={{ fontSize: '3rem' }} />
         </button>
-
       </main>
-
-      {/* Modal de visualisation des documents */}
-      <DocumentViewer
-        isOpen={showDocumentModal}
-        document={currentDocument}
-        onClose={handleCloseDocumentModal}
-      />
-
-      <ConfirmModal
-        open={confirmOpen}
-        title="Confirmer la suppression"
-        message="Voulez-vous vraiment supprimer ce personnel ? "
-        confirmLabel="Supprimer"
-        cancelLabel="Annuler"
-        destructive
-        onConfirm={handleConfirmDelete}
-        onCancel={() => { setConfirmOpen(false); setPendingDeleteId(null); }}
-      />
     </div>
+
   )
 }
 

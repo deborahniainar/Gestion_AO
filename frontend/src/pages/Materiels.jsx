@@ -22,14 +22,14 @@ const Materiel = () => {
   const [editingMateriel, setEditingMateriel] = useState(null);
   const [showPiecesJointes, setShowPiecesJointes] = useState(false);
   const [selectedMateriel, setSelectedMateriel] = useState(null);
-  
+
   // États pour la modal de visualisation des documents
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [currentDocument, setCurrentDocument] = useState(null);
   const [formData, setFormData] = useState({
     nombre: '',
-    designation:'',
-    marque:'',
+    designation: '',
+    marque: '',
     modele: '',
     annee: '',
     qualite: ''
@@ -38,11 +38,11 @@ const Materiel = () => {
   // États pour les fichiers
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [formErrors, setFormErrors] = useState({});
-  
+
   // États pour la confirmation de suppression
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
-  
+
   // États pour la confirmation de suppression de pièce jointe
   const [confirmDeletePieceOpen, setConfirmDeletePieceOpen] = useState(false);
   const [pendingDeletePiece, setPendingDeletePiece] = useState(null);
@@ -50,9 +50,9 @@ const Materiel = () => {
   // Référence pour l'input de fichiers
   const fileInputRef = useRef(null);
 
-  const { 
-    showError, 
-    showInfo, 
+  const {
+    showError,
+    showInfo,
 
     showCreateSuccess,
     showUpdateSuccess,
@@ -171,7 +171,7 @@ const Materiel = () => {
       ...prev,
       [name]: value
     }));
-    
+
     // Effacer l'erreur du champ quand l'utilisateur commence à taper
     if (formErrors[name]) {
       setFormErrors(prev => ({
@@ -184,7 +184,7 @@ const Materiel = () => {
   // Gestion des fichiers joints
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files);
-    
+
     // Vérifier les types de fichiers autorisés
     const allowedTypes = [
       'application/pdf',
@@ -220,7 +220,7 @@ const Materiel = () => {
     const url = piece.url || (piece.filename ? `/uploads/materiels/${piece.filename}` : `/uploads/materiels/${piece.nom}`);
     link.href = url;
     link.download = piece.nom;
-    link.target = '_blank'; 
+    link.target = '_blank';
     link.click();
     console.log('Téléchargement de:', piece.nom, 'URL:', url);
   };
@@ -239,7 +239,7 @@ const Materiel = () => {
     const id = pendingDeleteId;
     setConfirmOpen(false);
     setPendingDeleteId(null);
-    
+
     if (id != null) {
       const materiel = Materiel.find(m => m.id === id);
       if (!materiel) return;
@@ -273,13 +273,13 @@ const Materiel = () => {
 
   const handleConfirmDeletePiece = () => {
     setConfirmDeletePieceOpen(false);
-    
+
     if (pendingDeletePiece) {
       const { materielId, pieceId } = pendingDeletePiece;
-      
+
       const materiel = Materiel.find(m => m.id === materielId);
       const piece = materiel?.piecesJointes.find(p => p.id === pieceId);
-      
+
       const updatedMateriel = Materiel.map(m => {
         if (m.id === materielId) {
           return {
@@ -292,37 +292,37 @@ const Materiel = () => {
       setMateriel(updatedMateriel);
       console.log('Pièce jointe supprimée:', pieceId);
       showDeleteSuccess(`Pièce jointe supprimée: ${piece?.nom || 'Fichier'}`);
-      
+
       handleClosePiecesJointes();
     }
-    
+
     setPendingDeletePiece(null);
   };
 
   // Fonction de validation
   const validateForm = () => {
     const errors = {};
-    
+
     if (!formData.nombre || formData.nombre === '') {
       errors.nombre = 'Le nombre est obligatoire';
     }
-    
+
     if (!formData.designation || formData.designation.trim() === '') {
       errors.designation = 'La désignation est obligatoire';
     }
-    
+
     if (!formData.marque || formData.marque.trim() === '') {
       errors.marque = 'La marque est obligatoire';
     }
-    
+
     if (!formData.modele || formData.modele.trim() === '') {
       errors.modele = 'Le modèle est obligatoire';
     }
-    
+
     if (!formData.annee || formData.annee === '') {
       errors.annee = "L'année est obligatoire";
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -330,16 +330,16 @@ const Materiel = () => {
   // Fonction pour ajouter un nouveau matériel ou modifier un existant
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
-    
+
     const loadingToast = showLoading(editingMateriel ? "Modification en cours..." : "Ajout en cours...");
-    
+
     try {
       const token = localStorage.getItem('token');
-    
+
       const payload = {
         designation: formData.designation,
         nombre: parseInt(formData.nombre) || 0,
@@ -436,7 +436,7 @@ const Materiel = () => {
               nom: doc.filename,
               filename: doc.filename,
               type: doc.filename.split('.').pop().toLowerCase(),
-              taille: "N/A", 
+              taille: "N/A",
               url: `/uploads/materiels/${doc.filename}`
             }));
           }
@@ -462,7 +462,7 @@ const Materiel = () => {
               nom: doc.filename,
               filename: doc.filename,
               type: doc.filename.split('.').pop().toLowerCase(),
-              taille: "N/A", 
+              taille: "N/A",
               url: `/uploads/materiels/${doc.filename}`
             }));
           }
@@ -471,7 +471,7 @@ const Materiel = () => {
           piecesJointes = editingMateriel.piecesJointes || [];
         }
       }
-      
+
       const mappedMateriel = {
         id: savedMateriel.id,
         designation: savedMateriel.designation,
@@ -492,9 +492,9 @@ const Materiel = () => {
         setMateriel(prev => [...prev, mappedMateriel]);
         updateLoading(loadingToast, "Matériel ajouté avec succès", "success");
         showCreateSuccess(`Nouveau matériel ajouté: ${formData.designation} ${formData.marque}`);
-      handleCloseForm();
+        handleCloseForm();
       }
-      
+
     } catch (e) {
       updateLoading(loadingToast, `Erreur lors de ${editingMateriel ? 'la modification' : 'l\'ajout'}`, "error");
       showError(e.message);
@@ -527,7 +527,7 @@ const Materiel = () => {
 
   // Fonction pour obtenir l'icône selon le type de fichier
   const getFileIcon = (type) => {
-    switch(type) {
+    switch (type) {
       case 'pdf':
         return <Description className="h-5 w-5 text-file-pdf" />;
       case 'docx':
@@ -544,419 +544,402 @@ const Materiel = () => {
 
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
-        <Sidebar />   
-        <main className='flex-1 p-4 lg:ml-64 ml-16'>
-            {/* Header */}
-            <header className="flex justify-between items-center px-6 py-6 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
-                <h5 className="text-xl font-bold text-secondary m-0">
-                    Gestion des Materiels
-                </h5>
-            </header>
+      <Sidebar />
+      <main className='flex-1 p-4 lg:ml-64 ml-16'>
+        {/* Header */}
+        <header className="flex justify-between items-center px-6 py-6 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
+          <h5 className="text-xl font-bold text-secondary m-0">
+            Gestion des Materiels
+          </h5>
+        </header>
 
-            {/* Tableau des Materiels */}
-            <div className="bg-muted rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
-                <table className="w-full">
-                    <thead className="bg-surface-muted dark:bg-surface-mutedDark">
-                        <tr>
-                            <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
-                                <div className="w-4 h-4 bg-neutral-400 rounded"></div>
-                            </th>
-                            <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
-                                Nombre
-                            </th>
-                            <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
-                                Désignation
-                            </th>
-                            <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
-                                Marque
-                            </th>
-                            <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
-                                Modèle
-                            </th>
-                            <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
-                                Année
-                            </th>
-                            <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
-                                Action
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-surface-light dark:bg-surface-dark">
-                        {Materiel.map((materiel) => (
-                            <tr key={materiel.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors duration-200">
-                                <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
-                                    <div className="w-4 h-4 bg-neutral-400 rounded"></div>
-                                </td>
-                                <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => handleOpenPiecesJointes(materiel)}
-                                            className="p-1 text-info hover:text-info-600 hover:bg-info-50 dark:hover:bg-info-900/20 rounded transition-colors duration-200"
-                                            title="Voir les pièces jointes"
-                                        >
-                                            <AttachFile className="h-5 w-5" />
-                                        </button>
-                                        <span className="text-neutral-700 dark:text-neutral-300">
-                                            {materiel.nombre}
-                                        </span>
-                                    </div>
-                                </td>
-                                <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
-                                    <span className="text-neutral-700 dark:text-neutral-300">
-                                        {materiel.designation}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
-                                    <span className="text-neutral-700 dark:text-neutral-300">
-                                        {materiel.marque}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
-                                    <span className="text-neutral-700 dark:text-neutral-300">
-                                        {materiel.modele}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
-                                    <span className="text-neutral-700 dark:text-neutral-300">
-                                        {materiel.annee}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
-                                    <div className="flex gap-2">
-                                        <button 
-                                            onClick={() => handleOpenForm(materiel)}
-                                            className="p-2 text-info hover:text-info-600 hover:bg-info-50 dark:hover:bg-info-900/20 rounded-lg transition-colors duration-200" 
-                                            title="Modifier"
-                                        >
-                                            <Edit className="h-4 w-4" />
-                                        </button>
-                                        <button 
-                                            onClick={() => handleDeleteClick(materiel.id)}
-                                            className="p-2 text-danger hover:text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded-lg transition-colors duration-200" 
-                                            title="Supprimer"
-                                        >
-                                            <Delete className="h-4 w-4" />
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-
-            {/* Bouton Ajouter un matériel */}
-            <div className="flex justify-center mt-6">
-                <button 
-                    onClick={() => handleOpenForm()}
-                    className="px-6 py-3 bg-muted hover:bg-neutral-300 dark:bg-neutral-700 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-200 font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
-                >
-                    <Add className="h-5 w-5" />
-                    Ajouter un matériel
-                </button>
-            </div>
-
-            {/* Modal des pièces jointes */}
-            {showPiecesJointes && selectedMateriel && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-surface-light dark:bg-surface-dark rounded-lg shadow-xl max-w-2xl w-full">
-                        {/* Header du modal */}
-                        <div className="flex justify-between items-center p-6 border-b border-border-light dark:border-border-dark">
-                            <h3 className="text-xl font-bold text-neutral-900 dark:text-white">
-                                Pièces jointes - {selectedMateriel.designation}
-                            </h3>
-                            <button 
-                                onClick={handleClosePiecesJointes}
-                                className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-                            >
-                                <Close className="h-6 w-6 text-neutral-500" />
-                            </button>
-                        </div>
-
-                        {/* Contenu du modal */}
-                        <div className="p-6">
-                            {selectedMateriel.piecesJointes && selectedMateriel.piecesJointes.length > 0 ? (
-                                <div className="space-y-3">
-                                    {selectedMateriel.piecesJointes.map((piece) => (
-                                        <div key={piece.id} className="flex items-center justify-between p-4 bg-neutral-100 dark:bg-neutral-700 rounded-lg">
-                                            <div className="flex items-center gap-3">
-                                                {getFileIcon(piece.type)}
-                                                <div>
-                                                    <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
-                                                        {piece.nom}
-                                                    </span>
-                                                    <div className="text-xs text-neutral-500">
-                                                        {piece.taille}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button 
-                                                    onClick={() => handleOpenDocumentModal(piece)}
-                                                    className="p-2 text-primary hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors duration-200" 
-                                                    title="Visualiser le document"
-                                                >
-                                                    <Visibility className="h-4 w-4" />
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleDownloadPiece(piece)}
-                                                    className="p-2 text-info hover:text-info-600 hover:bg-info-50 dark:hover:bg-info-900/20 rounded transition-colors duration-200" 
-                                                    title="Télécharger"
-                                                >
-                                                    <CloudDownload className="h-4 w-4" />
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleDeletePieceClick(selectedMateriel.id, piece.id)}
-                                                    className="p-2 text-danger hover:text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded transition-colors duration-200" 
-                                                    title="Supprimer"
-                                                >
-                                                    <Delete className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-8">
-                                    <AttachFile className="h-16 w-16 text-neutral-400 mx-auto mb-4" />
-                                    <p className="text-neutral-500 dark:text-neutral-400">
-                                        Aucune pièce jointe pour ce matériel
-                                    </p>
-                                </div>
-                            )}
-                        </div>
+        {/* Tableau des Materiels */}
+        <div className="bg-muted rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-surface-muted dark:bg-surface-mutedDark">
+              <tr>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
+                  <div className="w-4 h-4 bg-neutral-400 rounded"></div>
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
+                  Nombre
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
+                  Désignation
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
+                  Marque
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
+                  Modèle
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
+                  Année
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-neutral-700 dark:text-neutral-200 border-b border-border-light dark:border-border-dark">
+                  Action
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-surface-light dark:bg-surface-dark">
+              {Materiel.map((materiel) => (
+                <tr key={materiel.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors duration-200">
+                  <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
+                    <div className="w-4 h-4 bg-neutral-400 rounded"></div>
+                  </td>
+                  <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleOpenPiecesJointes(materiel)}
+                        className="p-1 text-info hover:text-info-600 hover:bg-info-50 dark:hover:bg-info-900/20 rounded transition-colors duration-200"
+                        title="Voir les pièces jointes"
+                      >
+                        <AttachFile className="h-5 w-5" />
+                      </button>
+                      <span className="text-neutral-700 dark:text-neutral-300">
+                        {materiel.nombre}
+                      </span>
                     </div>
-                </div>
-            )}
-
-            {/* Modal du formulaire */}
-            {showForm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-surface-light dark:bg-surface-dark rounded-lg shadow-xl max-w-2xl w-full">
-                        {/* Header du modal */}
-                        <div className="flex justify-between items-center p-6 border-b border-border-light dark:border-border-dark">
-                            <h3 className="text-xl font-bold text-neutral-900 dark:text-white">
-                                {editingMateriel ? 'Modifier le matériel' : 'Ajouter un matériel'}
-                            </h3>
-                            <button 
-                                onClick={handleCloseForm}
-                                className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
-                            >
-                                <Close className="h-6 w-6 text-neutral-500" />
-                            </button>
-                        </div>
-
-                        {/* Contenu du formulaire */}
-                        <form onSubmit={handleSubmit} className="p-6">
-                            {/* Grille des champs en 2 colonnes */}
-                            <div className="grid grid-cols-2 gap-6">
-                                {/* Colonne gauche */}
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-secondary font-medium mb-2">
-                                            Désignation <span className="text-danger">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="designation"
-                                            value={formData.designation}
-                                            onChange={handleInputChange}
-                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent ${
-                                                formErrors.designation 
-                                                    ? 'border-danger bg-danger-50 dark:bg-danger-900/20' 
-                                                    : 'bg-neutral-100 dark:bg-neutral-700 border-border-light dark:border-border-dark'
-                                            }`}
-                                            placeholder="Désignation"
-                                        />
-                                        {formErrors.designation && (
-                                            <p className="text-danger text-sm mt-1">{formErrors.designation}</p>
-                                        )}
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-secondary font-medium mb-2">
-                                            Modèle <span className="text-danger">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="modele"
-                                            value={formData.modele}
-                                            onChange={handleInputChange}
-                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent ${
-                                                formErrors.modele 
-                                                    ? 'border-danger bg-danger-50 dark:bg-danger-900/20' 
-                                                    : 'bg-neutral-100 dark:bg-neutral-700 border-border-light dark:border-border-dark'
-                                            }`}
-                                            placeholder="Modèle"
-                                        />
-                                        {formErrors.modele && (
-                                            <p className="text-danger text-sm mt-1">{formErrors.modele}</p>
-                                        )}
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-secondary font-medium mb-2">Qualité</label>
-                                        <input
-                                            type="text"
-                                            name="qualite"
-                                            value={formData.qualite}
-                                            onChange={handleInputChange}
-                                            className="w-full px-4 py-3 bg-neutral-100 dark:bg-neutral-700 border border-border-light dark:border-border-dark rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent"
-                                            placeholder="Qualité"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Colonne droite */}
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-secondary font-medium mb-2">
-                                            Marque <span className="text-danger">*</span>
-                                        </label>
-                                        <input
-                                            type="text"
-                                            name="marque"
-                                            value={formData.marque}
-                                            onChange={handleInputChange}
-                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent ${
-                                                formErrors.marque 
-                                                    ? 'border-danger bg-danger-50 dark:bg-danger-900/20' 
-                                                    : 'border-border-light dark:border-border-dark bg-neutral-100 dark:bg-neutral-700'
-                                            }`}
-                                            placeholder="Marque"
-                                        />
-                                        {formErrors.marque && (
-                                            <p className="text-danger text-sm mt-1">{formErrors.marque}</p>
-                                        )}
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-secondary font-medium mb-2">
-                                            Année <span className="text-danger">*</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="annee"
-                                            value={formData.annee}
-                                            onChange={handleInputChange}
-                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent ${
-                                                formErrors.annee 
-                                                    ? 'border-danger bg-danger-50 dark:bg-danger-900/20' 
-                                                    : 'border-border-light dark:border-border-dark bg-neutral-100 dark:bg-neutral-700'
-                                            }`}
-                                            placeholder="Année"
-                                        />
-                                        {formErrors.annee && (
-                                            <p className="text-danger text-sm mt-1">{formErrors.annee}</p>
-                                        )}
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-secondary font-medium mb-2">
-                                            Nombre <span className="text-danger">*</span>
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="nombre"
-                                            value={formData.nombre}
-                                            onChange={handleInputChange}
-                                            className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent ${
-                                                formErrors.nombre 
-                                                    ? 'border-danger bg-danger-50 dark:bg-danger-900/20' 
-                                                    : 'border-border-light dark:border-border-dark bg-neutral-100 dark:bg-neutral-700'
-                                            }`}
-                                            placeholder="Nombre"
-                                        />
-                                        {formErrors.nombre && (
-                                            <p className="text-danger text-sm mt-1">{formErrors.nombre}</p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Section des fichiers joints */}
-                            <div className="mt-6">
-                                <label className="block text-secondary font-medium mb-3">Fichiers joints</label>
-                                
-                                {/* Bouton pour joindre des fichiers */}
-                                <button
-                                    type="button"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="px-6 py-3 bg-neutral-200 dark:bg-neutral-600 hover:bg-neutral-300 dark:hover:bg-neutral-500 text-neutral-700 dark:text-neutral-200 font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
-                                >
-                                    <AttachFile className="h-5 w-5" />
-                                    Joindre des fichiers
-                                </button>
-                                
-                                {/* Input caché pour les fichiers */}
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    multiple
-                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
-                                    onChange={handleFileUpload}
-                                    className="hidden"
-                                />
-                                
-                                {/* Liste des fichiers joints */}
-                                {attachedFiles.length > 0 && (
-                                    <div className="mt-4 space-y-2">
-                                        <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Fichiers sélectionnés :</h4>
-                                        {attachedFiles.map((file, index) => (
-                                            <div key={file.id || index} className={`flex items-center justify-between p-3 rounded-lg ${file.isExisting ? 'bg-blue-100 dark:bg-blue-900/20' : 'bg-neutral-100 dark:bg-neutral-700'}`}>
-                                                <div className="flex items-center gap-3">
-                                                    <AttachFile className="h-5 w-5 text-neutral-500" />
-                                                    <span className="text-sm text-neutral-700 dark:text-neutral-300">
-                                                        {file.name || file.nom}
-                                                    </span>
-                                                    <span className="text-xs text-neutral-500">
-                                                        ({file.size || file.taille})
-                                                    </span>
-                                                    {file.isExisting && (
-                                                        <span className="text-xs bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
-                                                            Existant
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeAttachedFile(index)}
-                                                    className="p-1 text-danger hover:text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded"
-                                                    title={file.isExisting ? "Retirer de la liste (ne supprime pas le fichier)" : "Supprimer le fichier"}
-                                                >
-                                                    <Close className="h-4 w-4" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Boutons d'action */}
-                            <div className="flex justify-end gap-4 mt-8">
-                                <button
-                                    type="submit"
-                                    className="px-6 py-3 bg-secondary hover:bg-secondary-600 text-white font-medium rounded-lg transition-colors duration-200"
-                                >
-                                    {editingMateriel ? 'Modifier' : 'Ajouter'}
-                                </button>
-                            </div>
-                        </form>
+                  </td>
+                  <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
+                    <span className="text-neutral-700 dark:text-neutral-300">
+                      {materiel.designation}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
+                    <span className="text-neutral-700 dark:text-neutral-300">
+                      {materiel.marque}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
+                    <span className="text-neutral-700 dark:text-neutral-300">
+                      {materiel.modele}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
+                    <span className="text-neutral-700 dark:text-neutral-300">
+                      {materiel.annee}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 border-b border-border-light dark:border-border-dark">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleOpenForm(materiel)}
+                        className="p-2 text-info hover:text-info-600 hover:bg-info-50 dark:hover:bg-info-900/20 rounded-lg transition-colors duration-200"
+                        title="Modifier"
+                      >
+                        <Edit className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(materiel.id)}
+                        className="p-2 text-danger hover:text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded-lg transition-colors duration-200"
+                        title="Supprimer"
+                      >
+                        <Delete className="h-4 w-4" />
+                      </button>
                     </div>
-                </div>
-            )}
-            
-            {/* Bouton Aide flottant */}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Bouton Ajouter un matériel */}
+        <div className="flex justify-center mt-6">
           <button
-            className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
-            onClick={() => {
-              alert("Aide / Guide utilisateur en cours de développement !");
-            }}
+            onClick={() => handleOpenForm()}
+            className="px-6 py-3 bg-muted hover:bg-neutral-300 dark:bg-neutral-700 dark:hover:bg-neutral-600 text-neutral-700 dark:text-neutral-200 font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
           >
-            <Help style={{ fontSize: '4rem' }} />
+            <Add className="h-5 w-5" />
+            Ajouter un matériel
           </button>
+        </div>
 
-                </main>
+        {/* Modal des pièces jointes */}
+        {showPiecesJointes && selectedMateriel && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-surface-light dark:bg-surface-dark rounded-lg shadow-xl max-w-2xl w-full">
+              {/* Header du modal */}
+              <div className="flex justify-between items-center p-6 border-b border-border-light dark:border-border-dark">
+                <h3 className="text-xl font-bold text-neutral-900 dark:text-white">
+                  Pièces jointes - {selectedMateriel.designation}
+                </h3>
+                <button
+                  onClick={handleClosePiecesJointes}
+                  className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
+                >
+                  <Close className="h-6 w-6 text-neutral-500" />
+                </button>
+              </div>
+
+              {/* Contenu du modal */}
+              <div className="p-6">
+                {selectedMateriel.piecesJointes && selectedMateriel.piecesJointes.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedMateriel.piecesJointes.map((piece) => (
+                      <div key={piece.id} className="flex items-center justify-between p-4 bg-neutral-100 dark:bg-neutral-700 rounded-lg">
+                        <div className="flex items-center gap-3">
+                          {getFileIcon(piece.type)}
+                          <div>
+                            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                              {piece.nom}
+                            </span>
+                            <div className="text-xs text-neutral-500">
+                              {piece.taille}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleOpenDocumentModal(piece)}
+                            className="p-2 text-primary hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded transition-colors duration-200"
+                            title="Visualiser le document"
+                          >
+                            <Visibility className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDownloadPiece(piece)}
+                            className="p-2 text-info hover:text-info-600 hover:bg-info-50 dark:hover:bg-info-900/20 rounded transition-colors duration-200"
+                            title="Télécharger"
+                          >
+                            <CloudDownload className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeletePieceClick(selectedMateriel.id, piece.id)}
+                            className="p-2 text-danger hover:text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded transition-colors duration-200"
+                            title="Supprimer"
+                          >
+                            <Delete className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <AttachFile className="h-16 w-16 text-neutral-400 mx-auto mb-4" />
+                    <p className="text-neutral-500 dark:text-neutral-400">
+                      Aucune pièce jointe pour ce matériel
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal du formulaire */}
+        {showForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-surface-light dark:bg-surface-dark rounded-lg shadow-xl max-w-2xl w-full">
+              {/* Header du modal */}
+              <div className="flex justify-between items-center p-6 border-b border-border-light dark:border-border-dark">
+                <h3 className="text-xl font-bold text-neutral-900 dark:text-white">
+                  {editingMateriel ? 'Modifier le matériel' : 'Ajouter un matériel'}
+                </h3>
+                <button
+                  onClick={handleCloseForm}
+                  className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors duration-200"
+                >
+                  <Close className="h-6 w-6 text-neutral-500" />
+                </button>
+              </div>
+
+              {/* Contenu du formulaire */}
+              <form onSubmit={handleSubmit} className="p-6">
+                {/* Grille des champs en 2 colonnes */}
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Colonne gauche */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-secondary font-medium mb-2">
+                        Désignation <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="designation"
+                        value={formData.designation}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent ${formErrors.designation
+                          ? 'border-danger bg-danger-50 dark:bg-danger-900/20'
+                          : 'bg-neutral-100 dark:bg-neutral-700 border-border-light dark:border-border-dark'
+                          }`}
+                        placeholder="Désignation"
+                      />
+                      {formErrors.designation && (
+                        <p className="text-danger text-sm mt-1">{formErrors.designation}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-secondary font-medium mb-2">
+                        Modèle <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="modele"
+                        value={formData.modele}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent ${formErrors.modele
+                          ? 'border-danger bg-danger-50 dark:bg-danger-900/20'
+                          : 'bg-neutral-100 dark:bg-neutral-700 border-border-light dark:border-border-dark'
+                          }`}
+                        placeholder="Modèle"
+                      />
+                      {formErrors.modele && (
+                        <p className="text-danger text-sm mt-1">{formErrors.modele}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-secondary font-medium mb-2">Qualité</label>
+                      <input
+                        type="text"
+                        name="qualite"
+                        value={formData.qualite}
+                        onChange={handleInputChange}
+                        className="w-full px-4 py-3 bg-neutral-100 dark:bg-neutral-700 border border-border-light dark:border-border-dark rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent"
+                        placeholder="Qualité"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Colonne droite */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-secondary font-medium mb-2">
+                        Marque <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="marque"
+                        value={formData.marque}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent ${formErrors.marque
+                          ? 'border-danger bg-danger-50 dark:bg-danger-900/20'
+                          : 'border-border-light dark:border-border-dark bg-neutral-100 dark:bg-neutral-700'
+                          }`}
+                        placeholder="Marque"
+                      />
+                      {formErrors.marque && (
+                        <p className="text-danger text-sm mt-1">{formErrors.marque}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-secondary font-medium mb-2">
+                        Année <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        name="annee"
+                        value={formData.annee}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent ${formErrors.annee
+                          ? 'border-danger bg-danger-50 dark:bg-danger-900/20'
+                          : 'border-border-light dark:border-border-dark bg-neutral-100 dark:bg-neutral-700'
+                          }`}
+                        placeholder="Année"
+                      />
+                      {formErrors.annee && (
+                        <p className="text-danger text-sm mt-1">{formErrors.annee}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-secondary font-medium mb-2">
+                        Nombre <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        name="nombre"
+                        value={formData.nombre}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent ${formErrors.nombre
+                          ? 'border-danger bg-danger-50 dark:bg-danger-900/20'
+                          : 'border-border-light dark:border-border-dark bg-neutral-100 dark:bg-neutral-700'
+                          }`}
+                        placeholder="Nombre"
+                      />
+                      {formErrors.nombre && (
+                        <p className="text-danger text-sm mt-1">{formErrors.nombre}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section des fichiers joints */}
+                <div className="mt-6">
+                  <label className="block text-secondary font-medium mb-3">Fichiers joints</label>
+
+                  {/* Bouton pour joindre des fichiers */}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-6 py-3 bg-neutral-200 dark:bg-neutral-600 hover:bg-neutral-300 dark:hover:bg-neutral-500 text-neutral-700 dark:text-neutral-200 font-medium rounded-lg transition-colors duration-200 flex items-center gap-2"
+                  >
+                    <AttachFile className="h-5 w-5" />
+                    Joindre des fichiers
+                  </button>
+
+                  {/* Input caché pour les fichiers */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+
+                  {/* Liste des fichiers joints */}
+                  {attachedFiles.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      <h4 className="text-sm font-medium text-neutral-700 dark:text-neutral-300">Fichiers sélectionnés :</h4>
+                      {attachedFiles.map((file, index) => (
+                        <div key={file.id || index} className={`flex items-center justify-between p-3 rounded-lg ${file.isExisting ? 'bg-blue-100 dark:bg-blue-900/20' : 'bg-neutral-100 dark:bg-neutral-700'}`}>
+                          <div className="flex items-center gap-3">
+                            <AttachFile className="h-5 w-5 text-neutral-500" />
+                            <span className="text-sm text-neutral-700 dark:text-neutral-300">
+                              {file.name || file.nom}
+                            </span>
+                            <span className="text-xs text-neutral-500">
+                              ({file.size || file.taille})
+                            </span>
+                            {file.isExisting && (
+                              <span className="text-xs bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
+                                Existant
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeAttachedFile(index)}
+                            className="p-1 text-danger hover:text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-900/20 rounded"
+                            title={file.isExisting ? "Retirer de la liste (ne supprime pas le fichier)" : "Supprimer le fichier"}
+                          >
+                            <Close className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Boutons d'action */}
+                <div className="flex justify-end gap-4 mt-8">
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-secondary hover:bg-secondary-600 text-white font-medium rounded-lg transition-colors duration-200"
+                  >
+                    {editingMateriel ? 'Modifier' : 'Ajouter'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Modal de visualisation des documents */}
         <DocumentViewer
@@ -964,7 +947,7 @@ const Materiel = () => {
           document={currentDocument}
           onClose={handleCloseDocumentModal}
         />
-        
+
         <ConfirmModal
           open={confirmOpen}
           title="Confirmer la suppression"
@@ -975,7 +958,7 @@ const Materiel = () => {
           onConfirm={handleConfirmDelete}
           onCancel={() => { setConfirmOpen(false); setPendingDeleteId(null); }}
         />
-        
+
         <ConfirmModal
           open={confirmDeletePieceOpen}
           title="Confirmer la suppression"
@@ -986,6 +969,15 @@ const Materiel = () => {
           onConfirm={handleConfirmDeletePiece}
           onCancel={() => { setConfirmDeletePieceOpen(false); setPendingDeletePiece(null); }}
         />
+        <button
+          className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+          onClick={() => {
+            showInfo('Aide / Guide utilisateur en cours de développement !')
+          }}
+        >
+          <Help style={{ fontSize: '3rem' }} />
+        </button>
+      </main>
     </div>
   )
 }
