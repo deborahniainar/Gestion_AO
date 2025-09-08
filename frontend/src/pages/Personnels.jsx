@@ -30,10 +30,9 @@ const Personnels = () => {
     showError, 
     showInfo, 
     showWarning,
-    showUpdateSuccess,
     showDeleteSuccess,
     showFetchSuccess,
-    showFetchError
+    showFetchError,
   } = useNotifications();
   const [formData, setFormData] = useState({
     nom: '',
