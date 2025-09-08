@@ -20,7 +20,6 @@ logs/
 .env.*
 backend/.env
 frontend/.env
-*.env
 .vscode/
 .idea/
 .DS_Store
