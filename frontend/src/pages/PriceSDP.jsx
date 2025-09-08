@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import Sidebar from '../components/Sidebar'
-import { Description, CloudDownload, Add, Edit, Delete, Close } from "@mui/icons-material";
+import { Description, CloudDownload, Add, Edit, Delete, Close, Help } from "@mui/icons-material";
 import { useDao } from '../contexts/DaoContext'
 import api from '../services/api'
+import useNotifications from '../hooks/useNotifications';
 
 /***********************
  * Modals for Poste and Article
@@ -294,6 +295,10 @@ const PriceSDP = () => {
   const [daos, setDaos] = useState([])
   const { savedLots, daoDocId, setSavedLots, setDaoId, setDaoDocId } = useDao()
   const [lot, setLot] = useState("")
+  const {
+    showInfo,
+  } = useNotifications();
+  
   // poste modal state
   const [openPosteModal, setOpenPosteModal] = useState(false)
   const [currentArticleIndex, setCurrentArticleIndex] = useState(null)
@@ -1277,6 +1282,14 @@ const PriceSDP = () => {
             })()}
           </div>
         )}
+        <button
+          className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+          onClick={() => {
+            showInfo('Aide / Guide utilisateur en cours de développement !')
+          }}
+        >
+          <Help style={{ fontSize: '3rem' }} />
+        </button>
       </main>
 
       {/* Confirmation modal global */}

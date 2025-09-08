@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import { NotificationService, NotificationMessages } from '../services/notifications'
 import { soumissionsWorkspacesAPI } from '../services/api'
 import api from '../services/api'
+import useNotifications from '../hooks/useNotifications'
 import {
   CloudDownload,
   Add,
-  Save,
+  Help,
   Description,
   Edit,
   Delete
@@ -47,7 +47,9 @@ const Soumissions = () => {
   const [loadingLots, setLoadingLots] = useState(false);
   const [loadingWorkspace, setLoadingWorkspace] = useState(false);
   const workspaceReady = !!lot // vrai seulement si un lot est sélectionné
-  // const navigate = useNavigate();
+  const {
+    showInfo,
+  } = useNotifications();
 
   // Listes et map des contenus sont entièrement gérées par le backend
   const [listes, setListes] = useState([]);
@@ -145,22 +147,6 @@ const Soumissions = () => {
     }
   };
 
-  const handleSupprimerLot = async () => {
-    if (!lot) return;
-    if (!confirm(`Supprimer le lot "${lot}" ?`)) return;
-    try {
-      await soumissionsWorkspacesAPI.deleteWorkspace(lot, appelOffre);
-      NotificationService.success('Lot supprimé');
-      setListes([]);
-      const res = await soumissionsWorkspacesAPI.listLots(appelOffre);
-      const names = Array.isArray(res.data) ? res.data : [];
-      setLotNames(names);
-      if (names.length > 0) setLot(names[0]);
-      else setLot('');
-    } catch (e) {
-      NotificationService.error('Échec suppression lot');
-    }
-  };
 
   const handleExporter = () => {
     soumissionsWorkspacesAPI.exportFinished(lot, appelOffre)
@@ -578,7 +564,14 @@ const Soumissions = () => {
             </div>
           </div>
         )}
-
+        <button
+          className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+          onClick={() => {
+            showInfo('Aide / Guide utilisateur en cours de développement !')
+          }}
+        >
+          <Help style={{ fontSize: '3rem' }} />
+        </button>
       </main>
     </div>
   )

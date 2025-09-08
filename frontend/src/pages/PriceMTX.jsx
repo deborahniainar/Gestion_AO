@@ -3,12 +3,14 @@ import Sidebar from '../components/Sidebar'
 import {
   CloudDownload,
   Add,
+  Help,
   Description,
   Edit,
   Delete
 } from "@mui/icons-material"
 import { useDao } from '../contexts/DaoContext'
 import api from '../services/api'
+import useNotifications from '../hooks/useNotifications'
 
 /* ----------------------------- Modal Component ----------------------------- */
 const Modal = ({ open, onClose, onSave, initialData = null }) => {
@@ -225,6 +227,9 @@ const PriceMTX = () => {
   const [rows, setRows] = useState([])
   const [editingIndex, setEditingIndex] = useState(null)
   const [editingInitial, setEditingInitial] = useState(null)
+  const {
+    showInfo,
+  } = useNotifications();
 
   // DAO / Lot state (mirror PriceMO)
   const [daos, setDaos] = useState([])
@@ -533,6 +538,14 @@ const PriceMTX = () => {
             <ConfirmModal open={confirmOpen} message={confirmMessage} onConfirm={confirmDelete} onCancel={cancelDelete} />
           </>
         )}
+        <button
+          className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+          onClick={() => {
+            showInfo('Aide / Guide utilisateur en cours de développement !')
+          }}
+        >
+          <Help style={{ fontSize: '3rem' }} />
+        </button>
       </main>
     </div>
   )

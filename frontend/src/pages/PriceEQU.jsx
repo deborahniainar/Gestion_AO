@@ -10,6 +10,7 @@ import {
 } from "@mui/icons-material"
 import { useDao } from "../contexts/DaoContext"
 import api from "../services/api"
+import useNotifications from "../hooks/useNotifications"
 
 const INITIAL_EQU_FORM = {
   materielId: '',
@@ -25,7 +26,7 @@ const INITIAL_EQU_FORM = {
   tlpr_percent: '',
   tlpr_value: '',
   cmo: '',
-  cmoId: '',            // { changed code } added field to track selected personnel id
+  cmoId: '',           
   tj: '',
   twm: '',
   total_h: '',
@@ -373,6 +374,9 @@ const PriceEQU = () => {
   const [daos, setDaos] = useState([])
   const { savedLots, daoDocId, setSavedLots, setDaoId, setDaoDocId } = useDao()
   const [lot, setLot] = useState("")
+  const {
+    showInfo,
+  } = useNotifications();
   // personnels used for the Modal CMO select. defaultPersonnels is the API fallback.
   const [personnels, setPersonnels] = useState([])
   const [defaultPersonnels, setDefaultPersonnels] = useState([])
@@ -813,6 +817,14 @@ const PriceEQU = () => {
             <ConfirmModal open={confirmOpen} message={"Supprimer cette ligne ?"} onConfirm={confirmDelete} onCancel={cancelDelete} />
           </>
         )}
+        <button
+          className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+          onClick={() => {
+            showInfo('Aide / Guide utilisateur en cours de développement !')
+          }}
+        >
+          <Help style={{ fontSize: '3rem' }} />
+        </button>
       </main>
     </div>
   )

@@ -6,12 +6,16 @@ import {
   Help,
 } from "@mui/icons-material";
 import { useDao } from '../contexts/DaoContext'
+import useNotifications from '../hooks/useNotifications'
 import api from '../services/api'
 
 const PriceBDE = () => {
   const [daos, setDaos] = useState([])
   const { savedLots, daoDocId, setSavedLots, setDaoId, setDaoDocId } = useDao()
   const [lot, setLot] = useState("")
+    const {
+    showInfo,
+  } = useNotifications();
 
   const fetchDaos = useCallback(async () => {
     try {
@@ -456,6 +460,14 @@ const PriceBDE = () => {
             <div className="p-4 text-sm text-gray-500">Sélectionner un lot.</div>
           )}
         </div>
+        <button
+          className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
+          onClick={() => {
+            showInfo('Aide / Guide utilisateur en cours de développement !')
+          }}
+        >
+          <Help style={{ fontSize: '3rem' }} />
+        </button>
       </main>
     </div>
   )
