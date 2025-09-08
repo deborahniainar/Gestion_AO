@@ -3,6 +3,7 @@
 Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d'extraire automatiquement les informations clés, de générer une réponse structurée (documents de soumission), et de piloter l'ensemble du cycle de vie des appels d'offres, marchés, matériels, personnels et documents administratifs.
 
 ## Objectif
+
 - Prendre en entrée un DAO (PDF)
 - Enregistrer les appels d'offres reçus
 - Résumer automatiquement le contenu du DAO
@@ -13,6 +14,7 @@ Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d
 - Gérer les fournisseurs de matériaux et services
 
 ## Fonctionnalités clés
+
 1) Gestion des Dossiers d'Appel d'Offres (DAO)
    - Upload du DAO (PDF)
    - Extraction intelligente (objet, date limite, montants, exigences, pièces, critères)
@@ -22,11 +24,11 @@ Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d
 
 2) Suivi des matériels
    - Inventaire, disponibilité, localisation, état
-   - Historique des utilisations par chantier
+   - Historique des utilisations par projet/poste
 
 3) Gestion des personnels
    - Fiches personnels, spécialités
-   - Disponibilité, affectation par projet/chantier
+   - Disponibilité, affectation par projet/poste
    - Historique de participation
 
 4) Base de prix interne
@@ -34,11 +36,13 @@ Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d
    - Mise à jour manuelle ou automatisée
    - Salaires journaliers (homme-jour), marges bénéficiaires
    - Aide à la tarification rapide pour les soumissions
+   - Géstion rapide et efficace des Sous-détails de Prix
+   - Génération automatique du Bordereau de Prix
 
 5) Gestion des documents administratifs
    - Archivage des documents légaux
    - Alertes de renouvellement (expiration)
-   - Téléchargement rapide pour chaque soumission
+   - Téléchargement rapide pour chaque soumission/Lot
 
 6) Préparation des soumissions
    - Création de soumissions liées à un AO
@@ -74,73 +78,78 @@ Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d
 
 Monorepo avec un backend FastAPI (Python) et un frontend React + Vite (JavaScript). Redis/Celery optionnels pour les tâches asynchrones; PostgreSQL conseillé pour la persistance.
 
-```
+```Structure du projet
 Gestion_AO/
 ├── backend/                       # Backend Python (FastAPI)
 │   ├── app/
-│   │   ├── api/                   # Routes API (DAO, soumissions, marchés, ...)
+│   │   ├── api/                   # Routes API (admins, appels_offre, auth, clients, dao, dashboard, documents, ...)
 │   │   ├── core/                  # Config globale (config, security, logging)
-│   │   ├── crud/                  # Fonctions CRUD (à compléter)
 │   │   ├── db/                    # Base models + session SQLAlchemy
-│   │   ├── schemas/              
+│   │   ├── schemas/               
 │   │   ├── services/              # PDF/NLP/Doc generation/Notifications
-│   │   ├── sql/                   
+│   │   ├── sql/                   # bd default USer
 │   │   ├── tasks/                 # Celery (optionnel)
 │   │   ├── main.py                # Entrée FastAPI
 │   │   └── dependencies.py        # Dépendances (auth, DB, etc.)
+│   │   └── main_legacy.py        # Dépendances (auth, DB, etc.)
+│   │   └── main.py        # Dépendances (auth, DB, etc.)
 │   ├── files
 │   ├── venv
+│   ├── .env
 │   ├── alembic.ini
-│   ├── dev.db
-│   ├── Dockerfile          
+│   ├── dev.db         
 │   └── requirements.txt
 │
 ├── frontend/                      # Frontend React + Vite (JavaScript)
 │   ├── public/
 │   ├── src/
-│   │   ├── components/            # Composants réutilisables
-│   │   │   ├── common/            # Composants génériques
-│   │   │   ├── layout/            # Header, Sidebar, Footer
-│   │   │   └── forms/             # Formulaires spécialisés
-│   │   ├── pages/                 # Pages principales
-│   │   │   ├── auth/              # Login, Register
-│   │   │   ├── dashboard/         # Tableau de bord
-│   │   │   ├── dao/               # Gestion des appels d'offres
-│   │   │   ├── soumissions/       # Gestion des soumissions
-│   │   │   ├── marches/           # Gestion des marchés
-│   │   │   ├── materiels/         # Gestion des matériels
-│   │   │   ├── personnels/        # Gestion du personnel
-│   │   │   ├── prix/              # Base de prix
-│   │   │   └── documents/         # Documents administratifs
-│   │   ├── hooks/                 # Hooks personnalisés
-│   │   ├── services/              # Services API
-│   │   ├── utils/                 # Fonctions utilitaires
-│   │   ├── contexts/              # Contextes React (Auth, etc.)
+│   │   ├── components/            # Sidebar.jsx, DocumentViewer.jsx         
+│   │   ├── pages/         
+│   │   │   ├── DAO.jsx        
+│   │   │   ├── Dashboard.jsx  
+│   │   │   ├── Document.jsx
+│   │   │   ├── Home.jsx
+│   │   │   ├── Login.jsx           
+│   │   │   ├── Matérieljsx       
+│   │   │   ├── NotFound.jsx        
+│   │   │   ├── OnlyOfficeWorkspace.jsx 
+│   │   │   └── Personnel.jsx         
+│   │   │   └── PriceBDE.jsx         
+│   │   │   └── PriceEQU.jsx         
+│   │   │   └── PriceMO.jsx         
+│   │   │   └── PriceMTX.jsx         
+│   │   │   └── PriceSDP.jsx         
+│   │   │   └── Soumission.jsx         
+│   │   │   └── WordEditor.jsx         
+│   │   ├── hooks/                 # PrivateRoute.jsx, Usenotifications.js
+│   │   ├── services/              # api.js, notifications.js
+│   │   ├── contexts/              # AuthContext.jsx, DaoContext.jsx, ThemeContext.jsx
 │   │   ├── assets/                # Images, icônes, etc.
-│   │   ├── App.jsx
+│   │   ├── App.jsx                
 │   │   └── main.jsx
 │   ├── package.json
 │   ├── vite.config.js
 │   ├── .env
-│   └── Dockerfile
 │
-├── docker-compose.yml             # Orchestration (backend, frontend, db, redis)
+├── docker-compose.onlyoffice.yml  # OnlyOfficeConfig
 ├── .env                           # Variables d'environnement
 └── readme.md
 ```
 
 ### Pile technique
+
 - Backend: FastAPI, SQLAlchemy, Pydantic, Celery (optionnel)
 - Authentification: JWT, passlib[bcrypt], PyJWT
 - NLP/OCR/PDF: PyMuPDF, pytesseract, spaCy, transformers
 - Génération de documents: python-docx, reportlab
 - Base de données: PostgreSQL (recommandé) / SQLite (développement)
 - Cache/Tasks: Redis (optionnel)
-- Frontend: React, JavaScript, Vite, Bootstrap 5
+- Frontend: React, JavaScript, Vite, TailwindCss, MUI
 
 ---
 
 ## Prérequis
+
 - Python ≥ 3.11
 - Node.js ≥ 18 (recommandé 20)
 - SQLite 3 (inclus avec Python par défaut)
@@ -160,12 +169,12 @@ cd frontend
 npm ci
 cd ..
 ```
+
 Variables d'environnement (fichier `.env` à la racine):
 
 ```env
 APP_NAME=Gestion AO
 DATABASE_URL=sqlite:///./dev.db
-# REDIS_URL=redis://redis:6379/0  # Optionnel
 JWT_SECRET=change-me
 ```
 
@@ -174,6 +183,17 @@ Variables d'environnement frontend (fichier `frontend/.env`):
 ```env
 VITE_API_BASE_URL=http://localhost:8000
 VITE_APP_NAME=Gestion AO
+VITE_TINYMCE_API_KEY=your_api_key
+```
+
+Variables d'environnement frontend (fichier `frontend/.env`):
+
+```env
+OPENAI_API_KEY=your_api_key
+ONLYOFFICE_DS_URL=http://localhost:8080
+BACKEND_PUBLIC_URL=http://172.17.0.1:8000
+ONLYOFFICE_JWT_ENABLED=true
+ONLYOFFICE_JWT_SECRET=your_api_key
 ```
 
 ## Démarrage
@@ -185,9 +205,8 @@ cd backend
 export PYTHONPATH="$(pwd)"
 python -c "from app.db.base import Base; from app.db.session import engine; Base.metadata.create_all(bind=engine); print('Tables créées (si non existantes).')"
 ```
+
 ### 2. Création de l'utilisateur par défaut
-
-
 
 ### 3. Démarrage des services
 

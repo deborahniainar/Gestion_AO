@@ -221,8 +221,8 @@ export default function Sidebar() {
           title="Documents"
         >
           <ActiveMark active={location.pathname === "/doc_admin"} />
-          <InventoryOutlined className="h-5 w-5" />
-          {!collapsed && <span>Documents Administratifs</span>}
+          <DescriptionOutlined className="h-5 w-5" />
+          {!collapsed && <span>Documents</span>}
         </NavLink>
 
         <NavLink 
@@ -235,7 +235,7 @@ export default function Sidebar() {
           title="Soumissions"
         >
           <ActiveMark active={location.pathname === "/soumissions"} />
-          <DescriptionOutlined className="h-5 w-5" />
+          <InventoryOutlined className="h-5 w-5" />
           {!collapsed && <span>Soumissions</span>}
         </NavLink>
 
