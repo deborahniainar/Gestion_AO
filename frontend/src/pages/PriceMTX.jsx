@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import Sidebar from '../components/Sidebar'
-import { 
-  CloudDownload, 
-  Add, 
-  Description, 
-  Edit, 
-  Delete 
+import {
+  CloudDownload,
+  Add,
+  Description,
+  Edit,
+  Delete
 } from "@mui/icons-material"
 import { useDao } from '../contexts/DaoContext'
 import api from '../services/api'
 
 /* ----------------------------- Modal Component ----------------------------- */
 const Modal = ({ open, onClose, onSave, initialData = null }) => {
-  const initialForm = {                                                      
+  const initialForm = {
     description: "",
     unite: "",
     origine: "",
@@ -34,7 +34,7 @@ const Modal = ({ open, onClose, onSave, initialData = null }) => {
         transport: initialData.transport ?? "",
         taxes: initialData.taxes ?? "",
         ppercent: initialData.ppercent ?? "",
-        pvaleur: initialData.pvaleur ?? "",                                                
+        pvaleur: initialData.pvaleur ?? "",
       })
       return
     }
@@ -146,6 +146,14 @@ const Modal = ({ open, onClose, onSave, initialData = null }) => {
   )
 }
 
+// format numbers with thousand separators (French locale)
+const formatNumber = (value, decimals = 2) => {
+  if (value === null || value === undefined || value === '') return '-'
+  const n = Number(String(value).replace(/,/g, '.'))
+  if (!Number.isFinite(n)) return String(value)
+  return n.toLocaleString('fr-FR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+}
+
 /* ----------------------------- Table Component ----------------------------- */
 const MaterialTable = ({ rows, onEdit, onDelete }) => {
   const columns = [
@@ -159,6 +167,7 @@ const MaterialTable = ({ rows, onEdit, onDelete }) => {
     { key: "pvaleur", label: "Valeur Perte" },
     { key: "total", label: "Total" }
   ]
+  const numericKeys = ['pu', 'transport', 'taxes', 'ppercent', 'pvaleur', 'total']
 
   return (
     <div className="overflow-x-auto">
@@ -166,12 +175,7 @@ const MaterialTable = ({ rows, onEdit, onDelete }) => {
         <thead className="bg-gray-100 dark:bg-primary/40">
           <tr>
             {columns.map((col) => (
-              <th
-                key={col.key}
-                className="text-primary dark:text-muted border border-secondary px-3 py-2 text-left"
-              >
-                {col.label}
-              </th>
+              <th key={col.key} className="text-primary dark:text-muted border border-secondary px-3 py-2 text-left">{col.label}</th>
             ))}
             <th className="text-primary dark:text-muted border border-secondary px-3 py-2 text-center">
               Action
@@ -182,7 +186,9 @@ const MaterialTable = ({ rows, onEdit, onDelete }) => {
           {rows.map((row, idx) => (
             <tr key={idx}>
               {columns.map((col) => (
-                <td key={col.key} className="text-accent dark:text-muted border border-secondary px-3 py-2">{row[col.key] ?? "-"}</td>
+                <td key={col.key} className="text-accent dark:text-muted border border-secondary px-3 py-2">{
+                  numericKeys.includes(col.key) ? (row[col.key] !== undefined && row[col.key] !== null && row[col.key] !== '' ? formatNumber(row[col.key], 2) : '-') : (row[col.key] ?? '-')
+                }</td>
               ))}
               <td className="text-center border border-secondary px-3 py-2">
                 <button onClick={() => onEdit(row, idx)} className="text-green-600 hover:text-green-800 mr-2"><Edit fontSize="small" /></button>
@@ -219,7 +225,7 @@ const PriceMTX = () => {
   const [rows, setRows] = useState([])
   const [editingIndex, setEditingIndex] = useState(null)
   const [editingInitial, setEditingInitial] = useState(null)
-  
+
   // DAO / Lot state (mirror PriceMO)
   const [daos, setDaos] = useState([])
   const { savedLots, daoDocId, setSavedLots, setDaoId, setDaoDocId } = useDao()
@@ -390,7 +396,7 @@ const PriceMTX = () => {
       const lotObj = (savedLots || []).find(s => String(s.id) === String(lot))
       const lotName = lotObj ? (lotObj.name || `lot-${lot}`) : `lot-${lot}`
       const title = 'Ventilation des prix de base de fourniture des matériaux et consommables (Convertis par Unité)'
-      const wsData = [[title], [] , headers, ...currentRows.map(r => [r.description ?? '', r.unite ?? '', r.origine ?? '', r.pu ?? '', r.transport ?? '', r.taxes ?? '', r.ppercent ?? '', r.pvaleur ?? '', r.total ?? ''])]
+      const wsData = [[title], [], headers, ...currentRows.map(r => [r.description ?? '', r.unite ?? '', r.origine ?? '', r.pu ?? '', r.transport ?? '', r.taxes ?? '', r.ppercent ?? '', r.pvaleur ?? '', r.total ?? ''])]
       const ws = XLSX.utils.aoa_to_sheet(wsData)
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Matériaux')
@@ -408,40 +414,6 @@ const PriceMTX = () => {
     } catch (err) {
       console.error('[PriceMTX] Excel export failed', err)
       alert('L\'export Excel nécessite la librairie "xlsx". Veuillez installer la dépendance (xlsx) et recharger l\'application.')
-    }
-  }
-
-  // Export current lot rows as PDF (client-side, similar to PriceMO)
-  const exportCurrentLotPDF = async () => {
-    if (!lot) {
-      alert('Aucun lot sélectionné pour l\'export')
-      return
-    }
-    try {
-      const { jsPDF } = await import('jspdf')
-      const autoTableModule = await import('jspdf-autotable')
-      const autoTable = autoTableModule && (autoTableModule.default || autoTableModule)
-      const doc = new jsPDF({ unit: 'pt', format: 'a4' })
-      const margin = 40
-      const title = 'Ventilation des prix de base de fourniture des matériaux et consommables (Convertis par Unité)'
-      doc.setFontSize(14)
-      doc.text(title, margin, 60)
-      const headers = ['Description', 'Unité', 'Origine', 'PU', 'Transport', 'Droits et Taxes', 'Perte (%)', 'Valeur Perte', 'Total']
-      const body = (rows || []).map(r => [r.description ?? '', r.unite ?? '', r.origine ?? '', r.pu ?? '', r.transport ?? '', r.taxes ?? '', r.ppercent ?? '', r.pvaleur ?? '', r.total ?? ''])
-      if (typeof autoTable === 'function') {
-        autoTable(doc, { head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
-      } else if (typeof doc.autoTable === 'function') {
-        doc.autoTable({ head: [headers], body: body, startY: 80, margin: { left: margin, right: margin } })
-      } else {
-        throw new Error('jspdf-autotable not available')
-      }
-      const lotObj = (savedLots || []).find(s => String(s.id) === String(lot))
-      const lotName = lotObj ? (lotObj.name || `lot-${lot}`) : `lot-${lot}`
-      const filename = `dao-${daoDocId || 'unknown'}_${lotName.replace(/[^a-z0-9\-_]/gi, '_')}.pdf`
-      doc.save(filename)
-    } catch (err) {
-      console.error('[PriceMTX] PDF export failed', err)
-      alert('L\'export PDF nécessite les librairies "jspdf" et "jspdf-autotable". Veuillez les installer et recharger l\'application.')
     }
   }
 
@@ -466,16 +438,16 @@ const PriceMTX = () => {
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
       <Sidebar />
       <main className='flex-1 p-4 lg:ml-64 ml-16'>
-        
+
         {/* Header */}
         <header className="flex justify-between items-center px-6 py-6 bg-muted dark:bg-accent border-b border-muted-50 rounded-lg mb-6 shadow-md">
           <h5 className="text-xl font-bold text-secondary m-0">
             Ventilation des prix de base de fourniture des matériaux et consommables (Convertis par Unité)
           </h5>
         </header>
-         
-         {/* Carte principale */}
-         <div className="bg-muted dark:bg-accent rounded-lg shadow-md p-5 max-h-[75vh] overflow-y-auto overflow-x-hidden">
+
+        {/* Carte principale */}
+        <div className="bg-muted dark:bg-accent rounded-lg shadow-md p-5 max-h-[75vh] overflow-y-auto overflow-x-hidden">
 
           {/* DAO / Lot */}
           <div className="flex items-center gap-3 mb-5">
@@ -495,11 +467,11 @@ const PriceMTX = () => {
                   return (<option key={i} value={d.document_id}>{display}</option>)
                 })}
               </select>
-              <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
               {daoDocId ? (
                 <select className="border border-gray-300 dark:border-muted-50 text-primary dark:text-muted bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40" value={lot} onChange={async (e) => {
+                  <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
                   const val = e.target.value
-                  if (lot) { const snapshot = rows; setRowsByLot(prev => ({ ...prev, [lot]: snapshot })); saveRowsForLot(lot, snapshot).catch(() => {}) }
+                  if (lot) { const snapshot = rows; setRowsByLot(prev => ({ ...prev, [lot]: snapshot })); saveRowsForLot(lot, snapshot).catch(() => { }) }
                   if (!val) { setLot(""); setRows([]); return }
                   const lotId = Number(val)
                   setLot(lotId)
@@ -516,13 +488,20 @@ const PriceMTX = () => {
                   {(savedLots || []).map((s, i) => (<option key={i} value={s.id}>{s.name}</option>))}
                 </select>
               ) : (
-                <input type="text" className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40" placeholder="Saisir le lot" />
+                <div className="ml-3 text-sm text-gray-500">Aucun DAO sélectionné.</div>
               )}
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={exportCurrentLotExcel} title="Exporter en Excel (.xlsx)" className="inline-flex items-center gap-2 bg-secondary hover:bg-secondary/90 text-white text-sm px-3 py-2 rounded-md"><CloudDownload fontSize="small" />XLSX</button>
-              <button onClick={exportCurrentLotPDF} title="Exporter en PDF" className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-2 rounded-md"><CloudDownload fontSize="small" />PDF</button>
+              <button
+                onClick={() => { if (lot) exportCurrentLotExcel() }}
+                title={lot ? "Exporter en Excel (.xlsx)" : "Sélectionnez un lot pour pouvoir exporter"}
+                disabled={!lot}
+                aria-disabled={!lot}
+                className={`inline-flex items-center gap-2 text-sm px-3 py-2 rounded-md ${lot ? 'bg-secondary hover:bg-secondary/90 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-60'}`}
+              >
+                <CloudDownload fontSize="small" />Exporter
+              </button>
             </div>
           </div>
 
@@ -539,13 +518,13 @@ const PriceMTX = () => {
                   Ajouter un matériel
                 </button>
               </div>
-              
+
               <MaterialTable rows={rows} onEdit={editRow} onDelete={requestDeleteRow} />
             </>
           ) : (
             <div className="p-4 text-sm text-gray-500">Sélectionner un Lot.</div>
-          )}  
-         </div>
+          )}
+        </div>
 
         {/* Modal - only when lot selected */}
         {lot && (
@@ -554,9 +533,9 @@ const PriceMTX = () => {
             <ConfirmModal open={confirmOpen} message={confirmMessage} onConfirm={confirmDelete} onCancel={cancelDelete} />
           </>
         )}
-       </main>
-     </div>
-   )
-  }
- 
- export default PriceMTX
+      </main>
+    </div>
+  )
+}
+
+export default PriceMTX
