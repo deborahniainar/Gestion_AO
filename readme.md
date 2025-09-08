@@ -105,7 +105,7 @@ Gestion_AO/
 │   │   ├── components/            # Sidebar.jsx, DocumentViewer.jsx         
 │   │   ├── pages/         
 │   │   │   ├── DAO.jsx        
-│   │   │   ├── Dashboard.jsx  
+│   │   │   ├── Dashboard.jsx
 │   │   │   ├── Document.jsx
 │   │   │   ├── Home.jsx
 │   │   │   ├── Login.jsx           
