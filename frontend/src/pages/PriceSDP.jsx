@@ -254,7 +254,7 @@ const ArticleWorkspaceModal = ({ open, onClose, article = null, onSave }) => {
         </div>
         <div className="flex justify-end gap-3 mt-5">
           <button onClick={onClose} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Annuler</button>
-          <button onClick={handleSubmit} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Enregistrer</button>
+          <button onClick={handleSave} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Enregistrer</button>
         </div>
       </div>
     </div>
@@ -288,7 +288,6 @@ const ConfirmModal = ({ open, message, onCancel, onConfirm }) => {
 const PriceSDP = () => {
   const [rows, setRows] = useState([])
   const [openArticleModal, setOpenArticleModal] = useState(false)
-  const [openArticleWorkspaceModal, setOpenArticleWorkspaceModal] = useState(false)
   const [activeArticle, setActiveArticle] = useState(null) // {posteIndex, articleIndex}
   const [currentPosteIndex, setCurrentPosteIndex] = useState(null)
   const [editPosteIndex, setEditPosteIndex] = useState(null)
@@ -298,9 +297,6 @@ const PriceSDP = () => {
   // poste modal state
   const [openPosteModal, setOpenPosteModal] = useState(false)
   const [currentArticleIndex, setCurrentArticleIndex] = useState(null)
-
-  // workspace (inline) pour l'article sélectionné
-  const [workspaceForm, setWorkspaceForm] = useState(null)
 
   // add-element form inside workspace
   const [showAddElementForm, setShowAddElementForm] = useState(false)
@@ -314,9 +310,6 @@ const PriceSDP = () => {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmMessage, setConfirmMessage] = useState('')
   const [confirmAction, setConfirmAction] = useState(null)
-
-  // element-level validation state
-  const [elementErrors, setElementErrors] = useState({})
 
   // load designation options from the selected lot depending on element type
   const loadDesignationOptions = useCallback(async (type) => {
@@ -358,8 +351,8 @@ const PriceSDP = () => {
       })
       setDesignationOptions(opts)
       return opts
-    } catch (err) {
-      console.warn('[PriceSDP] failed to load designations for lot', lot, err)
+    } catch {
+      console.warn('[PriceSDP] failed to load designations for lot', lot)
       setDesignationOptions([])
       return []
     } finally {
@@ -420,6 +413,7 @@ const PriceSDP = () => {
             quantite: a.quantite ?? null,
             unite: a.unite ?? null,
             prix_unitaire: a.prix_unitaire ?? a.pu ?? null,
+            costNetPerUnit: a.costNetPerUnit ?? a.cost_net_per_unit ?? a.costPerUnit ?? a.cost_per_unit ?? null,
             total: a.total ?? null,
             coefficientK: a.coefficientK ?? a.coefficient_k ?? null,
             productionPerDay: a.productionPerDay ?? a.production_per_day ?? null,
@@ -446,36 +440,82 @@ const PriceSDP = () => {
 
   useEffect(() => { loadSDPForLot() }, [loadSDPForLot])
 
+  // Auto-calculate and update costNetPerUnit when elements change
   useEffect(() => {
-    if (!activeArticle) { setWorkspaceForm(null); return }
+    if (!activeArticle) return
+
     const { posteIndex, articleIndex } = activeArticle
     const art = rows?.[posteIndex]?.articles?.[articleIndex]
-    setWorkspaceForm({
-      numero: art?.numero ?? '',
-      designation: art?.designation ?? art?.description ?? '',
-      quantite: art?.quantite ?? '',
-      unite: art?.unite ?? '',
-      coefficientK: art?.coefficientK ?? art?.coefficient_k ?? '',
-      productionPerDay: art?.productionPerDay ?? art?.production_per_day ?? ''
-    })
-  }, [activeArticle, rows])
+    if (!art) return
 
-  const handleWorkspaceChange = (e) => {
-    const { name, value } = e.target
-    setWorkspaceForm(prev => ({ ...prev, [name]: value }))
-  }
+    const elems = Array.isArray(art.elements) ? art.elements : []
+    if (elems.length === 0) return
 
-  const handleWorkspaceSave = () => {
-    const payload = {
-      numero: form.numero || '',
-      designation: form.designation || '',
-      quantite: form.quantite ? Number(String(form.quantite).replace(/,/g, '.')) : 0,
-      unite: form.unite || '',
-      coefficientK: form.coefficientK ? Number(String(form.coefficientK).replace(/,/g, '.')) : null,
-      productionPerDay: form.productionPerDay ? Number(String(form.productionPerDay).replace(/,/g, '.')) : null
+    // Calculate cost net per unit using the same logic as in the display
+    const isType = (e, key) => (String(e.type || '').toLowerCase()).includes(key)
+    
+    const computeElementTotal = (e) => {
+      const qUnit = Number(e.quantity || 0)
+      const production = Number(art.productionPerDay ?? art.production_per_day ?? 1) || 1
+      const DH = qUnit * production
+      const raw = e.raw || {}
+
+      const puMO = Number(
+        raw.total_h ?? raw.total_hour ?? raw.total ?? raw.th ?? raw.th_mo ?? raw.prix_h ?? raw.prix_horaire ?? raw.tarif_horaire ?? raw.price_unit ?? raw.pu ?? raw.price ?? 0
+      ) || 0
+      const puMTX = Number(
+        raw.total ?? raw.total_m ?? raw.total_unit ?? raw.total_price ?? raw.price_unit ?? raw.pu ?? raw.price ?? 0
+      ) || 0
+
+      const moTotal = isType(e, 'main') ? (DH * puMO) : 0
+      const mtxTotal = isType(e, 'mat') ? (DH * puMTX) : 0
+
+      const amortPerDay = Number(
+        raw.amortissement_jour ?? raw.amortissement_j ?? raw.amortissement_day ?? raw.amortissement ?? raw.amortissement_total ?? raw.amort_j ?? raw.A ?? 0
+      ) || 0
+      const carburantPerDay = Number(
+        raw.carburant_jour ?? raw.carburant_j ?? raw.carburant_day ?? raw.carburant ?? raw.carburant_total ?? raw.cc ?? 0
+      ) || 0
+      const lubrifiantPerDay = Number(
+        raw.lubrifiant_jour ?? raw.lubrifiant_j ?? raw.lubrifiant_day ?? raw.lubrifiant ?? raw.cl ?? raw.CL ?? 0
+      ) || 0
+      const entretienPerDay = Number(
+        raw.cpr ?? raw.entretien_jour ?? raw.entretien_j ?? raw.entretien_day ?? raw.entretien ?? 0
+      ) || 0
+
+      const twm = Number(raw.twm ?? raw.twm_equ ?? raw.TWM ?? raw.taux_mise ?? 1) || 1
+
+      const amortH = twm ? (amortPerDay / twm) : 0
+      const carburantH = twm ? (carburantPerDay / twm) : 0
+      const lubrifiantH = twm ? (lubrifiantPerDay / twm) : 0
+      const sumCarLubH = carburantH + lubrifiantH
+      const entretienH = twm ? (entretienPerDay / twm) : 0
+      const equPerH = amortH + sumCarLubH + entretienH
+      const equTotal = isType(e, 'equip') ? (DH * equPerH) : 0
+
+      return moTotal + mtxTotal + equTotal
     }
-    onSave && onSave(payload)
-  }
+
+    const totalT = elems.reduce((sum, elem) => sum + computeElementTotal(elem), 0)
+    const coefK = Number(art.coefficientK ?? art.coefficient_k ?? 1) || 1
+    const productionForNet = Number(art.productionPerDay ?? art.production_per_day ?? 1) || 1
+    const costNetPerUnit = productionForNet !== 0 ? ((coefK * totalT) / productionForNet) : 0
+
+    // Update the article with the calculated cost net per unit only if it has changed
+    const currentCostNet = art.costNetPerUnit || 0
+    if (Math.abs(costNetPerUnit - currentCostNet) > 0.01 && costNetPerUnit > 0) {
+      setRows(prev => prev.map((p, pi) => {
+        if (pi !== posteIndex) return p
+        const articles = Array.isArray(p.articles) ? [...p.articles] : []
+        const updatedArticle = { ...(articles[articleIndex] || {}), costNetPerUnit: costNetPerUnit }
+        articles[articleIndex] = updatedArticle
+        return { ...p, articles }
+      }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeArticle, JSON.stringify(rows?.[activeArticle?.posteIndex]?.articles?.[activeArticle?.articleIndex]?.elements || [])])
+
+
 
   const handleElementChange = (e) => {
     const { name, value } = e.target
@@ -520,7 +560,6 @@ const PriceSDP = () => {
     if (!elementForm.designation || String(elementForm.designation).trim() === '') errs.designation = 'Désignation requise'
     if (elementForm.quantity === '' || elementForm.quantity === null || isNaN(Number(elementForm.quantity))) errs.quantity = 'Quantité requise'
     if (!elementForm.unit || String(elementForm.unit).trim() === '') errs.unit = 'Unité requise'
-    setElementErrors(errs)
     return Object.keys(errs).length === 0
   }
 
@@ -536,7 +575,7 @@ const PriceSDP = () => {
       const sel = designationOptions.find(o => o.value === elementForm.designation)
       selectedRaw = sel ? sel.raw : null
       selectedLabel = sel ? sel.label : null
-    } catch (err) {
+    } catch {
       selectedRaw = null
       selectedLabel = null
     }
@@ -570,7 +609,6 @@ const PriceSDP = () => {
     setShowAddElementForm(false)
     setEditingElementIndex(null)
     setElementForm({ elementType: "Main d'oeuvre", designation: '', quantity: '', unit: '' })
-    setElementErrors({})
   }
 
   // Edit an element: open modal pre-filled
@@ -762,7 +800,7 @@ const PriceSDP = () => {
             designation: a.designation || a.description || '',
             quantite: a.quantite ?? null,
             prix_unitaire: a.prix_unitaire ?? a.pu ?? null,
-            costNetPerUnit: a.costNetPerUnit ?? a.prix_unitaire ?? a.pu ?? null,
+            costNetPerUnit: a.costNetPerUnit ?? null,
             total: a.total ?? null,
             numero: a.numero ?? null,
             unite: a.unite ?? null,
@@ -817,7 +855,7 @@ const PriceSDP = () => {
               }}>
                 <option value="">Sélectionner un DAO</option>
                 {daos.map((d, i) => {
-                  const display = d.original_name || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`
+                  const display = d.original_name || d.original_filename || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`
                   return (<option key={i} value={d.document_id}>{display}</option>)
                 })}
               </select>
@@ -886,9 +924,6 @@ const PriceSDP = () => {
                             ) : (
                               <ul className="mt-2 space-y-1">
                                 {r.articles.map((a, ai) => {
-                                  const designation = a.designation ?? a.description ?? ''
-                                  const quantite = a.quantite ?? 0
-                                  const unite = a.unite ?? ''
                                   const numero = a.numero ? `N°${a.numero} ` : ''
                                   return (
                                     <li key={ai}>

@@ -56,7 +56,12 @@ def upload_dao(file: UploadFile = File(...), db: Session = Depends(get_db)):
     with open(dest_path, "wb") as out:
         shutil.copyfileobj(file.file, out)
 
-    doc = Document(type="dao", filename=os.path.join("dao", safe_name))
+    doc = Document(
+        type="dao", 
+        filename=os.path.join("dao", safe_name),
+        original_filename=file.filename,  # Stocker le nom original du fichier
+        original_name=file.filename  # Utiliser le nom original comme nom d'affichage par défaut
+    )
     db.add(doc)
     db.commit()
     db.refresh(doc)
@@ -64,6 +69,7 @@ def upload_dao(file: UploadFile = File(...), db: Session = Depends(get_db)):
     return {
         "document_id": doc.id,
         "filename": doc.filename,
+        "original_filename": doc.original_filename,
         "url": f"/uploads/{doc.filename}",
     }
 
@@ -741,6 +747,7 @@ def list_daos(db: Session = Depends(get_db)):
             "document_id": d.document_id,
             "reference": getattr(d, 'reference', None),
             "original_name": getattr(doc, 'original_name', None) if doc is not None else None,
+            "original_filename": getattr(doc, 'original_filename', None) if doc is not None else None,
             "filename": getattr(doc, 'filename', None) if doc is not None else None,
         })
     return out
