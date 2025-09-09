@@ -61,7 +61,7 @@ const Login = () => {
         navigate('/gestion_dao'); // redirection après login
       }, 1000);
 
-    } catch (err) {
+    } catch {
       const errorMessage = 'Impossible de se connecter. Vérifiez votre connexion réseau.';
       setError(errorMessage);
       updateLoading(loadingToast, errorMessage, 'error');
@@ -72,20 +72,20 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex relative overflow-hidden">
+    <div className="h-screen flex relative overflow-hidden">
       <div className="absolute inset-0 z-0">
         <img src={Background} alt="Background" className="w-full h-full object-cover" />
       </div>
 
-      <div className="flex-1 flex items-center justify-end p-6 md:p-60 relative z-10">
-        <div className="w-full max-w-md">
-          <div className="bg-white rounded-3xl shadow-2xl p-8">
-            <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold text-orange-500 mb-2">Welcome</h1>
-              <p className="text-gray-600">Identifiez-vous pour accéder aux données de l'entreprise</p>
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-6 md:p-8 relative z-10">
+        <div className="w-full max-w-sm sm:max-w-md">
+          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
+            <div className="text-center mb-6">
+              <h1 className="text-2xl font-bold text-orange-500 mb-1">Welcome</h1>
+              <p className="text-gray-600 text-sm">Identifiez-vous pour accéder aux données de l'entreprise</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-12">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Person className="h-5 w-5 text-gray-400" />
@@ -96,7 +96,7 @@ const Login = () => {
                   value={formData.username}
                   onChange={handleInputChange}
                   placeholder="Nom d'utilisateur"
-                  className={`block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 focus:bg-white ${error ? 'is-invalid' : ''}`}
+                  className={`block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 focus:bg-white ${error ? 'is-invalid' : ''}`}
                   required
                 />
               </div>
@@ -111,7 +111,7 @@ const Login = () => {
                   value={formData.password}
                   onChange={handleInputChange}
                   placeholder="Mot de passe"
-                  className={`block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl bg-gray-50 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 focus:bg-white ${error ? 'is-invalid' : ''}`}
+                  className={`block w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 focus:bg-white ${error ? 'is-invalid' : ''}`}
                   required
                 />
               </div>
@@ -119,7 +119,7 @@ const Login = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 px-4 rounded-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
@@ -135,7 +135,7 @@ const Login = () => {
               </button>
 
               {error && (
-                <div className="border border-red-600 text-red-600 rounded-xl p-3 mb-3 flex items-center gap-2">
+                <div className="border border-red-600 text-red-600 rounded-lg p-2 flex items-center gap-2 text-sm">
                   <i className="bi bi-exclamation-triangle-fill"></i>
                   <span>{error}</span>
                 </div>
