@@ -4,17 +4,14 @@ import ConfirmModal from '../components/ConfirmModal'
 import DocumentViewer from '../components/DocumentViewer'
 import useNotifications from '../hooks/useNotifications'
 import {
-  CloudDownload,
   Help,
   Add,
   Edit,
   Delete,
   Person,
   Close,
-  ArrowBack,
   AttachFile,
   PhotoCamera,
-  Upload,
   Visibility
 } from "@mui/icons-material";
 
@@ -176,11 +173,9 @@ const Personnels = () => {
     setDiplomeFile(null);
     setContratFile(null);
     setImagePreview(null);
-    // Réinitialiser les documents existants
     setExistingCvFiles([]);
     setExistingDiplomeFiles([]);
     setExistingContratFiles([]);
-    // Réinitialiser les refs
     if (imageInputRef.current) imageInputRef.current.value = '';
     if (cvInputRef.current) cvInputRef.current.value = '';
     if (diplomeInputRef.current) diplomeInputRef.current.value = '';
@@ -223,7 +218,6 @@ const Personnels = () => {
       }
       const documents = await res.json();
 
-      // Les documents sont déjà catégorisés par le backend
       setPersonnelDocuments(documents);
     } catch (error) {
       console.error('Erreur lors du chargement des documents:', error);
@@ -237,7 +231,6 @@ const Personnels = () => {
   const handleOpenDetails = async (personnel) => {
     setSelectedPersonnel(personnel);
     setShowDetails(true);
-    // Charger les documents du personnel
     await loadPersonnelDocuments(personnel.id);
   };
 
@@ -260,7 +253,6 @@ const Personnels = () => {
   };
 
   const handleDeletePersonnel = async (id) => {
-    // const loadingToast = showLoading("Suppression en cours...");
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/personnels/${id}`, {

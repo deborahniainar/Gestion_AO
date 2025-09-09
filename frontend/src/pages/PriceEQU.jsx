@@ -10,7 +10,6 @@ import {
 } from "@mui/icons-material"
 import { useDao } from "../contexts/DaoContext"
 import api from "../services/api"
-import useNotifications from "../hooks/useNotifications"
 
 const INITIAL_EQU_FORM = {
   materielId: '',
@@ -290,6 +289,59 @@ const Modal = ({ open, onClose, onSave, initialData = null, personnels = [] }) =
   )
 }
 
+/* ----------------------------- User Guide Modal ----------------------------- */
+const UserGuideModal = ({ open, onClose }) => {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
+      <div className="bg-white dark:bg-primary w-full max-w-3xl rounded-lg shadow-lg overflow-y-auto max-h-[80vh] p-6">
+        <h2 className="text-xl font-bold mb-4 text-secondary">Guide Utilisateur – Ventilation des prix des équipements</h2>
+
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">1. Présentation générale</h3>
+          <p>Ce module permet de gérer les coûts des équipements pour chaque lot d’un DAO. Vous pouvez ajouter, modifier, supprimer des équipements, visualiser les coûts détaillés et exporter en Excel.</p>
+        </section>
+
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">2. Sélection du DAO et du Lot</h3>
+          <ul className="list-disc list-inside">
+            <li><strong>Sélection du DAO :</strong> Choisissez le document DAO à gérer dans le menu déroulant.</li>
+            <li><strong>Sélection du Lot :</strong> Après le DAO, sélectionnez le lot correspondant. Les lignes d’équipements s’affichent automatiquement.</li>
+            <li>⚠️ Astuce : Les modifications non sauvegardées du lot précédent sont automatiquement enregistrées.</li>
+          </ul>
+        </section>
+
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">3. Ajouter un équipement</h3>
+          <ol className="list-decimal list-inside">
+            <li>Cliquez sur <strong>“Ajouter un équipement”</strong>.</li>
+            <li>Remplissez le formulaire : Equipement, Valeur de Remplacement, Droits & Taxes, Nombre de jours, Carburant, Lubrifiant, Pièces de rechange, % Taxes Lub & PR, Main d’oeuvre (CMO), Temps de travail.</li>
+            <li>Les champs obligatoires sont marqués d’un <span className="text-red-500">*</span>.</li>
+            <li>Cliquez sur <strong>Enregistrer</strong> pour ajouter l’équipement à la table.</li>
+          </ol>
+        </section>
+
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">4. Modifier ou supprimer un équipement</h3>
+          <ul className="list-disc list-inside">
+            <li>Cliquez sur l’icône <strong>Edit</strong> pour modifier une ligne.</li>
+            <li>Cliquez sur l’icône <strong>Delete</strong> pour supprimer une ligne. Une confirmation est demandée.</li>
+          </ul>
+        </section>
+
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">5. Exporter en Excel</h3>
+          <p>Cliquez sur le bouton <strong>Exporter</strong> pour générer un fichier Excel (.xlsx) de la ventilation des coûts du lot sélectionné.</p>
+        </section>
+
+        <div className="flex justify-end mt-5">
+          <button onClick={onClose} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Fermer</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // format numbers with thousand separators (French locale)
 const formatNumber = (value, decimals = 2) => {
   if (value === null || value === undefined || value === '') return '-'
@@ -374,9 +426,7 @@ const PriceEQU = () => {
   const [daos, setDaos] = useState([])
   const { savedLots, daoDocId, setSavedLots, setDaoId, setDaoDocId } = useDao()
   const [lot, setLot] = useState("")
-  const {
-    showInfo,
-  } = useNotifications();
+  const [guideOpen, setGuideOpen] = useState(false);
   // personnels used for the Modal CMO select. defaultPersonnels is the API fallback.
   const [personnels, setPersonnels] = useState([])
   const [defaultPersonnels, setDefaultPersonnels] = useState([])
@@ -817,14 +867,16 @@ const PriceEQU = () => {
             <ConfirmModal open={confirmOpen} message={"Supprimer cette ligne ?"} onConfirm={confirmDelete} onCancel={cancelDelete} />
           </>
         )}
+
+        {/* Boutton d'aide flottant */}
         <button
           className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
-          onClick={() => {
-            showInfo('Aide / Guide utilisateur en cours de développement !')
-          }}
+          onClick={() => setGuideOpen(true)}
         >
           <Help style={{ fontSize: '3rem' }} />
         </button>
+
+        <UserGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
       </main>
     </div>
   )

@@ -32,9 +32,9 @@ export default function GestionDAO() {
     editingSummary, setEditingSummary,
     requiredDocs, setRequiredDocs,
   } = useDao();
-const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess, showLoading, updateLoading } = useNotifications();
+  const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess, showLoading, updateLoading } = useNotifications();
   const { setDaoId, setSavedLots } = useDao();
-
+  const [showGuide, setShowGuide] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [extractionMode, setExtractionMode] = useState("smart");
   const [isExtracting, setIsExtracting] = useState(false);
@@ -664,12 +664,53 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
         {/* Bouton Aide flottant */}
         <button
           className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
-          onClick={() => {
-            showInfo('Aide / Guide utilisateur en cours de développement !')
-          }}
+          onClick={() => setShowGuide(true)}
         >
           <Help style={{ fontSize: '3rem' }} />
         </button>
+
+        {showGuide && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white dark:bg-primary rounded-lg p-6 w-full max-w-2xl overflow-y-auto max-h-[80vh]">
+              <h4 className="font-bold text-xl mb-4">Guide Utilisateur - Gestion DAO</h4>
+              <ol className="list-decimal list-inside space-y-3 text-gray-700 dark:text-gray-200">
+                <li>
+                  <strong>Upload du DAO :</strong> Sélectionnez un fichier PDF ou Word via le champ “Glissez/déposez” ou le bouton “Téléverser”.
+                </li>
+                <li>
+                  <strong>Confirmation du téléversement :</strong> Cliquez sur <span className="font-semibold">Téléverser</span> pour valider le fichier. Le bouton devient actif uniquement si le fichier est valide.
+                </li>
+                <li>
+                  <strong>Extraction du résumé :</strong> Saisissez les mots-clés si nécessaire, puis cliquez sur <span className="font-semibold">Extraire le résumé</span>. Une barre de progression indique l’état du traitement.
+                </li>
+                <li>
+                  <strong>Édition du résumé :</strong> Vous pouvez éditer le résumé directement dans l’éditeur TinyMCE. Cliquez sur l’icône <Edit /> pour activer l’édition, puis <Check /> pour valider les modifications.
+                </li>
+                <li>
+                  <strong>Téléchargement PDF :</strong> Cliquez sur l’icône <Download /> pour générer un PDF du résumé.
+                </li>
+                <li>
+                  <strong>Création des lots :</strong> Ajoutez des lots via le bouton “Ajouter un lot”. Vous pouvez renommer ou supprimer un lot directement dans la liste.
+                </li>
+                <li>
+                  <strong>Enregistrement du DAO :</strong> Cliquez sur <span className="font-semibold">Enregistrer le DAO</span>. Si un DAO existe déjà pour ce fichier, un modal vous proposera de l’écraser.
+                </li>
+                <li>
+                  <strong>Nettoyage :</strong> Utilisez le bouton <Settings /> en haut à droite pour supprimer les DAOs orphelins sans document associé.
+                </li>
+              </ol>
+              <div className="flex justify-end mt-6">
+                <button
+                  className="px-4 py-2 bg-primary text-white rounded hover:bg-secondary"
+                  onClick={() => setShowGuide(false)}
+                >
+                  Fermer
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   )

@@ -10,7 +10,6 @@ import {
 } from "@mui/icons-material"
 import { useDao } from "../contexts/DaoContext"
 import api from "../services/api"
-import useNotifications from "../hooks/useNotifications"
 
 // Initial form template
 const INITIAL_FORM = {
@@ -192,6 +191,101 @@ const Modal = ({ open, onClose, onSave, personnels = [], initialData = null }) =
   )
 }
 
+/* ----------------------------- Help Guide Modal ----------------------------- */
+const HelpGuideModal = ({ open, onClose }) => {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
+      <div className="bg-white dark:bg-primary p-6 rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <h2 className="text-2xl font-bold mb-4">Guide Utilisateur – Gestion de la Main d'Œuvre</h2>
+
+        <div className="space-y-4 text-sm text-gray-800 dark:text-gray-200">
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">1. Introduction</h3>
+            <p>
+              Cette page permet de gérer la main d’œuvre pour chaque DAO et Lot, en calculant automatiquement le salaire horaire, les heures supplémentaires, les charges sociales et le temps de déplacement.
+            </p>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">2. Sélection du DAO et du Lot</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Sélectionnez un DAO dans le menu déroulant.</li>
+              <li>Ensuite, choisissez un Lot correspondant au DAO sélectionné.</li>
+              <li>Les lignes existantes pour le lot sélectionné s’affichent dans le tableau.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">3. Ajouter une main d’œuvre</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Cliquez sur <strong>Ajouter une main d’œuvre</strong>.</li>
+              <li>Remplissez le formulaire :</li>
+              <ul className="list-circle pl-5 space-y-1">
+                <li><strong>Poste :</strong> Sélectionnez le personnel ou entrez manuellement.</li>
+                <li><strong>Horaire Mensuel :</strong> Valeur obligatoire pour calcul du salaire horaire.</li>
+                <li><strong>Heures Supplémentaires :</strong> Optionnel.</li>
+                <li><strong>Charges Sociales :</strong> Optionnel.</li>
+                <li><strong>Temps de Déplacement :</strong> Optionnel.</li>
+              </ul>
+              <li>Cliquez sur <strong>Enregistrer</strong> pour ajouter la ligne au tableau.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">4. Modifier une ligne</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Cliquez sur l’icône <strong>Modifier</strong> dans la colonne Action.</li>
+              <li>Modifiez les valeurs dans le formulaire.</li>
+              <li>Cliquez sur <strong>Enregistrer</strong> pour appliquer les modifications.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">5. Supprimer une ligne</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Cliquez sur l’icône <strong>Supprimer</strong>.</li>
+              <li>Confirmez la suppression dans la fenêtre de confirmation.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">6. Calculs automatiques</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>Salaire Horaire :</strong> calculé automatiquement : Salaire Mensuel ÷ Horaire Mensuel.</li>
+              <li><strong>Total Horaire :</strong> somme du salaire horaire + heures sup + charges + temps de déplacement.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">7. Export Excel</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Sélectionnez un Lot.</li>
+              <li>Cliquez sur <strong>Exporter</strong> pour générer un fichier Excel (.xlsx) contenant toutes les lignes du lot.</li>
+              <li>Le fichier inclut : Poste, Salaire Mensuel, Salaire Horaire, Heures Supplémentaires, Charges Sociales, Temps de Déplacement, Total Horaire.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">8. Bonnes pratiques</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Sélectionnez toujours le DAO et le Lot avant d’ajouter ou modifier des lignes.</li>
+              <li>Vérifiez les champs numériques avant d’enregistrer.</li>
+              <li>Les modifications sont automatiquement enregistrées pour le lot sélectionné.</li>
+            </ul>
+          </section>
+
+        </div>
+
+        <div className="flex justify-end mt-4">
+          <button onClick={onClose} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Fermer</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ----------------------------- Table Component ----------------------------- */
 const WorkforceTable = ({ rows, onEdit, onDelete }) => {
   const columns = [
@@ -276,9 +370,7 @@ const PriceMO = () => {
   const [personnels, setPersonnels] = useState([])
   const { savedLots, daoDocId, setSavedLots, setDaoId, setDaoDocId } = useDao()
   const [lot, setLot] = useState("")
-  const {
-    showInfo,
-  } = useNotifications();
+  const [helpOpen, setHelpOpen] = useState(false)
 
   /* ---------- API Calls ---------- */
   const fetchDaos = useCallback(async () => {
@@ -679,14 +771,14 @@ const PriceMO = () => {
             <ConfirmModal open={confirmOpen} message={"Supprimer cette ligne ?"} onConfirm={confirmDelete} onCancel={cancelDelete} />
           </>
         )}
+
         <button
           className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
-          onClick={() => {
-            showInfo('Aide / Guide utilisateur en cours de développement !')
-          }}
+          onClick={() => setHelpOpen(true)}
         >
           <Help style={{ fontSize: '3rem' }} />
         </button>
+        <HelpGuideModal open={helpOpen} onClose={() => setHelpOpen(false)} />
       </main>
     </div>
   )

@@ -16,6 +16,7 @@ import {
 } from "@mui/icons-material";
 
 const Materiel = () => {
+  const [guideOpen, setGuideOpen] = useState(false);
   const [Materiel, setMateriel] = useState([]);
 
   const [showForm, setShowForm] = useState(false);
@@ -542,6 +543,57 @@ const Materiel = () => {
     }
   };
 
+  const UserGuideModal = ({ open, onClose }) => {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
+      <div className="bg-white dark:bg-primary w-full max-w-3xl rounded-lg shadow-lg overflow-y-auto max-h-[80vh] p-6">
+        <h2 className="text-xl font-bold mb-4 text-secondary">Guide Utilisateur – Gestion des Matériels</h2>
+
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">1. Vue d'ensemble</h3>
+          <p>Ce module permet d’ajouter, modifier, supprimer et consulter les matériels. Vous pouvez également gérer les pièces jointes et visualiser ou télécharger les documents liés à chaque matériel.</p>
+        </section>
+
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">2. Ajouter un matériel</h3>
+          <ol className="list-decimal list-inside">
+            <li>Cliquez sur le bouton <strong>Ajouter un matériel</strong>.</li>
+            <li>Remplissez les champs obligatoires : Désignation, Marque, Modèle, Année, Nombre.</li>
+            <li>Les champs facultatifs : Qualité, fichiers joints.</li>
+            <li>Cliquez sur <strong>Ajouter</strong> pour enregistrer.</li>
+          </ol>
+        </section>
+
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">3. Modifier un matériel</h3>
+          <p>Cliquez sur l’icône <strong>Edit</strong> dans la ligne correspondante. Modifiez les champs puis cliquez sur <strong>Modifier</strong>.</p>
+        </section>
+
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">4. Supprimer un matériel</h3>
+          <p>Cliquez sur l’icône <strong>Delete</strong> et confirmez la suppression dans la modal de confirmation.</p>
+        </section>
+
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">5. Pièces jointes</h3>
+          <p>Pour chaque matériel, cliquez sur l’icône <AttachFile className="inline-block h-4 w-4"/> pour voir les fichiers attachés. Vous pouvez visualiser, télécharger ou supprimer chaque fichier.</p>
+        </section>
+
+        <div className="flex justify-end mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
       <Sidebar />
@@ -969,14 +1021,16 @@ const Materiel = () => {
           onConfirm={handleConfirmDeletePiece}
           onCancel={() => { setConfirmDeletePieceOpen(false); setPendingDeletePiece(null); }}
         />
+
+        {/* Boutton d'aide Flottant */}
         <button
           className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
-          onClick={() => {
-            showInfo('Aide / Guide utilisateur en cours de développement !')
-          }}
+          onClick={() => setGuideOpen(true)}
         >
           <Help style={{ fontSize: '3rem' }} />
         </button>
+
+        <UserGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
       </main>
     </div>
   )
