@@ -12,7 +12,6 @@ dist
 dist-ssr
 dist-electron
 electron-build
-electron
 *.local
 
 # Editor directories and files
