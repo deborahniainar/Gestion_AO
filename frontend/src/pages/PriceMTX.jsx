@@ -10,7 +10,6 @@ import {
 } from "@mui/icons-material"
 import { useDao } from '../contexts/DaoContext'
 import api from '../services/api'
-import useNotifications from '../hooks/useNotifications'
 
 /* ----------------------------- Modal Component ----------------------------- */
 const Modal = ({ open, onClose, onSave, initialData = null }) => {
@@ -148,6 +147,84 @@ const Modal = ({ open, onClose, onSave, initialData = null }) => {
   )
 }
 
+/* ----------------------------- Help Guide Modal ----------------------------- */
+const HelpGuideModal = ({ open, onClose }) => {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
+      <div className="bg-white dark:bg-primary p-6 rounded-lg shadow-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <h2 className="text-2xl font-bold mb-4">Guide Utilisateur – Matériaux et Consommables</h2>
+
+        <div className="space-y-4 text-sm text-gray-800 dark:text-gray-200">
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">1. Introduction</h3>
+            <p>Cette page permet de gérer les matériaux et consommables par DAO et Lot, de calculer automatiquement la perte et le total, et d’exporter les données en Excel.</p>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">2. Sélection du DAO et du Lot</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Sélectionnez un DAO dans la liste déroulante.</li>
+              <li>Sélectionnez ensuite le Lot correspondant.</li>
+              <li>Les matériaux existants pour le lot sélectionné s’affichent automatiquement.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">3. Ajouter un matériel</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Cliquez sur <strong>Ajouter un matériel</strong>.</li>
+              <li>Remplissez le formulaire avec : description, unité, origine, PU, transport, taxes, perte (%)</li>
+              <li>La <strong>Valeur Perte</strong> et le <strong>Total</strong> sont calculés automatiquement.</li>
+              <li>Cliquez sur <strong>Enregistrer</strong> pour ajouter le matériel au tableau.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">4. Modifier un matériel</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Cliquez sur l’icône <Edit fontSize="small" /> dans la colonne Action.</li>
+              <li>Modifiez les valeurs et cliquez sur <strong>Enregistrer</strong>.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">5. Supprimer un matériel</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Cliquez sur l’icône <Delete fontSize="small" /> dans la colonne Action.</li>
+              <li>Confirmez la suppression dans la fenêtre modale.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">6. Export Excel</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Sélectionnez le Lot souhaité.</li>
+              <li>Cliquez sur <CloudDownload fontSize="small" /> pour exporter les matériaux en fichier Excel.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-semibold mb-2">7. Bonnes pratiques</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Assurez-vous de toujours sélectionner DAO et Lot avant de modifier ou ajouter des lignes.</li>
+              <li>Vérifiez les valeurs numériques avant d’enregistrer.</li>
+              <li>Les modifications sont automatiquement sauvegardées par lot.</li>
+            </ul>
+          </section>
+
+        </div>
+
+        <div className="flex justify-end mt-4">
+          <button onClick={onClose} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Fermer</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
 // format numbers with thousand separators (French locale)
 const formatNumber = (value, decimals = 2) => {
   if (value === null || value === undefined || value === '') return '-'
@@ -227,9 +304,7 @@ const PriceMTX = () => {
   const [rows, setRows] = useState([])
   const [editingIndex, setEditingIndex] = useState(null)
   const [editingInitial, setEditingInitial] = useState(null)
-  const {
-    showInfo,
-  } = useNotifications();
+  const [helpOpen, setHelpOpen] = useState(false)
 
   // DAO / Lot state (mirror PriceMO)
   const [daos, setDaos] = useState([])
@@ -540,12 +615,12 @@ const PriceMTX = () => {
         )}
         <button
           className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
-          onClick={() => {
-            showInfo('Aide / Guide utilisateur en cours de développement !')
-          }}
+          onClick={() => setHelpOpen(true)}
         >
           <Help style={{ fontSize: '3rem' }} />
         </button>
+
+        <HelpGuideModal open={helpOpen} onClose={() => setHelpOpen(false)} />
       </main>
     </div>
   )
