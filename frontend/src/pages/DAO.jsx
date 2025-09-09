@@ -36,7 +36,7 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
   const { setDaoId, setSavedLots } = useDao();
 
   const [uploadError, setUploadError] = useState("");
-  const [extractionMode, setExtractionMode] = useState("smart");
+  const [extractionMode] = useState("smart");
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionProgress, setExtractionProgress] = useState(0);
 
@@ -70,7 +70,9 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
       if (!daoDocId) { setSavedBadge(null); return; }
       const val = localStorage.getItem(`daoSaved:${daoDocId}`);
       setSavedBadge(val);
-    } catch {}
+    } catch {
+      //
+    }
   }, [daoDocId]);
 
   const handleUpload = (e) => {
@@ -114,7 +116,9 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
       setDaoDocId(data.document_id);
       setUploadConfirmed(true);
       showUploadSuccess();
-    } catch {}
+    } catch {
+      //
+    }
   };
 
   const getCurrentStep = () => {
@@ -172,7 +176,7 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
       if (data.text_length) {
         showInfo(`Document traité : ${data.text_length} caractères extraits`);
       }
-    } catch (error) {
+    } catch {
       clearInterval(progressInterval);
       setExtractionProgress(0);
       setKeywordsSubmitted(false);
@@ -193,7 +197,9 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
       setRequiredDocs(data || []);
       setShowList(true);
       showInfo("Liste des documents générée");
-    } catch {}
+    } catch {
+      //
+    }
   };
 
   const handleDownloadPDF = () => {
@@ -214,21 +220,11 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
       doc.save("resume_dao.pdf");
       updateLoading(loadingToast, "PDF généré avec succès", "success");
       showDownloadSuccess();
-    } catch (error) {
+    } catch {
       updateLoading(loadingToast, "Erreur lors de la génération du PDF", "error");
       showError("Erreur lors de la génération du PDF");
     }
   };
-
-  const getExtractionModeDescription = (mode) => {
-    const descriptions = {
-      smart: "Résumé intelligent",
-      structured: "Extraction structurée (mots-clés requis)",
-      keywords: "Extraction ciblée (mots-clés requis)",
-    };
-    return descriptions[mode] || "";
-  };
-
   const currentStep = getCurrentStep();
 
     // Gestion des lots
@@ -326,7 +322,9 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
     try {
       const res = await apiWithNotifications.post(`/dao/save${opts.force ? '?force=true' : ''}`, payload);
       const ts = new Date().toISOString();
-      try { localStorage.setItem(`daoSaved:${daoDocId}`, ts); } catch {}
+      try { localStorage.setItem(`daoSaved:${daoDocId}`, ts); } catch {
+        //
+      }
       setSavedBadge(ts);
       // store returned dao_id and optionally lots
       const daoIdReturned = res?.data?.dao_id;
@@ -357,7 +355,9 @@ const { showSuccess, showError, showInfo, showUploadSuccess, showDownloadSuccess
     try {
       await apiWithNotifications.post('/dao/save?force=true', payload);
       const ts = new Date().toISOString();
-      try { localStorage.setItem(`daoSaved:${daoDocId}`, ts); } catch {}
+      try { localStorage.setItem(`daoSaved:${daoDocId}`, ts); } catch {
+        //
+      }
       setSavedBadge(ts);
       // update DaoContext with dao id
       const res = await apiWithNotifications.get(`/dao/${daoDocId}`); // fetch persisted dao to get ids
