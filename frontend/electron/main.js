@@ -30,7 +30,7 @@ class AppManager {
             // 🔹 Windows → utiliser l'exe packagé
             backendPath = path.join(__dirname, "../../backend/dist/run_backend.exe");
             console.log("Démarrage du backend (Windows exe):", backendPath);
-            options.shell = true; // important si le chemin contient des espaces
+            options.shell = true;
             this.backendProcess = spawn(backendPath, [], options);
         } else {
             // Sur Linux/Mac → utiliser Python
