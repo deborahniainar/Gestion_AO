@@ -16,37 +16,38 @@ class AppManager {
     }
 
     startBackend() {
-        // 🔹 Nettoyer les variables vite_* pour que le backend Pydantic ne plante pas
+        // Nettoyer les variables vite_* pour que le backend Pydantic ne plante pas
         const env = { ...process.env };
         Object.keys(env).forEach(k => {
             if (k.startsWith('VITE_')) delete env[k];
         });
 
-        // Démarrage du backend
-        const backendPath = path.join(__dirname, '../../backend/run_backend.py');
-        this.backendProcess = spawn('python3', [backendPath], { env });
+        let backendPath;
+        let options = { env };
 
-        console.log('Démarrage du backend :', backendPath);
+        if (process.platform === "win32") {
+            // Sur Windows → utiliser l'exe packagé
+            backendPath = path.join(__dirname, "../../backend/dist/run_backend.exe");
+            console.log("Démarrage du backend (Windows exe):", backendPath);
+            this.backendProcess = spawn(backendPath, [], options);
+        } else {
+            // Sur Linux/Mac → utiliser Python
+            backendPath = path.join(__dirname, "../../backend/run_backend.py");
+            console.log("Démarrage du backend (Python script):", backendPath);
+            this.backendProcess = spawn("python3", [backendPath], options);
+        }
 
-        this.backendProcess = spawn('python3', [backendPath], { env });
-
-        this.backendProcess.stdout.on('data', (data) => {
+        this.backendProcess.stdout.on("data", (data) => {
             console.log(`[BACKEND]: ${data}`);
         });
 
-        this.backendProcess.stderr.on('data', (data) => {
+        this.backendProcess.stderr.on("data", (data) => {
             console.error(`[BACKEND ERROR]: ${data}`);
         });
 
-        this.backendProcess.on('close', (code) => {
+        this.backendProcess.on("close", (code) => {
             console.log(`Backend exited with code ${code}`);
         });
-    }
-    stopBackend() {
-        if (this.backendProcess) {
-            this.backendProcess.kill();
-            this.backendProcess = null;
-        }
     }
 
     waitForBackend(url = 'http://127.0.0.1:8000', interval = 1000, timeout = 20000) {
