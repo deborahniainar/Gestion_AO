@@ -25,13 +25,11 @@ class AppManager {
         let backendPath;
         let options = { env };
 
-
         if (process.platform === "win32") {
-            // 🔹 Windows → utiliser l'exe packagé
-            backendPath = path.join(__dirname, "../../backend/dist/run_backend.exe");
-            console.log("Démarrage du backend (Windows exe):", backendPath);
-            options.shell = true;
-            this.backendProcess = spawn(backendPath, [], options);
+            const pythonPath = path.join(__dirname, "../../backend/venv_build/Scripts/python.exe");
+            backendPath = path.join(__dirname, "../../backend/run_backend.py");
+            console.log("Démarrage du backend (venv Python):", pythonPath, backendPath);
+            this.backendProcess = spawn(pythonPath, [backendPath], options);
         } else {
             // Sur Linux/Mac → utiliser Python
             backendPath = path.join(__dirname, "../../backend/run_backend.py");
@@ -52,7 +50,7 @@ class AppManager {
         });
     }
 
-    waitForBackend(url = 'http://127.0.0.1:8000', interval = 1000, timeout = 20000) {
+    waitForBackend(url = 'http://127.0.0.1:8000', interval = 1000, timeout = 60000) {
         return new Promise((resolve, reject) => {
             const start = Date.now();
             const check = () => {
