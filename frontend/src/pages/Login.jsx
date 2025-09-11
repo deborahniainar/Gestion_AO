@@ -10,7 +10,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
-  
+
   const { showLoginSuccess, showLoginError, showLoading, updateLoading } = useNotifications();
   const { login } = useAuth(); // hook auth
 
@@ -27,7 +27,9 @@ const Login = () => {
     const loadingToast = showLoading('Connexion en cours...');
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const API_BASE_URL = 'http://127.0.0.1:8000'; // ton backend Python
+
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams(formData)

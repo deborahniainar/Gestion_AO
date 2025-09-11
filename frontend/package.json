@@ -72,6 +72,14 @@
     ],
     "extraResources": [
       {
+        "from": "../backend/dist/run_backend",
+        "to": "backend/run_backend"
+      },
+      {
+        "from": "dev.db",
+        "to": "backend/dev.db"
+      },
+      {
         "from": "public",
         "to": "public",
         "filter": [
@@ -81,11 +89,11 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/Logo-STC.png"
+      "icon": "public/Logo.ico"
     },
     "mac": {
       "target": "dmg",
-      "icon": "public/Logo-STC.png"
+      "icon": "public/Logo.ico"
     },
     "linux": {
       "target": "AppImage",

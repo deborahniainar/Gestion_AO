@@ -100,6 +100,9 @@ Gestion_AO/
 │   └── requirements.txt
 │
 ├── frontend/                      # Frontend React + Vite (JavaScript)
+│   ├── electron/
+│   │   │   ├── main.js
+│   │   │   ├── preload.js
 │   ├── public/
 │   ├── src/
 │   │   ├── components/            # Sidebar.jsx, DocumentViewer.jsx         
