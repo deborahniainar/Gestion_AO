@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Sidebar from '../components/Sidebar'
 import ConfirmModal from '../components/ConfirmModal'
 import DocumentViewer from '../components/DocumentViewer'
@@ -14,6 +14,7 @@ import {
   PhotoCamera,
   Visibility
 } from "@mui/icons-material";
+import api from '../services/api'
 
 const Personnels = () => {
   const [personnels, setPersonnels] = useState([]);
@@ -75,15 +76,8 @@ const Personnels = () => {
   useEffect(() => {
     const loadPersonnels = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('/api/personnels/', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || 'Erreur lors du chargement des personnels');
-        }
-        const items = await res.json();
+        const res = await api.get('/api/personnels/');
+        const items = res.data;
         const mapped = items.map(p => ({
           id: p.id,
           nom: p.nom,
@@ -97,7 +91,7 @@ const Personnels = () => {
           contact: p.contact ?? '',
           genre: p.genre ?? '',
           status: p.status ?? '',
-          profileImage: p.profile_image ? `/api/uploads/personnels/${p.profile_image}` : null
+          profileImage: p.profile_image ? `${api.defaults.baseURL}/uploads/personnels/${p.profile_image}` : null
         }));
         setPersonnels(mapped);
         showFetchSuccess();
@@ -209,14 +203,8 @@ const Personnels = () => {
   // Fonction pour charger les documents d'un personnel
   const loadPersonnelDocuments = async (personnelId) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${personnelId}/documents`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (!res.ok) {
-        throw new Error('Erreur lors du chargement des documents');
-      }
-      const documents = await res.json();
+      const res = await api.get(`/api/personnels/${personnelId}/documents`);
+      const documents = res.data;
 
       setPersonnelDocuments(documents);
     } catch (error) {
@@ -224,8 +212,6 @@ const Personnels = () => {
       setPersonnelDocuments({ cv: [], diplome: [], contrat: [] });
     }
   };
-
-
 
   // Fonction pour ouvrir le modal de détails
   const handleOpenDetails = async (personnel) => {
@@ -254,15 +240,7 @@ const Personnels = () => {
 
   const handleDeletePersonnel = async (id) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${id}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Erreur lors de la suppression');
-      }
+      await api.delete(`/api/personnels/${id}`);
       setPersonnels(prev => prev.filter(p => p.id !== id));
       if (selectedPersonnel?.id === id) {
         setShowDetails(false);
@@ -384,18 +362,10 @@ const Personnels = () => {
     }
   };
 
-  // Fonctions pour supprimer les documents existants
+  // Fonction pour supprimer un CV existant
   const removeExistingCvFile = async (docId) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${editingPersonnel.id}/documents/${docId}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-
-      if (!res.ok) {
-        throw new Error('Erreur lors de la suppression du document');
-      }
+      await api.delete(`/api/personnels/${editingPersonnel.id}/documents/${docId}`);
 
       // Retirer de la liste locale si la suppression a réussi
       setExistingCvFiles(prev => prev.filter(doc => doc.id !== docId));
@@ -406,17 +376,10 @@ const Personnels = () => {
     }
   };
 
+  // Fonction pour supprimer un diplôme existant
   const removeExistingDiplomeFile = async (docId) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${editingPersonnel.id}/documents/${docId}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-
-      if (!res.ok) {
-        throw new Error('Erreur lors de la suppression du document');
-      }
+      await api.delete(`/api/personnels/${editingPersonnel.id}/documents/${docId}`);
 
       // Retirer de la liste locale si la suppression a réussi
       setExistingDiplomeFiles(prev => prev.filter(doc => doc.id !== docId));
@@ -427,17 +390,10 @@ const Personnels = () => {
     }
   };
 
+  // Fonction pour supprimer un contrat existant
   const removeExistingContratFile = async (docId) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${editingPersonnel.id}/documents/${docId}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-
-      if (!res.ok) {
-        throw new Error('Erreur lors de la suppression du document');
-      }
+      await api.delete(`/api/personnels/${editingPersonnel.id}/documents/${docId}`);
 
       // Retirer de la liste locale si la suppression a réussi
       setExistingContratFiles(prev => prev.filter(doc => doc.id !== docId));
@@ -466,7 +422,6 @@ const Personnels = () => {
         alert('Le nom est requis');
         return;
       }
-      const token = localStorage.getItem('token');
 
       // Mode édition: utiliser FormData pour gérer les fichiers
       if (editingPersonnel) {
@@ -499,43 +454,46 @@ const Personnels = () => {
           fd.append('contrat_file', contratFile);
         }
 
-        const res = await fetch(`/api/personnels/${editingPersonnel.id}/with-files`, {
-          method: 'PUT',
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: fd,
-        });
+        try {
+          const res = await api.put(
+            `/api/personnels/${editingPersonnel.id}/with-files`,
+            fd,
+            {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            }
+          );
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          const detail = err?.detail;
-          const message = Array.isArray(detail)
-            ? detail.map(d => d?.msg || JSON.stringify(d)).join(' | ')
-            : (detail || 'Erreur lors de la mise à jour du personnel');
-          throw new Error(message);
+          const updated = res.data;
+          const mapped = {
+            id: updated.id,
+            nom: updated.nom,
+            prenom: updated.prenom ?? '',
+            fonction: updated.fonction ?? '',
+            formation: updated.formation ?? '',
+            dateNaissance: updated.date_naissance ?? '',
+            salaire: updated.salaire_mensuel ?? '',
+            nationalite: updated.nationalite ?? '',
+            experience: updated.experience_annees ?? '',
+            contact: updated.contact ?? '',
+            genre: updated.genre ?? '',
+            status: updated.status ?? '',
+            profileImage: updated.profile_image
+              ? `/api/uploads/personnels/${updated.profile_image}`
+              : null,
+          };
+
+          setPersonnels(prev => prev.map(p => p.id === mapped.id ? mapped : p));
+          handleCloseForm();
+          showUpdateSuccess();
+          return;
+        } catch (error) {
+          console.error('Erreur lors de la mise à jour du personnel:', error);
+          showError(
+            error.response?.data?.detail ||
+              'Erreur lors de la mise à jour du personnel'
+          );
+          return;
         }
-
-        const updated = await res.json();
-        const mapped = {
-          id: updated.id,
-          nom: updated.nom,
-          prenom: updated.prenom ?? '',
-          fonction: updated.fonction ?? '',
-          formation: updated.formation ?? '',
-          dateNaissance: updated.date_naissance ?? '',
-          salaire: updated.salaire_mensuel ?? '',
-          nationalite: updated.nationalite ?? '',
-          experience: updated.experience_annees ?? '',
-          contact: updated.contact ?? '',
-          genre: updated.genre ?? '',
-          status: updated.status ?? '',
-          profileImage: updated.profile_image ? `/api/uploads/personnels/${updated.profile_image}` : null,
-        };
-        setPersonnels(prev => prev.map(p => p.id === mapped.id ? mapped : p));
-        handleCloseForm();
-        showUpdateSuccess();
-        return;
       }
 
       const fd = new FormData();
@@ -557,22 +515,11 @@ const Personnels = () => {
       if (diplomeFile) fd.append('diplome_file', diplomeFile);
       if (contratFile) fd.append('contrat_file', contratFile);
 
-      const res = await fetch('/api/personnels/with-files', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
+      const res = await api.post('/api/personnels/with-files', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
+      const created = res.data;
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const detail = err?.detail;
-        const message = Array.isArray(detail)
-          ? detail.map(d => d?.msg || JSON.stringify(d)).join(' | ')
-          : (detail || 'Erreur lors de la création du personnel');
-        throw new Error(message);
-      }
-
-      const created = await res.json();
       const mapped = {
         id: created.id,
         nom: created.nom,

@@ -15,21 +15,30 @@ class AppManager {
     }
 
     startBackend() {
-        // Supprimer toutes les variables VITE si elles existent
         const env = { ...process.env };
         Object.keys(env).forEach(k => { if (k.startsWith('VITE_')) delete env[k]; });
-        const options = { env };
 
         let backendPath;
+
         if (isDev) {
+            // Dev : script Python
             backendPath = path.join(__dirname, "../../backend/run_backend.py");
-            console.log("Démarrage du backend (dev) :", backendPath);
-            this.backendProcess = spawn("python3", [backendPath], options);
+            this.backendProcess = spawn(
+                process.platform === "win32" ? "python" : "python3",
+                [backendPath],
+                { env, stdio: 'pipe' }
+            );
         } else {
-            // binaire packagé
-            backendPath = path.join(process.resourcesPath, "backend", process.platform === "win32" ? "run_backend.exe" : "run_backend");
-            console.log("Démarrage du backend (prod) :", backendPath);
-            this.backendProcess = spawn(backendPath, [], options);
+            // Prod : uniquement l'exe
+            backendPath = path.join(process.resourcesPath, "backend", "run_backend.exe");
+            const fs = require('fs');
+            console.log("Spawning backend exe:", backendPath, "Exists?", fs.existsSync(backendPath));
+
+            this.backendProcess = spawn(
+                backendPath,
+                [],
+                { env, stdio: 'pipe', shell: true } // shell: true pour Windows
+            );
         }
 
         this.backendProcess.stdout.on("data", data => console.log(`[BACKEND]: ${data}`));
