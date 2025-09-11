@@ -7,7 +7,7 @@ export default defineConfig({
   css: {
     postcss: './postcss.config.js'
   },
-  base: './',
+  base: './', // nécessaire pour AppImage
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
@@ -20,13 +20,14 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      // Proxy uniquement pour le développement
       '/api': {
-        target: process.env.VITE_API_BASE_URL || 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000', // backend Python
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       },
       '/uploads': {
-        target: 'http://localhost:8000',
+        target: 'http://127.0.0.1:8000',
         changeOrigin: true
       }
     }

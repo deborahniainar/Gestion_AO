@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "change-me"
 
     # OpenAI / LLM
-    OPENAI_API_KEY: str
+    OPENAI_API_KEY: str = "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"
     OPENAI_MODEL: str = "gpt-4o-mini"
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
 
@@ -22,14 +22,13 @@ class Settings(BaseSettings):
 
     # OnlyOffice
     ONLYOFFICE_DS_URL: str = "http://localhost:8080"
-    BACKEND_PUBLIC_URL: str = "http://host.docker.internal:8000"
+    BACKEND_PUBLIC_URL: str = "http://172.17.0.1:8000"
     ONLYOFFICE_JWT_ENABLED: bool = True
-    ONLYOFFICE_JWT_SECRET: str = os.environ.get("ONLYOFFICE_JWT_SECRET", "change-me-onlyoffice")
+    ONLYOFFICE_JWT_SECRET: str = "supersecretkey123456"
 
     class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"  # 🔑 ignore toutes les variables inconnues
+        env_file = None  # 🔹 Plus besoin de .env
+        extra = "ignore"  # ignore toutes les variables inconnues
 
 # Instanciation sécurisée
 try:
