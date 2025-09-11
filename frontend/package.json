@@ -6,8 +6,8 @@
   "main": "electron/main.js",
   "homepage": "./",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "node init && vite",
+    "build": "node init && vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "electron": "electron electron/main.js",
