@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar'
 import ConfirmModal from '../components/ConfirmModal'
 import DocumentViewer from '../components/DocumentViewer'
 import useNotifications from '../hooks/useNotifications'
+import { materielsAPI, buildUploadUrl } from '../services/api'
 import {
   CloudDownload,
   Help,
@@ -66,32 +67,22 @@ const Materiel = () => {
 
   const loadMateriels = useCallback(async (showToast = true) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/materiels/', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Erreur lors du chargement des matériels');
-      }
-      const items = await res.json();
+      const response = await materielsAPI.getAll();
+      const items = response.data;
       const mapped = await Promise.all(items.map(async (m) => {
         let piecesJointes = [];
         try {
-          const docsRes = await fetch(`/api/materiels/${m.id}/documents`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          });
-          if (docsRes.ok) {
-            const documents = await docsRes.json();
+          const docsResponse = await materielsAPI.getDocuments(m.id);
+          const documents = docsResponse.data;
             piecesJointes = documents.map(doc => ({
               id: doc.id,
               nom: doc.filename,
               filename: doc.filename,
               type: doc.filename.split('.').pop().toLowerCase(),
               taille: "N/A",
-              url: `/uploads/materiels/${doc.filename}`
+              url: buildUploadUrl(`materiels/${doc.filename}`)
             }));
-          }
+          
         } catch (e) {
           console.warn(`Erreur lors du chargement des documents pour le matériel ${m.id}:`, e);
         }
@@ -218,7 +209,7 @@ const Materiel = () => {
   // Fonction pour télécharger une pièce jointe
   const handleDownloadPiece = (piece) => {
     const link = document.createElement('a');
-    const url = piece.url || (piece.filename ? `/uploads/materiels/${piece.filename}` : `/uploads/materiels/${piece.nom}`);
+    const url = piece.url || buildUploadUrl(piece.filename ? `materiels/${piece.filename}` : `materiels/${piece.nom}`);
     link.href = url;
     link.download = piece.nom;
     link.target = '_blank';
@@ -247,15 +238,7 @@ const Materiel = () => {
 
       const loadingToast = showLoading("Suppression en cours...");
       try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`/api/materiels/${id}`, {
-          method: 'DELETE',
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || 'Erreur lors de la suppression');
-        }
+        await materielsAPI.delete(id);
         setMateriel(prev => prev.filter(m => m.id !== id));
         updateLoading(loadingToast, "Matériel supprimé avec succès", "success");
         showDeleteSuccess(`Matériel supprimé: ${materiel.designation}`);
@@ -339,8 +322,6 @@ const Materiel = () => {
     const loadingToast = showLoading(editingMateriel ? "Modification en cours..." : "Ajout en cours...");
 
     try {
-      const token = localStorage.getItem('token');
-
       const payload = {
         designation: formData.designation,
         nombre: parseInt(formData.nombre) || 0,
@@ -367,21 +348,10 @@ const Materiel = () => {
             }
           });
 
-          res = await fetch(`/api/materiels/${editingMateriel.id}/with-files`, {
-            method: 'PUT',
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            body: fd,
-          });
+          res = await materielsAPI.updateWithFiles(editingMateriel.id, fd);
         } else {
           // Modification sans nouveaux fichiers
-          res = await fetch(`/api/materiels/${editingMateriel.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify(payload),
-          });
+          res = await materielsAPI.update(editingMateriel.id, payload);
         }
       } else {
         if (attachedFiles.length > 0) {
@@ -395,52 +365,28 @@ const Materiel = () => {
 
           attachedFiles.forEach((file) => fd.append('files', file));
 
-          res = await fetch('/api/materiels/with-files', {
-            method: 'POST',
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
-            body: fd,
-          });
+          res = await materielsAPI.createWithFiles(fd);
         } else {
-          res = await fetch('/api/materiels/', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify(payload),
-          });
+          res = await materielsAPI.create(payload);
         }
       }
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const detail = err?.detail;
-        const message = Array.isArray(detail)
-          ? detail.map(d => d?.msg || JSON.stringify(d)).join(' | ')
-          : (detail || `Erreur lors de ${editingMateriel ? 'la modification' : 'l\'ajout'} du matériel`);
-        throw new Error(message);
-      }
-
-      const savedMateriel = await res.json();
+      const savedMateriel = res.data;
 
       // Charger les documents du matériel pour l'affichage
       let piecesJointes = [];
       if (attachedFiles.length > 0) {
         try {
-          const docsRes = await fetch(`/api/materiels/${savedMateriel.id}/documents`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          });
-          if (docsRes.ok) {
-            const documents = await docsRes.json();
+          const docsResponse = await materielsAPI.getDocuments(savedMateriel.id);
+          const documents = docsResponse.data;
             piecesJointes = documents.map(doc => ({
               id: doc.id,
               nom: doc.filename,
               filename: doc.filename,
               type: doc.filename.split('.').pop().toLowerCase(),
               taille: "N/A",
-              url: `/uploads/materiels/${doc.filename}`
+              url: buildUploadUrl(`materiels/${doc.filename}`)
             }));
-          }
         } catch (e) {
           console.warn('Erreur lors du chargement des documents:', e);
           const newFiles = attachedFiles.filter(file => file instanceof File);
@@ -453,20 +399,16 @@ const Materiel = () => {
         }
       } else if (editingMateriel) {
         try {
-          const docsRes = await fetch(`/api/materiels/${savedMateriel.id}/documents`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          });
-          if (docsRes.ok) {
-            const documents = await docsRes.json();
+          const docsResponse = await materielsAPI.getDocuments(savedMateriel.id);
+          const documents = docsResponse.data;
             piecesJointes = documents.map(doc => ({
               id: doc.id,
               nom: doc.filename,
               filename: doc.filename,
               type: doc.filename.split('.').pop().toLowerCase(),
               taille: "N/A",
-              url: `/uploads/materiels/${doc.filename}`
+              url: buildUploadUrl(`materiels/${doc.filename}`)
             }));
-          }
         } catch (e) {
           console.warn('Erreur lors du chargement des documents:', e);
           piecesJointes = editingMateriel.piecesJointes || [];

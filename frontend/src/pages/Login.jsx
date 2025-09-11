@@ -4,6 +4,7 @@ import { Person, Lock, Login as LoginIcon } from '@mui/icons-material';
 import Background from '../assets/Background.png';
 import useNotifications from '../hooks/useNotifications';
 import { useAuth } from '../contexts/AuthContext';
+import { authAPI } from '../services/api';
 
 const Login = () => {
   const [formData, setFormData] = useState({ username: '', password: '' });
@@ -27,24 +28,10 @@ const Login = () => {
     const loadingToast = showLoading('Connexion en cours...');
 
     try {
-      const API_BASE_URL = 'http://127.0.0.1:8000'; // ton backend Python
+      // Utilisation du service API centralisé
+      const response = await authAPI.login(formData);
+      const data = response.data;
 
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams(formData)
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        const errorMessage = err.detail || 'Une erreur est survenue. Veuillez réessayer.';
-        setError(errorMessage);
-        updateLoading(loadingToast, errorMessage, 'error');
-        showLoginError(errorMessage);
-        return;
-      }
-
-      const data = await response.json();
       if (!data.success) {
         setError(data.message);
         updateLoading(loadingToast, data.message, 'error');
@@ -63,8 +50,10 @@ const Login = () => {
         navigate('/gestion_dao'); // redirection après login
       }, 1000);
 
-    } catch {
-      const errorMessage = 'Impossible de se connecter. Vérifiez votre connexion réseau.';
+    } catch (error) {
+      const errorMessage = error.response?.data?.detail || 
+                          error.response?.data?.message || 
+                          'Impossible de se connecter. Vérifiez votre connexion réseau.';
       setError(errorMessage);
       updateLoading(loadingToast, errorMessage, 'error');
       showLoginError(errorMessage);

@@ -1,7 +1,27 @@
 import axios from 'axios'
 import { NotificationService } from './notifications'
 
-const API_BASE_URL = 'http://127.0.0.1:8000';
+// Configuration centralisée de l'API
+// En mode Electron, toujours utiliser localhost:8000
+// En mode web (développement), utiliser l'URL relative /api  
+const API_BASE_URL = window?.electronAPI ? 'http://127.0.0.1:8000/api' : '/api'
+
+// Fonction utilitaire pour construire les URLs d'uploads
+export const buildUploadUrl = (path) => {
+  if (!path) return null
+  // Si c'est déjà une URL complète, la retourner telle quelle
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  
+  const baseUrl = window?.electronAPI ? 'http://127.0.0.1:8000' : ''
+  
+  // Si le chemin commence déjà par /api ou /uploads, l'utiliser tel quel
+  if (path.startsWith('/api/') || path.startsWith('/uploads/')) {
+    return `${baseUrl}${path}`
+  }
+  
+  // Sinon, construire le chemin complet
+  return `${baseUrl}/api/uploads/${path}`
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -133,6 +153,49 @@ export const documentsAPI = {
   download: (id) => api.get(`/documents/download/${id}`, {
     responseType: 'blob',
   }),
+}
+
+// API pour la gestion des personnels
+export const personnelsAPI = {
+  getAll: () => api.get('/personnels/'),
+  getById: (id) => api.get(`/personnels/${id}`),
+  create: (data) => api.post('/personnels/', data),
+  createWithFiles: (formData) => api.post('/personnels/with-files', formData),
+  update: (id, data) => api.put(`/personnels/${id}`, data),
+  updateWithFiles: (id, formData) => api.put(`/personnels/${id}/with-files`, formData),
+  delete: (id) => api.delete(`/personnels/${id}`),
+  getDocuments: (id) => api.get(`/personnels/${id}/documents`),
+  deleteDocument: (personnelId, docId) => api.delete(`/personnels/${personnelId}/documents/${docId}`),
+}
+
+// API pour la gestion des matériels
+export const materielsAPI = {
+  getAll: () => api.get('/materiels/'),
+  getById: (id) => api.get(`/materiels/${id}`),
+  create: (data) => api.post('/materiels/', data),
+  createWithFiles: (formData) => api.post('/materiels/with-files', formData),
+  update: (id, data) => api.put(`/materiels/${id}`, data),
+  updateWithFiles: (id, formData) => api.put(`/materiels/${id}/with-files`, formData),
+  delete: (id) => api.delete(`/materiels/${id}`),
+  getDocuments: (id) => api.get(`/materiels/${id}/documents`),
+  deleteDocument: (materielId, docId) => api.delete(`/materiels/${materielId}/documents/${docId}`),
+}
+
+// API d'authentification
+export const authAPI = {
+  login: async (credentials) => {
+    const formData = new URLSearchParams(credentials);
+    return api.post('/auth/login', formData, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    });
+  },
+  logout: () => {
+    localStorage.removeItem('token');
+    return Promise.resolve();
+  },
+  getProfile: () => api.get('/auth/me'),
 }
 
 export default api

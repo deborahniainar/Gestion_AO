@@ -13,6 +13,8 @@ dist-ssr
 dist-electron
 electron-build
 *.local
+dev.db
+files/
 
 # Editor directories and files
 .vscode/*

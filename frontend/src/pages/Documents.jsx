@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react'
 import Sidebar from '../components/Sidebar'
 import ConfirmModal from '../components/ConfirmModal'
 import useNotifications from '../hooks/useNotifications'
-import { documentsAPI } from '../services/api'
+import { documentsAPI, buildUploadUrl } from '../services/api'
 import {
   CloudDownload,
   Help,
@@ -82,7 +82,7 @@ const Documents = () => {
 
     // If filename stores a path under uploads, treat it as URL
     if (!normalized.url && typeof normalized.filename === 'string' && normalized.filename.includes('/uploads/')) {
-      normalized.url = normalized.filename.startsWith('/') ? normalized.filename : '/' + normalized.filename;
+      normalized.url = buildUploadUrl(normalized.filename);
       setCurrentDocument(normalized);
       setShowDocumentModal(true);
       return;

@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar'
 import ConfirmModal from '../components/ConfirmModal'
 import DocumentViewer from '../components/DocumentViewer'
 import useNotifications from '../hooks/useNotifications'
+import { personnelsAPI, buildUploadUrl } from '../services/api'
 import {
   Help,
   Add,
@@ -75,15 +76,8 @@ const Personnels = () => {
   useEffect(() => {
     const loadPersonnels = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('/api/personnels/', {
-          headers: token ? { Authorization: `Bearer ${token}` } : {}
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || 'Erreur lors du chargement des personnels');
-        }
-        const items = await res.json();
+        const response = await personnelsAPI.getAll();
+        const items = response.data;
         const mapped = items.map(p => ({
           id: p.id,
           nom: p.nom,
@@ -97,7 +91,7 @@ const Personnels = () => {
           contact: p.contact ?? '',
           genre: p.genre ?? '',
           status: p.status ?? '',
-          profileImage: p.profile_image ? `/api/uploads/personnels/${p.profile_image}` : null
+          profileImage: p.profile_image ? buildUploadUrl(`personnels/${p.profile_image}`) : null
         }));
         setPersonnels(mapped);
         showFetchSuccess();
@@ -185,14 +179,8 @@ const Personnels = () => {
   // Fonction pour charger les documents existants lors de l'édition
   const loadExistingDocuments = async (personnelId) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${personnelId}/documents`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (!res.ok) {
-        throw new Error('Erreur lors du chargement des documents');
-      }
-      const docs = await res.json();
+      const response = await personnelsAPI.getDocuments(personnelId);
+      const docs = response.data;
 
       // Séparer les documents par catégorie pour l'édition
       setExistingCvFiles(docs.cv || []);
@@ -209,14 +197,8 @@ const Personnels = () => {
   // Fonction pour charger les documents d'un personnel
   const loadPersonnelDocuments = async (personnelId) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${personnelId}/documents`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-      if (!res.ok) {
-        throw new Error('Erreur lors du chargement des documents');
-      }
-      const documents = await res.json();
+      const response = await personnelsAPI.getDocuments(personnelId);
+      const documents = response.data;
 
       setPersonnelDocuments(documents);
     } catch (error) {
@@ -254,15 +236,7 @@ const Personnels = () => {
 
   const handleDeletePersonnel = async (id) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${id}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Erreur lors de la suppression');
-      }
+      await personnelsAPI.delete(id);
       setPersonnels(prev => prev.filter(p => p.id !== id));
       if (selectedPersonnel?.id === id) {
         setShowDetails(false);
@@ -387,15 +361,7 @@ const Personnels = () => {
   // Fonctions pour supprimer les documents existants
   const removeExistingCvFile = async (docId) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${editingPersonnel.id}/documents/${docId}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-
-      if (!res.ok) {
-        throw new Error('Erreur lors de la suppression du document');
-      }
+      await personnelsAPI.deleteDocument(editingPersonnel.id, docId);
 
       // Retirer de la liste locale si la suppression a réussi
       setExistingCvFiles(prev => prev.filter(doc => doc.id !== docId));
@@ -408,15 +374,7 @@ const Personnels = () => {
 
   const removeExistingDiplomeFile = async (docId) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${editingPersonnel.id}/documents/${docId}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-
-      if (!res.ok) {
-        throw new Error('Erreur lors de la suppression du document');
-      }
+      await personnelsAPI.deleteDocument(editingPersonnel.id, docId);
 
       // Retirer de la liste locale si la suppression a réussi
       setExistingDiplomeFiles(prev => prev.filter(doc => doc.id !== docId));
@@ -429,15 +387,7 @@ const Personnels = () => {
 
   const removeExistingContratFile = async (docId) => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${editingPersonnel.id}/documents/${docId}`, {
-        method: 'DELETE',
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      });
-
-      if (!res.ok) {
-        throw new Error('Erreur lors de la suppression du document');
-      }
+      await personnelsAPI.deleteDocument(editingPersonnel.id, docId);
 
       // Retirer de la liste locale si la suppression a réussi
       setExistingContratFiles(prev => prev.filter(doc => doc.id !== docId));
@@ -466,7 +416,6 @@ const Personnels = () => {
         alert('Le nom est requis');
         return;
       }
-      const token = localStorage.getItem('token');
 
       // Mode édition: utiliser FormData pour gérer les fichiers
       if (editingPersonnel) {
@@ -499,24 +448,8 @@ const Personnels = () => {
           fd.append('contrat_file', contratFile);
         }
 
-        const res = await fetch(`/api/personnels/${editingPersonnel.id}/with-files`, {
-          method: 'PUT',
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: fd,
-        });
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          const detail = err?.detail;
-          const message = Array.isArray(detail)
-            ? detail.map(d => d?.msg || JSON.stringify(d)).join(' | ')
-            : (detail || 'Erreur lors de la mise à jour du personnel');
-          throw new Error(message);
-        }
-
-        const updated = await res.json();
+        const response = await personnelsAPI.updateWithFiles(editingPersonnel.id, fd);
+        const updated = response.data;
         const mapped = {
           id: updated.id,
           nom: updated.nom,
@@ -530,7 +463,7 @@ const Personnels = () => {
           contact: updated.contact ?? '',
           genre: updated.genre ?? '',
           status: updated.status ?? '',
-          profileImage: updated.profile_image ? `/api/uploads/personnels/${updated.profile_image}` : null,
+          profileImage: updated.profile_image ? buildUploadUrl(`personnels/${updated.profile_image}`) : null,
         };
         setPersonnels(prev => prev.map(p => p.id === mapped.id ? mapped : p));
         handleCloseForm();
@@ -557,22 +490,8 @@ const Personnels = () => {
       if (diplomeFile) fd.append('diplome_file', diplomeFile);
       if (contratFile) fd.append('contrat_file', contratFile);
 
-      const res = await fetch('/api/personnels/with-files', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: fd,
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        const detail = err?.detail;
-        const message = Array.isArray(detail)
-          ? detail.map(d => d?.msg || JSON.stringify(d)).join(' | ')
-          : (detail || 'Erreur lors de la création du personnel');
-        throw new Error(message);
-      }
-
-      const created = await res.json();
+      const response = await personnelsAPI.createWithFiles(fd);
+      const created = response.data;
       const mapped = {
         id: created.id,
         nom: created.nom,
