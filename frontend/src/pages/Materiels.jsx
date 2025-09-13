@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import Sidebar from '../components/Sidebar'
 import ConfirmModal from '../components/ConfirmModal'
 import DocumentViewer from '../components/DocumentViewer'
@@ -14,8 +14,6 @@ import {
   Description,
   Visibility,
 } from "@mui/icons-material";
-
-const API_BASE_URL = 'http://127.0.0.1:8000';
 
 const Materiel = () => {
   const [guideOpen, setGuideOpen] = useState(false);
@@ -69,7 +67,7 @@ const Materiel = () => {
   const loadMateriels = useCallback(async (showToast = true) => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE_URL}/materiels/`, {
+      const res = await fetch('/api/materiels/', {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (!res.ok) {
@@ -80,7 +78,7 @@ const Materiel = () => {
       const mapped = await Promise.all(items.map(async (m) => {
         let piecesJointes = [];
         try {
-          const docsRes = await fetch(`${API_BASE_URL}/materiels/${m.id}/documents`, {
+          const docsRes = await fetch(`/api/materiels/${m.id}/documents`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           });
           if (docsRes.ok) {
@@ -91,7 +89,7 @@ const Materiel = () => {
               filename: doc.filename,
               type: doc.filename.split('.').pop().toLowerCase(),
               taille: "N/A",
-              url: `${API_BASE_URL}/uploads/materiels/${doc.filename}`
+              url: `/uploads/materiels/${doc.filename}`
             }));
           }
         } catch (e) {
@@ -220,7 +218,7 @@ const Materiel = () => {
   // Fonction pour télécharger une pièce jointe
   const handleDownloadPiece = (piece) => {
     const link = document.createElement('a');
-    const url = piece.url || (piece.filename ? `${API_BASE_URL}/uploads/materiels/${piece.filename}` : `${API_BASE_URL}/uploads/materiels/${piece.nom}`);
+    const url = piece.url || (piece.filename ? `/uploads/materiels/${piece.filename}` : `/uploads/materiels/${piece.nom}`);
     link.href = url;
     link.download = piece.nom;
     link.target = '_blank';
@@ -250,7 +248,7 @@ const Materiel = () => {
       const loadingToast = showLoading("Suppression en cours...");
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_BASE_URL}/materiels/${id}`, {
+        const res = await fetch(`/api/materiels/${id}`, {
           method: 'DELETE',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
@@ -369,14 +367,14 @@ const Materiel = () => {
             }
           });
 
-          res = await fetch(`${API_BASE_URL}/materiels/${editingMateriel.id}/with-files`, {
+          res = await fetch(`/api/materiels/${editingMateriel.id}/with-files`, {
             method: 'PUT',
             headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: fd,
           });
         } else {
           // Modification sans nouveaux fichiers
-          res = await fetch(`${API_BASE_URL}/materiels/${editingMateriel.id}`, {
+          res = await fetch(`/api/materiels/${editingMateriel.id}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -397,13 +395,13 @@ const Materiel = () => {
 
           attachedFiles.forEach((file) => fd.append('files', file));
 
-          res = await fetch(`${API_BASE_URL}/materiels/with-files`, {
+          res = await fetch('/api/materiels/with-files', {
             method: 'POST',
             headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: fd,
           });
         } else {
-          res = await fetch(`${API_BASE_URL}/materiels/`, {
+          res = await fetch('/api/materiels/', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -429,7 +427,7 @@ const Materiel = () => {
       let piecesJointes = [];
       if (attachedFiles.length > 0) {
         try {
-          const docsRes = await fetch(`${API_BASE_URL}/materiels/${savedMateriel.id}/documents`, {
+          const docsRes = await fetch(`/api/materiels/${savedMateriel.id}/documents`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           });
           if (docsRes.ok) {
@@ -440,7 +438,7 @@ const Materiel = () => {
               filename: doc.filename,
               type: doc.filename.split('.').pop().toLowerCase(),
               taille: "N/A",
-              url: `${API_BASE_URL}/uploads/materiels/${doc.filename}`
+              url: `/uploads/materiels/${doc.filename}`
             }));
           }
         } catch (e) {
@@ -455,7 +453,7 @@ const Materiel = () => {
         }
       } else if (editingMateriel) {
         try {
-          const docsRes = await fetch(`${API_BASE_URL}/materiels/${savedMateriel.id}/documents`, {
+          const docsRes = await fetch(`/api/materiels/${savedMateriel.id}/documents`, {
             headers: token ? { Authorization: `Bearer ${token}` } : {}
           });
           if (docsRes.ok) {
@@ -466,7 +464,7 @@ const Materiel = () => {
               filename: doc.filename,
               type: doc.filename.split('.').pop().toLowerCase(),
               taille: "N/A",
-              url: `${API_BASE_URL}/uploads/materiels/${doc.filename}`
+              url: `/uploads/materiels/${doc.filename}`
             }));
           }
         } catch (e) {
@@ -546,55 +544,55 @@ const Materiel = () => {
   };
 
   const UserGuideModal = ({ open, onClose }) => {
-    if (!open) return null;
+  if (!open) return null;
 
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
-        <div className="bg-white dark:bg-primary w-full max-w-3xl rounded-lg shadow-lg overflow-y-auto max-h-[80vh] p-6">
-          <h2 className="text-xl font-bold mb-4 text-secondary">Guide Utilisateur – Gestion des Matériels</h2>
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
+      <div className="bg-white dark:bg-primary w-full max-w-3xl rounded-lg shadow-lg overflow-y-auto max-h-[80vh] p-6">
+        <h2 className="text-xl font-bold mb-4 text-secondary">Guide Utilisateur – Gestion des Matériels</h2>
 
-          <section className="mb-4">
-            <h3 className="font-semibold mb-2">1. Vue d'ensemble</h3>
-            <p>Ce module permet d’ajouter, modifier, supprimer et consulter les matériels. Vous pouvez également gérer les pièces jointes et visualiser ou télécharger les documents liés à chaque matériel.</p>
-          </section>
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">1. Vue d'ensemble</h3>
+          <p>Ce module permet d’ajouter, modifier, supprimer et consulter les matériels. Vous pouvez également gérer les pièces jointes et visualiser ou télécharger les documents liés à chaque matériel.</p>
+        </section>
 
-          <section className="mb-4">
-            <h3 className="font-semibold mb-2">2. Ajouter un matériel</h3>
-            <ol className="list-decimal list-inside">
-              <li>Cliquez sur le bouton <strong>Ajouter un matériel</strong>.</li>
-              <li>Remplissez les champs obligatoires : Désignation, Marque, Modèle, Année, Nombre.</li>
-              <li>Les champs facultatifs : Qualité, fichiers joints.</li>
-              <li>Cliquez sur <strong>Ajouter</strong> pour enregistrer.</li>
-            </ol>
-          </section>
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">2. Ajouter un matériel</h3>
+          <ol className="list-decimal list-inside">
+            <li>Cliquez sur le bouton <strong>Ajouter un matériel</strong>.</li>
+            <li>Remplissez les champs obligatoires : Désignation, Marque, Modèle, Année, Nombre.</li>
+            <li>Les champs facultatifs : Qualité, fichiers joints.</li>
+            <li>Cliquez sur <strong>Ajouter</strong> pour enregistrer.</li>
+          </ol>
+        </section>
 
-          <section className="mb-4">
-            <h3 className="font-semibold mb-2">3. Modifier un matériel</h3>
-            <p>Cliquez sur l’icône <strong>Edit</strong> dans la ligne correspondante. Modifiez les champs puis cliquez sur <strong>Modifier</strong>.</p>
-          </section>
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">3. Modifier un matériel</h3>
+          <p>Cliquez sur l’icône <strong>Edit</strong> dans la ligne correspondante. Modifiez les champs puis cliquez sur <strong>Modifier</strong>.</p>
+        </section>
 
-          <section className="mb-4">
-            <h3 className="font-semibold mb-2">4. Supprimer un matériel</h3>
-            <p>Cliquez sur l’icône <strong>Delete</strong> et confirmez la suppression dans la modal de confirmation.</p>
-          </section>
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">4. Supprimer un matériel</h3>
+          <p>Cliquez sur l’icône <strong>Delete</strong> et confirmez la suppression dans la modal de confirmation.</p>
+        </section>
 
-          <section className="mb-4">
-            <h3 className="font-semibold mb-2">5. Pièces jointes</h3>
-            <p>Pour chaque matériel, cliquez sur l’icône <AttachFile className="inline-block h-4 w-4" /> pour voir les fichiers attachés. Vous pouvez visualiser, télécharger ou supprimer chaque fichier.</p>
-          </section>
+        <section className="mb-4">
+          <h3 className="font-semibold mb-2">5. Pièces jointes</h3>
+          <p>Pour chaque matériel, cliquez sur l’icône <AttachFile className="inline-block h-4 w-4"/> pour voir les fichiers attachés. Vous pouvez visualiser, télécharger ou supprimer chaque fichier.</p>
+        </section>
 
-          <div className="flex justify-end mt-5">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90"
-            >
-              Fermer
-            </button>
-          </div>
+        <div className="flex justify-end mt-5">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90"
+          >
+            Fermer
+          </button>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>

@@ -53,7 +53,7 @@ class AppManager {
         }
     }
 
-    waitForBackend(url = 'http://127.0.0.1:8000', interval = 11000, timeout = 120000) {
+    waitForBackend(url = 'http://127.0.0.1:8000', interval = 1000, timeout = 20000) {
         return new Promise((resolve, reject) => {
             const start = Date.now();
             const check = () => {
@@ -165,11 +165,7 @@ app.whenReady().then(async ()=>{
     appManager.startBackend();
 
     try {
-        // Allow overriding the wait interval and timeout via environment variables
-        const waitInterval = Number(process.env.BACKEND_WAIT_INTERVAL) || 1000; // ms between checks
-        const waitTimeout = Number(process.env.BACKEND_WAIT_TIMEOUT) || 60000;  // total timeout in ms
-        console.log(`Waiting for backend at http://127.0.0.1:8000 (interval=${waitInterval}ms, timeout=${waitTimeout}ms)`);
-        await appManager.waitForBackend('http://127.0.0.1:8000', waitInterval, waitTimeout);
+        await appManager.waitForBackend();
         appManager.createMainWindow();
     } catch(err) {
         console.error('Backend failed to start:', err);

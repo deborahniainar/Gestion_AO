@@ -19,7 +19,6 @@ const Dashboard = () => {
   const [recentDocuments, setRecentDocuments] = useState([])
   const [loading, setLoading] = useState(false)
   const [materielsCount, setMaterielsCount] = useState(0)
-  const [guideOpen, setGuideOpen] = useState(false)
 
   const handleDownload = async (doc) => {
     if (!doc?.id) {
@@ -204,47 +203,14 @@ const Dashboard = () => {
         <button
           className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
           onClick={() => {
-            setGuideOpen(true)
+            showInfo('Aide / Guide utilisateur en cours de développement !')
           }}
         >
           <Help style={{ fontSize: '3rem' }} />
         </button>
-
-        <UserGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
       </main>
     </div>
   )
 }
 
 export default Dashboard
-
-// User guide modal component
-function UserGuideModal({ open, onClose }) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
-      <div className="bg-white dark:bg-primary w-full max-w-3xl rounded-lg shadow-lg overflow-y-auto max-h-[80vh] p-6">
-        <h2 className="text-xl font-bold mb-4 text-secondary">Guide Utilisateur – Tableau de bord</h2>
-
-        <section className="mb-4">
-          <h3 className="font-semibold mb-2">Vue d'ensemble</h3>
-          <p>Le tableau de bord donne un aperçu rapide des documents, personnels, soumissions et matériels. Vous pouvez télécharger les récents documents depuis la table ci-dessous.</p>
-        </section>
-
-        <section className="mb-4">
-          <h3 className="font-semibold mb-2">Téléchargement</h3>
-          <p>Cliquez sur l'icône de téléchargement dans la colonne Actions pour récupérer un document. Le téléchargement utilisera l'authentification si nécessaire.</p>
-        </section>
-
-        <section className="mb-4">
-          <h3 className="font-semibold mb-2">Rapports et exports</h3>
-          <p>Utilisez le bouton Exporter le rapport pour générer un résumé. Les erreurs de chargement apparaîtront sous forme de notifications.</p>
-        </section>
-
-        <div className="flex justify-end mt-5">
-          <button onClick={onClose} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Fermer</button>
-        </div>
-      </div>
-    </div>
-  )
-}

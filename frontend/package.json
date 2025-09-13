@@ -73,7 +73,7 @@
     "extraResources": [
       {
         "from": "../backend/dist/run_backend.exe",
-        "to": "backend/run_backend.exe"
+        "to": "backend/run_backend"
       },
       {
         "from": "dev.db",

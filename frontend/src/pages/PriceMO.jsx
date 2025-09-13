@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Sidebar from "../components/Sidebar"
 import {
   CloudDownload,
@@ -372,32 +372,6 @@ const PriceMO = () => {
   const [lot, setLot] = useState("")
   const [helpOpen, setHelpOpen] = useState(false)
 
-  // Dropdown refs & state for button-based selectors
-  const daoBtnRef = useRef(null)
-  const lotBtnRef = useRef(null)
-  const [daoMenuOpen, setDaoMenuOpen] = useState(false)
-  const [lotMenuOpen, setLotMenuOpen] = useState(false)
-
-  // Close menus on outside click or Escape
-  useEffect(() => {
-    const onDocClick = (e) => {
-      if (daoMenuOpen && daoBtnRef.current && !daoBtnRef.current.contains(e.target)) setDaoMenuOpen(false)
-      if (lotMenuOpen && lotBtnRef.current && !lotBtnRef.current.contains(e.target)) setLotMenuOpen(false)
-    }
-    const onKey = (e) => {
-      if (e.key === 'Escape') {
-        setDaoMenuOpen(false)
-        setLotMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDocClick)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDocClick)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [daoMenuOpen, lotMenuOpen])
-
   /* ---------- API Calls ---------- */
   const fetchDaos = useCallback(async () => {
     try {
@@ -702,57 +676,61 @@ const PriceMO = () => {
             <div className="flex items-center gap-3 flex-1 bg-white/60 dark:bg-primary/30 border border-muted-50 rounded-md px-3 py-2">
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-secondary/10 text-secondary"><Description fontSize="small" /></span>
               <label className="text-secondary font-medium whitespace-nowrap">DAO :</label>
-
-              {/* Button-based DAO selector to avoid native <select> z-index issues in prod */}
-              <div className="relative ml-auto" ref={daoBtnRef}>
-                <button onClick={() => setDaoMenuOpen(o => !o)} className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-primary dark:text-muted text-sm rounded px-3 py-2 w-64 text-left flex items-center justify-between">
-                  <span>{daos.find(d => String(d.document_id) === String(daoDocId)) ? (daos.find(d => String(d.document_id) === String(daoDocId)).original_name || daos.find(d => String(d.document_id) === String(daoDocId)).original_filename || (daos.find(d => String(d.document_id) === String(daoDocId)).filename ? daos.find(d => String(d.document_id) === String(daoDocId)).filename.split('/').pop() : null) || `DAO ${daos.find(d => String(d.document_id) === String(daoDocId)).document_id}`) : 'Sélectionner un DAO'}</span>
-                  <span className="ml-2">▾</span>
-                </button>
-                {daoMenuOpen && (
-                  <ul style={{ zIndex: 9999 }} className="absolute right-0 mt-1 w-64 max-h-52 overflow-auto bg-white border rounded shadow-lg">
-                    <li className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setDaoDocId(null); setDaoId(null); setSavedLots([]); setDaoMenuOpen(false); }}>Sélectionner un DAO</li>
-                    {daos.map((d, i) => (
-                      <li key={i} className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setDaoDocId(Number(d.document_id)); setDaoMenuOpen(false); }}>{d.original_name || d.original_filename || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              <select className="text-primary dark:text-muted ml-auto border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-64" value={daoDocId || ""} onChange={(e) => {
+                const val = e.target.value
+                if (!val) {
+                  setDaoDocId(null)
+                  setDaoId(null)
+                  setSavedLots([])
+                  return
+                }
+                setDaoDocId(Number(val))
+              }}>
+                <option value="">Sélectionner un DAO</option>
+                {daos.map((d, i) => {
+                  const display = d.original_name || d.original_filename || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`
+                  return (<option key={i} value={d.document_id}>{display}</option>)
+                })}
+              </select>
 
               {daoDocId ? (
                 <>
                   <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
+                  <select
+                    className="border border-gray-300 dark:border-muted-50 text-primary dark:text-muted bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40"
+                    value={lot}
+                    onChange={async (e) => {
+                      const val = e.target.value
+                      // save current rows for previous lot in-memory before switching
+                      if (lot) {
+                        // persist previous lot (do not await UI-blocking, but handle)
+                        saveRowsForLot(lot, rows).catch(() => { })
+                        setRowsByLot(prev => ({ ...prev, [lot]: rows }))
+                      }
 
-                  {/* Button-based Lot selector */}
-                  <div className="relative" ref={lotBtnRef}>
-                    <button onClick={() => setLotMenuOpen(o => !o)} className="border border-gray-300 dark:border-muted-50 text-primary dark:text-muted bg-white dark:bg-primary text-sm rounded px-3 py-2 w-full text-left flex items-center justify-between">
-                      <span>{(savedLots || []).find(s => String(s.id) === String(lot)) ? (savedLots || []).find(s => String(s.id) === String(lot)).name : 'Sélectionner un Lot'}</span>
-                      <span className="ml-2">▾</span>
-                    </button>
-                    {lotMenuOpen && (
-                      <ul style={{ zIndex: 9999 }} className="absolute right-0 mt-1 w-40 max-h-52 overflow-auto bg-white border rounded shadow-lg">
-                        <li className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setLot(""); setRows([]); setLotMenuOpen(false); }}>Sélectionner un Lot</li>
-                        {(savedLots || []).map((s, i) => (<li key={i} className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={async () => {
-                          // same logic as previous select onChange
-                          if (lot) {
-                            saveRowsForLot(lot, rows).catch(() => { })
-                            setRowsByLot(prev => ({ ...prev, [lot]: rows }))
-                          }
-                          const lotId = Number(s.id)
-                          setLot(lotId)
-                          const cached = rowsByLot[lotId]
-                          if (Array.isArray(cached) && cached.length > 0) {
-                            setRows(cached)
-                          } else {
-                            const fetched = await fetchRowsForLot(lotId)
-                            setRows(Array.isArray(fetched) ? fetched : [])
-                            setRowsByLot(prev => ({ ...prev, [lotId]: Array.isArray(fetched) ? fetched : [] }))
-                          }
-                          setLotMenuOpen(false)
-                        }}>{s.name}</li>))}
-                      </ul>
-                    )}
-                  </div>
+                      if (!val) {
+                        setLot("")
+                        setRows([])
+                        return
+                      }
+
+                      const lotId = Number(val)
+                      setLot(lotId)
+
+                      // load rows for selected lot: prefer in-memory cache, else fetch
+                      const cached = rowsByLot[lotId]
+                      if (Array.isArray(cached) && cached.length > 0) {
+                        setRows(cached)
+                      } else {
+                        const fetched = await fetchRowsForLot(lotId)
+                        setRows(Array.isArray(fetched) ? fetched : [])
+                        setRowsByLot(prev => ({ ...prev, [lotId]: Array.isArray(fetched) ? fetched : [] }))
+                      }
+                    }}
+                  >
+                    <option value="">Sélectionner un Lot</option>
+                    {(savedLots || []).map((s, i) => (<option key={i} value={s.id}>{s.name}</option>))}
+                  </select>
                 </>
               ) : (
                 <div className="ml-3 text-sm text-gray-500">Aucun DAO sélectionné.</div>

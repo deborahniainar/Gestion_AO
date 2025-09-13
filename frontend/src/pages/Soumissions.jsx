@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef } from "react"
+import React, { useEffect, useState } from 'react'
 import Sidebar from '../components/Sidebar'
-import OnlyOfficeWorkspaceModal from '../components/OnlyOfficeWorkspaceModal'
 import { NotificationService, NotificationMessages } from '../services/notifications'
 import { soumissionsWorkspacesAPI } from '../services/api'
 import api from '../services/api'
@@ -11,8 +10,7 @@ import {
   Help,
   Description,
   Edit,
-  Delete,
-  Work
+  Delete
 } from "@mui/icons-material";
 
 const Soumissions = () => {
@@ -49,42 +47,9 @@ const Soumissions = () => {
   const [loadingLots, setLoadingLots] = useState(false);
   const [loadingWorkspace, setLoadingWorkspace] = useState(false);
   const workspaceReady = !!lot // vrai seulement si un lot est sélectionné
-  // Dropdown refs & state (pattern from PriceMO.jsx)
-  const daoBtnRef = useRef(null)
-  const lotBtnRef = useRef(null)
-  const [daoMenuOpen, setDaoMenuOpen] = useState(false)
-  const [lotMenuOpen, setLotMenuOpen] = useState(false)
   const {
     showInfo,
   } = useNotifications();
-  const [guideOpen, setGuideOpen] = useState(false);
-  const [loginModalOpen, setLoginModalOpen] = useState(false);
-  const [loginFrameLoaded, setLoginFrameLoaded] = useState(false);
-  const [loginFrameFailed, setLoginFrameFailed] = useState(false);
-  const [workspaceModal, setWorkspaceModal] = useState({
-    open: false,
-    sousTache: null
-  });
-
-  // Close dropdown menus on outside click or Escape key
-  useEffect(() => {
-    const onDocClick = (e) => {
-      if (daoMenuOpen && daoBtnRef.current && !daoBtnRef.current.contains(e.target)) setDaoMenuOpen(false)
-      if (lotMenuOpen && lotBtnRef.current && !lotBtnRef.current.contains(e.target)) setLotMenuOpen(false)
-    }
-    const onKey = (e) => {
-      if (e.key === 'Escape') {
-        setDaoMenuOpen(false)
-        setLotMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', onDocClick)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDocClick)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [daoMenuOpen, lotMenuOpen])
 
   // Listes et map des contenus sont entièrement gérées par le backend
   const [listes, setListes] = useState([]);
@@ -183,8 +148,21 @@ const Soumissions = () => {
   };
 
 
-  const handleOnlyOfficeLogin = () => {
-    setLoginModalOpen(true);
+  const handleExporter = () => {
+    soumissionsWorkspacesAPI.exportFinished(lot, appelOffre)
+      .then(res => {
+        const blob = new Blob([res.data], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `export_${Date.now()}.docx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        NotificationService.success('Export DOCX téléchargé');
+      })
+      .catch(() => NotificationService.error('Échec de l\'export'));
   };
 
   // Modals simplified
@@ -350,62 +328,14 @@ const Soumissions = () => {
 
   const handleOpenSubtask = async (listeId, sousTache) => {
     if (!sousTache) return;
-    setWorkspaceModal({
-      open: true,
-      sousTache: sousTache
-    });
-  };
-
-  const handleCloseWorkspaceModal = () => {
-    setWorkspaceModal({
-      open: false,
-      sousTache: null
-    });
-  };
-
-  // User guide modal for Soumissions page
-  const UserGuideModal = ({ open, onClose }) => {
-    if (!open) return null;
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
-        <div className="bg-white dark:bg-primary w-full max-w-3xl rounded-lg shadow-lg overflow-y-auto max-h-[80vh] p-6">
-          <h2 className="text-xl font-bold mb-4 text-secondary">Guide Utilisateur – Gestion des Soumissions</h2>
-
-          <section className="mb-4">
-            <h3 className="font-semibold mb-2">1. Vue d'ensemble</h3>
-            <p>Cette page permet de gérer le workspace de soumission pour un lot donné (listes et sous-tâches). Sélectionnez d'abord un DAO puis un Lot pour afficher et modifier le workspace.</p>
-          </section>
-
-          <section className="mb-4">
-            <h3 className="font-semibold mb-2">2. Sélectionner DAO / Lot</h3>
-            <p>Utilisez les sélecteurs en haut pour choisir l'appel d'offre (DAO) puis le lot. Si aucun lot n'est disponible, créez-en un depuis le module DAO.</p>
-          </section>
-
-          <section className="mb-4">
-            <h3 className="font-semibold mb-2">3. Gérer les tâches</h3>
-            <ol className="list-decimal list-inside">
-              <li>Ajouter une tâche (colonne) via le bouton Ajouter une tâche.</li>
-              <li>Ajouter des sous-tâches dans une colonne, déplacer par glisser-déposer entre colonnes.</li>
-              <li>Cliquer sur une sous-tâche pour ouvrir l'espace OnlyOffice associé.</li>
-            </ol>
-          </section>
-
-          <section className="mb-4">
-            <h3 className="font-semibold mb-2">4. Sauvegarde</h3>
-            <p>Les modifications locales sont automatiquement persistées au backend après chaque opération (ajout, déplacement, renommage, suppression).</p>
-          </section>
-
-          <section className="mb-4">
-            <h3 className="font-semibold mb-2">5. Export</h3>
-            <p>Utilisez le bouton Exporter pour générer un fichier DOCX récapitulant le workspace.</p>
-          </section>
-
-          <div className="flex justify-end mt-5">
-            <button onClick={onClose} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Fermer</button>
-          </div>
-        </div>
-      </div>
-    );
+    try {
+      const { data } = await soumissionsWorkspacesAPI.getOnlyOfficeUrl(lot, sousTache.id, appelOffre);
+      const url = data?.url;
+      if (url) window.open(url, '_blank');
+      else NotificationService.error('URL OnlyOffice indisponible');
+    } catch (e) {
+      NotificationService.error('Impossible d\'ouvrir OnlyOffice');
+    }
   };
 
   return (
@@ -436,50 +366,47 @@ const Soumissions = () => {
 
               <label className="text-secondary font-medium whitespace-nowrap">Appel d’Offre :</label>
 
-              {/* Button-based DAO selector (PriceMO pattern) */}
-              <div className="relative ml-auto" ref={daoBtnRef}>
-                <button onClick={() => setDaoMenuOpen(o => !o)} className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-primary dark:text-muted text-sm rounded px-3 py-2 w-64 text-left flex items-center justify-between">
-                  <span>{daos.find(d => String(d.document_id) === String(daoDocId)) ? (daos.find(d => String(d.document_id) === String(daoDocId)).original_name || daos.find(d => String(d.document_id) === String(daoDocId)).original_filename || (daos.find(d => String(d.document_id) === String(daoDocId)).filename ? daos.find(d => String(d.document_id) === String(daoDocId)).filename.split('/').pop() : null) || `DAO ${daos.find(d => String(d.document_id) === String(daoDocId)).document_id}`) : 'Sélectionner un DAO'}</span>
-                  <span className="ml-2">▾</span>
-                </button>
-                {daoMenuOpen && (
-                  <ul style={{ zIndex: 9999 }} className="absolute right-0 mt-1 w-64 max-h-52 overflow-auto bg-white border rounded shadow-lg">
-                    <li className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setDaoDocId(null); setAppelOffre(''); setLotNames([]); setLot(''); setDaoMenuOpen(false); }}>Sélectionner un DAO</li>
-                    {daos.map((d, i) => (
-                      <li key={i} className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => {
-                        const id = d.document_id ?? d.id
-                        setDaoDocId(id ? Number(id) : null)
-                        setAppelOffre(id ? String(id) : '')
-                        setDaoMenuOpen(false)
-                      }}>{d.original_name || d.original_filename || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`}</li>
+              <select
+                className="text-primary dark:text-muted ml-auto border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-64"
+                value={daoDocId ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value
+                  if (!val) {
+                    setDaoDocId(null)
+                    setAppelOffre('')
+                    setLotNames([])
+                    setLot('')
+                    return
+                  }
+                  setDaoDocId(val)
+                  setAppelOffre(String(val))
+                }}
+              >
+                <option value="">Sélectionner un DAO</option>
+                {(daos || []).map(d => {
+                  const display = d.original_name || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`
+                  const id = d.document_id ?? d.id
+                  return (<option key={id} value={id}>{display}</option>)
+                })}
+              </select>
+
+              {appelOffre ? (
+                <>
+                  <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
+                  <select
+                    className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40"
+                    value={lot}
+                    onChange={(e) => setLot(e.target.value)}
+                  >
+                    <option value="">Sélectionner un Lot</option>
+                    {(lotNames || []).map(nomLot => (
+                      <option key={nomLot} value={nomLot}>{nomLot}</option>
                     ))}
-                  </ul>
-                )}
-              </div>
-
-               {appelOffre ? (
-                 <>
-                   <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
-
-                   {/* Button-based Lot selector */}
-                   <div className="relative" ref={lotBtnRef}>
-                     <button onClick={() => setLotMenuOpen(o => !o)} className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40 text-left flex items-center justify-between">
-                       <span>{(lotNames || []).find(n => String(n) === String(lot)) ? lot : 'Sélectionner un Lot'}</span>
-                       <span className="ml-2">▾</span>
-                     </button>
-                     {lotMenuOpen && (
-                       <ul style={{ zIndex: 9999 }} className="absolute right-0 mt-1 w-40 max-h-52 overflow-auto bg-white border rounded shadow-lg">
-                         <li className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setLot(''); setListes([]); setLotMenuOpen(false); }}>Sélectionner un Lot</li>
-                         {(lotNames || []).map((nomLot, i) => (
-                           <li key={i} className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setLot(nomLot); setLotMenuOpen(false); }}>{nomLot}</li>
-                         ))}
-                       </ul>
-                     )}
-                   </div>
-                 </>
-               ) : (
-                 <div className="ml-3 text-sm text-gray-500">Aucun DAO sélectionné.</div>
-               )}
+                  </select>
+                </>
+              ) : (
+                <div className="ml-3 text-sm text-gray-500">Aucun DAO sélectionné.</div>
+              )}
 
               {(loadingLots || loadingWorkspace) && (
                 <span className="ml-2 inline-block h-5 w-5 border-2 border-secondary/70 border-t-transparent rounded-full animate-spin" aria-label="Chargement..."></span>
@@ -488,8 +415,9 @@ const Soumissions = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={handleOnlyOfficeLogin} className="inline-flex items-center gap-2 bg-secondary hover:bg-secondary/90 text-white text-sm px-3 py-2 rounded-md">
-                Se connecter
+              <button onClick={handleExporter} className="inline-flex items-center gap-2 bg-secondary hover:bg-secondary/90 text-white text-sm px-3 py-2 rounded-md">
+                <CloudDownload fontSize="small" />
+                Exporter
               </button>
             </div>
           </div>
@@ -556,13 +484,6 @@ const Soumissions = () => {
                             >
                               {st.titre}
                             </span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleOpenSubtask(liste.id, st); }}
-                              className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-blue-100 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Ouvrir l'espace de travail OnlyOffice"
-                            >
-                              <Work fontSize="small" />
-                            </button>
                           </div>
                           <div className="flex items-center gap-1 ml-2">
                             <button onClick={(e) => { e.stopPropagation(); setModal({ open: true, type: 'renameSubtask', payload: { listeId: liste.id, sousTacheId: st.id }, value: st.titre }); }} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-gray-200/70 text-gray-700" title="Modifier">
@@ -645,53 +566,15 @@ const Soumissions = () => {
         )}
         <button
           className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
-          onClick={() => setGuideOpen(true)}
+          onClick={() => {
+            showInfo('Aide / Guide utilisateur en cours de développement !')
+          }}
         >
           <Help style={{ fontSize: '3rem' }} />
         </button>
-        <UserGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
+      </main>
+    </div>
+  )
+}
 
-        {/* Modal Connexion/Inscription OnlyOffice */}
-        {loginModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setLoginModalOpen(false)}>
-            <div className="bg-white dark:bg-primary rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="flex justify-between items-center p-4 border-b border-muted-50">
-                <h6 className="text-sm font-semibold text-secondary">Créer/Se connecter à OnlyOffice DocSpace</h6>
-                <button onClick={() => setLoginModalOpen(false)} className="h-8 w-8 inline-flex items-center justify-center rounded hover:bg-gray-100 dark:hover:bg-primary/40">×</button>
-              </div>
-              <div className="w-full h-[75vh] p-6 flex items-center justify-center">
-                <div className="max-w-xl text-center space-y-4">
-                  <p className="text-sm text-gray-700 dark:text-gray-200">Pour créer un compte ou vous connecter à OnlyOffice DocSpace, cliquez sur le bouton ci‑dessous. La page s’ouvrira dans votre navigateur.</p>
-                  <a
-                    href="https://www.onlyoffice.com/docspace-registration.aspx"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-2 bg-secondary hover:bg-secondary/90 text-white text-sm px-4 py-2 rounded-md"
-                  >
-                    Continuer sur OnlyOffice
-                  </a>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 pt-2">
-                    <p>Étapes&nbsp;:</p>
-                    <p>1) Créez/ouvrez votre compte DocSpace</p>
-                    <p>2) Revenez ici pour importer/créer vos documents</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* OnlyOffice Workspace Modal */}
-        <OnlyOfficeWorkspaceModal
-          isOpen={workspaceModal.open}
-          onClose={handleCloseWorkspaceModal}
-          sousTache={workspaceModal.sousTache}
-          lot={lot}
-          appelOffre={appelOffre}
-        />
-       </main>
-     </div>
-   )
- }
-
- export default Soumissions
+export default Soumissions
