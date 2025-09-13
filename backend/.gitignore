@@ -43,3 +43,5 @@ htmlcov/
 logs/
 venv_build/
 .python-version
+backend/build/
+backend/dist/
