@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import Sidebar from '../components/Sidebar'
 import { Description, CloudDownload, Add, Edit, Delete, Close, Help } from "@mui/icons-material";
 import { useDao } from '../contexts/DaoContext'
 import api from '../services/api'
-import useNotifications from '../hooks/useNotifications';
 
 /***********************
  * Modals for Poste and Article
@@ -295,10 +294,82 @@ const PriceSDP = () => {
   const [daos, setDaos] = useState([])
   const { savedLots, daoDocId, setSavedLots, setDaoId, setDaoDocId } = useDao()
   const [lot, setLot] = useState("")
-  const {
-    showInfo,
-  } = useNotifications();
+  // Dropdown refs & state for button-based selectors (match other pages)
+  const daoBtnRef = useRef(null)
+  const lotBtnRef = useRef(null)
+  const [daoMenuOpen, setDaoMenuOpen] = useState(false)
+  const [lotMenuOpen, setLotMenuOpen] = useState(false)
+
+  // Close menus on outside click or Escape
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (daoMenuOpen && daoBtnRef.current && !daoBtnRef.current.contains(e.target)) setDaoMenuOpen(false)
+      if (lotMenuOpen && lotBtnRef.current && !lotBtnRef.current.contains(e.target)) setLotMenuOpen(false)
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setDaoMenuOpen(false)
+        setLotMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [daoMenuOpen, lotMenuOpen])
+
+  // derive selected DAO and Lot objects once to avoid repeated finds in JSX
+  const selectedDao = daos.find(d => String(d.document_id) === String(daoDocId))
+  const selectedLotObj = (savedLots || []).find(s => String(s.id) === String(lot))
+
+  const [guideOpen, setGuideOpen] = useState(false);
   
+  // User guide modal (simple informative modal similar to Materiels/Personnels)
+  const UserGuideModal = ({ open, onClose }) => {
+    if (!open) return null
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
+        <div className="bg-white dark:bg-primary w-full max-w-3xl rounded-lg shadow-lg overflow-y-auto max-h-[80vh] p-6">
+          <h2 className="text-xl font-bold mb-4 text-secondary">Guide Utilisateur – Sous-détail de prix (SDP)</h2>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">1. Vue d'ensemble</h3>
+            <p>Cette page permet de gérer les sous-détails de prix (SDP) par DAO et Lot : ajouter des postes, articles et éléments (main d'œuvre, matériaux, équipements), calculer automatiquement les coûts et exporter le détail.</p>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">2. Sélection DAO / Lot</h3>
+            <p>Sélectionnez un DAO puis un Lot. Les boutons déroulants remplacent les sélecteurs natifs pour éviter des problèmes d'affichage.</p>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">3. Postes et articles</h3>
+            <ol className="list-decimal list-inside">
+              <li>Ajoutez un poste avec le bouton <strong>Ajouter une Poste</strong>.</li>
+              <li>Dans chaque poste, ajoutez des articles et pour chaque article, ouvrez l'espace de travail pour ajouter des éléments.</li>
+            </ol>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">4. Éléments</h3>
+            <p>Les éléments supportent plusieurs types : Main d'oeuvre, Matériaux, Équipements. Les totaux et le coût net/unité sont calculés automatiquement selon les champs fournis.</p>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">5. Export</h3>
+            <p>Vous pouvez exporter le workspace de l'article actif en Excel via le bouton Exporter.</p>
+          </section>
+
+          <div className="flex justify-end mt-5">
+            <button onClick={onClose} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Fermer</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // poste modal state
   const [openPosteModal, setOpenPosteModal] = useState(false)
   const [currentArticleIndex, setCurrentArticleIndex] = useState(null)
@@ -809,29 +880,38 @@ const PriceSDP = () => {
               <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-secondary/10 text-secondary"><Description fontSize="small" /></span>
 
               <label className="text-secondary font-medium whitespace-nowrap">DAO :</label>
-              <select className="text-primary dark:text-muted ml-auto border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-64" value={daoDocId || ""} onChange={(e) => {
-                const val = e.target.value
-                if (!val) { setDaoDocId(null); setDaoId(null); setSavedLots([]); return }
-                setDaoDocId(Number(val))
-              }}>
-                <option value="">Sélectionner un DAO</option>
-                {daos.map((d, i) => {
-                  const display = d.original_name || d.original_filename || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`
-                  return (<option key={i} value={d.document_id}>{display}</option>)
-                })}
-              </select>
+
+              <div className="relative ml-auto" ref={daoBtnRef}>
+                <button onClick={() => setDaoMenuOpen(o => !o)} className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-primary dark:text-muted text-sm rounded px-3 py-2 w-64 text-left flex items-center justify-between">
+                  <span>{selectedDao ? (selectedDao.original_name || selectedDao.original_filename || (selectedDao.filename ? selectedDao.filename.split('/').pop() : null) || `DAO ${selectedDao.document_id}`) : 'Sélectionner un DAO'}</span>
+                  <span className="ml-2">▾</span>
+                </button>
+                {daoMenuOpen && (
+                  <ul style={{ zIndex: 9999 }} className="absolute right-0 mt-1 w-64 max-h-52 overflow-auto bg-white border rounded shadow-lg">
+                    <li className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setDaoDocId(null); setDaoId(null); setSavedLots([]); setDaoMenuOpen(false); }}>Sélectionner un DAO</li>
+                    {daos.map(d => (
+                      <li key={d.document_id} className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setDaoDocId(Number(d.document_id)); setDaoMenuOpen(false); }}>{d.original_name || d.original_filename || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
               {daoDocId ? (
                 <>
                   <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
-                  <select className="border border-gray-300 dark:border-muted-50 text-primary dark:text-muted bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40" value={lot} onChange={(e) => {
-                    const val = e.target.value
-                    if (!val) { setLot(""); return }
-                    setLot(Number(val))
-                  }}>
-                    <option value="">Sélectionner un Lot</option>
-                    {(savedLots || []).map((s, i) => (<option key={i} value={s.id}>{s.name}</option>))}
-                  </select>
+
+                  <div className="relative" ref={lotBtnRef}>
+                    <button onClick={() => setLotMenuOpen(o => !o)} className="border border-gray-300 dark:border-muted-50 text-primary dark:text-muted bg-white dark:bg-primary text-sm rounded px-3 py-2 w-full text-left flex items-center justify-between">
+                      <span>{selectedLotObj ? selectedLotObj.name : 'Sélectionner un Lot'}</span>
+                      <span className="ml-2">▾</span>
+                    </button>
+                    {lotMenuOpen && (
+                      <ul style={{ zIndex: 9999 }} className="absolute right-0 mt-1 w-40 max-h-52 overflow-auto bg-white border rounded shadow-lg">
+                        <li className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setLot(""); setRows([]); setLotMenuOpen(false); }}>Sélectionner un Lot</li>
+                        {(savedLots || []).map(s => (<li key={s.id} className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setLot(Number(s.id)); setLotMenuOpen(false); }}>{s.name}</li>))}
+                      </ul>
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="ml-3 text-sm text-gray-500">Aucun DAO sélectionné.</div>
@@ -1169,7 +1249,7 @@ const PriceSDP = () => {
                     <td className="border p-2 text-right">{isType(e, 'mat') ? formatNumber(mtxTotal, 2) : ''}</td>
 
                     {/* EQU columns */}
-                    <td className="border p-2 text-right">{isType(e, 'equip') ? formatNumber(amortH, 2) : ''}</td>
+                                       <td className="border p-2 text-right">{isType(e, 'equip') ? formatNumber(amortH, 2) : ''}</td>
                     <td className="border p-2 text-right">{isType(e, 'equip') ? formatNumber(sumCarLubH, 2) : ''}</td>
                     <td className="border p-2 text-right">{isType(e, 'equip') ? formatNumber(entretienH, 2) : ''}</td>
                     <td className="border p-2 text-right">{isType(e, 'equip') ? formatNumber(equTotal, 2) : ''}</td>
@@ -1211,7 +1291,7 @@ const PriceSDP = () => {
               pushGroup("Main d'oeuvre", mains, sumMO)
               pushGroup('Matériaux', mats, sumMTX)
               pushGroup('Equipements', equips, sumEQU)
-              pushGroup('Autres', others, 0)
+              pushGroup('Autres', 0)
 
               const totalT = sumMO + sumMTX + sumEQU
               const coefK = Number(art.coefficientK ?? art.coefficient_k ?? 1) || 1
@@ -1284,15 +1364,14 @@ const PriceSDP = () => {
         )}
         <button
           className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
-          onClick={() => {
-            showInfo('Aide / Guide utilisateur en cours de développement !')
-          }}
+          onClick={() => setGuideOpen(true)}
         >
           <Help style={{ fontSize: '3rem' }} />
         </button>
-      </main>
+        <UserGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
+       </main>
 
-      {/* Confirmation modal global */}
+       {/* Confirmation modal global */}
       <ConfirmModal
         open={confirmOpen}
         message={confirmMessage}

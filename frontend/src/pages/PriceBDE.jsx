@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import Sidebar from '../components/Sidebar'
 import {
   CloudDownload,
@@ -13,7 +13,34 @@ const PriceBDE = () => {
   const [daos, setDaos] = useState([])
   const { savedLots, daoDocId, setSavedLots, setDaoId, setDaoDocId } = useDao()
   const [lot, setLot] = useState("")
-    const {
+  // Dropdown refs & state for button-based selectors (matching PriceMO)
+  const daoBtnRef = useRef(null)
+  const lotBtnRef = useRef(null)
+  const [daoMenuOpen, setDaoMenuOpen] = useState(false)
+  const [lotMenuOpen, setLotMenuOpen] = useState(false)
+
+  // Close menus on outside click or Escape
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (daoMenuOpen && daoBtnRef.current && !daoBtnRef.current.contains(e.target)) setDaoMenuOpen(false)
+      if (lotMenuOpen && lotBtnRef.current && !lotBtnRef.current.contains(e.target)) setLotMenuOpen(false)
+    }
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setDaoMenuOpen(false); setLotMenuOpen(false) }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [daoMenuOpen, lotMenuOpen])
+
+  // derive selected DAO and Lot objects once to avoid repeating finds in JSX
+  const selectedDao = daos.find(d => String(d.document_id) === String(daoDocId))
+  const selectedLotObj = (savedLots || []).find(s => String(s.id) === String(lot))
+
+  const {
     showInfo,
   } = useNotifications();
 
@@ -305,29 +332,38 @@ const PriceBDE = () => {
               </span>
 
               <label className="text-secondary font-medium whitespace-nowrap">DAO :</label>
-              <select className="text-primary dark:text-muted ml-auto border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-sm rounded px-3 py-2 w-64" value={daoDocId || ""} onChange={(e) => {
-                const val = e.target.value
-                if (!val) { setDaoDocId(null); setDaoId(null); setSavedLots([]); return }
-                setDaoDocId(Number(val))
-              }}>
-                <option value="">Sélectionner un DAO</option>
-                {daos.map((d, i) => {
-                  const display = d.original_name || d.original_filename || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`
-                  return (<option key={i} value={d.document_id}>{display}</option>)
-                })}
-              </select>
+
+              <div className="relative ml-auto" ref={daoBtnRef}>
+                <button onClick={() => setDaoMenuOpen(o => !o)} className="border border-gray-300 dark:border-muted-50 bg-white dark:bg-primary text-primary dark:text-muted text-sm rounded px-3 py-2 w-64 text-left flex items-center justify-between">
+                  <span>{selectedDao ? (selectedDao.original_name || selectedDao.original_filename || (selectedDao.filename ? selectedDao.filename.split('/').pop() : null) || `DAO ${selectedDao.document_id}`) : 'Sélectionner un DAO'}</span>
+                  <span className="ml-2">▾</span>
+                </button>
+                {daoMenuOpen && (
+                  <ul style={{ zIndex: 9999 }} className="absolute right-0 mt-1 w-64 max-h-52 overflow-auto bg-white border rounded shadow-lg">
+                    <li className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setDaoDocId(null); setDaoId(null); setSavedLots([]); setDaoMenuOpen(false); }}>Sélectionner un DAO</li>
+                    {daos.map(d => (
+                      <li key={d.document_id} className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setDaoDocId(Number(d.document_id)); setDaoMenuOpen(false); }}>{d.original_name || d.original_filename || (d.filename ? d.filename.split('/').pop() : null) || `DAO ${d.document_id}`}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
 
               {daoDocId ? (
                 <>
                   <label className="text-secondary font-medium whitespace-nowrap ml-3">Lot :</label>
-                  <select className="border border-gray-300 dark:border-muted-50 text-primary dark:text-muted bg-white dark:bg-primary text-sm rounded px-3 py-2 w-40" value={lot} onChange={(e) => {
-                    const val = e.target.value
-                    if (!val) { setLot(""); return }
-                    setLot(Number(val))
-                  }}>
-                    <option value="">Sélectionner un Lot</option>
-                    {(savedLots || []).map((s, i) => (<option key={i} value={s.id}>{s.name}</option>))}
-                  </select>
+
+                  <div className="relative" ref={lotBtnRef}>
+                    <button onClick={() => setLotMenuOpen(o => !o)} className="border border-gray-300 dark:border-muted-50 text-primary dark:text-muted bg-white dark:bg-primary text-sm rounded px-3 py-2 w-full text-left flex items-center justify-between">
+                      <span>{selectedLotObj ? selectedLotObj.name : 'Sélectionner un Lot'}</span>
+                      <span className="ml-2">▾</span>
+                    </button>
+                    {lotMenuOpen && (
+                      <ul style={{ zIndex: 9999 }} className="absolute right-0 mt-1 w-40 max-h-52 overflow-auto bg-white border rounded shadow-lg">
+                        <li className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setLot(""); setBdeRows([]); setLotMenuOpen(false); }}>Sélectionner un Lot</li>
+                        {(savedLots || []).map(s => (<li key={s.id} className="px-3 py-2 hover:bg-gray-100 cursor-pointer" onClick={() => { setLot(Number(s.id)); setLotMenuOpen(false); }}>{s.name}</li>))}
+                      </ul>
+                    )}
+                  </div>
                 </>
               ) : (
                 <div className="ml-3 text-sm text-gray-500">Aucun DAO sélectionné.</div>
