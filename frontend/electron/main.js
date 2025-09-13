@@ -21,7 +21,19 @@ class AppManager {
         const options = { env };
 
         let backendPath;
+<<<<<<< HEAD
         if (isDev) {
+=======
+        let options = { env };
+
+        if (process.platform === "win32") {
+            const pythonPath = path.join(__dirname, "../../backend/venv_build/Scripts/python.exe");
+            backendPath = path.join(__dirname, "../../backend/run_backend.py");
+            console.log("Démarrage du backend (venv Python):", pythonPath, backendPath);
+            this.backendProcess = spawn(pythonPath, [backendPath], options);
+        } else {
+            // Sur Linux/Mac → utiliser Python
+>>>>>>> e05d0490395b6933db96890eae0313b520773efc
             backendPath = path.join(__dirname, "../../backend/run_backend.py");
             console.log("Démarrage du backend (dev) :", backendPath);
             this.backendProcess = spawn("python3", [backendPath], options);
@@ -44,7 +56,7 @@ class AppManager {
         }
     }
 
-    waitForBackend(url = 'http://127.0.0.1:8000', interval = 1000, timeout = 20000) {
+    waitForBackend(url = 'http://127.0.0.1:8000', interval = 1000, timeout = 60000) {
         return new Promise((resolve, reject) => {
             const start = Date.now();
             const check = () => {
