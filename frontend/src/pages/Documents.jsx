@@ -27,6 +27,7 @@ const Documents = () => {
   const [confirmDelete, setConfirmDelete] = useState({ open: false, doc: null });
   const addFileRef = useRef(null);
   const previewObjectUrlRef = useRef(null);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const {
     showSuccess,
@@ -93,9 +94,10 @@ const Documents = () => {
       const loadingToast = showLoading("Chargement de l'aperçu...");
       try {
         const response = await documentsAPI.download(normalized.id);
-        // response.data is a blob (axios configured). Determine MIME: prefer header, fallback to filename
+        // response.data is a blob (axios configured). Determine MIME: prefer header unless it's generic octet-stream; fallback to filename
         const headerType = response.headers && response.headers['content-type'];
-        const mime = headerType || getMimeForFilename(normalized.original_filename || normalized.filename);
+        const guessedType = getMimeForFilename(normalized.original_filename || normalized.filename);
+        const mime = (headerType && headerType !== 'application/octet-stream') ? headerType : guessedType;
         const blob = new Blob([response.data], { type: mime });
         const objectUrl = window.URL.createObjectURL(blob);
 
@@ -537,6 +539,51 @@ const Documents = () => {
     return () => clearInterval(interval);
   }, [documents, showWarning, showError]);
 
+  // User guide modal for Documents page
+  const UserGuideModal = ({ open, onClose }) => {
+    if (!open) return null;
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
+        <div className="bg-white dark:bg-primary w-full max-w-3xl rounded-lg shadow-lg overflow-y-auto max-h-[80vh] p-6">
+          <h2 className="text-xl font-bold mb-4 text-secondary">Guide Utilisateur – Gestion des Documents</h2>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">1. Vue d'ensemble</h3>
+            <p>Cette page affiche les documents importés depuis le DAO et les documents administratifs que vous avez téléchargés. Vous pouvez prévisualiser, télécharger, modifier les métadonnées et supprimer des documents.</p>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">2. Ajouter un document</h3>
+            <ol className="list-decimal list-inside">
+              <li>Cliquez sur la zone <strong>Ajouter un document administratif</strong> ou le bouton <strong>Ajouter</strong>.</li>
+              <li>Sélectionnez un fichier et donnez un nom, puis choisissez une date d'expiration si nécessaire.</li>
+              <li>Cliquez sur <strong>Ajouter</strong> pour téléverser.</li>
+            </ol>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">3. Prévisualiser un document</h3>
+            <p>Pour voir un document, cliquez sur l'icône Aperçu (Description). Si le document est protégé par authentification, la prévisualisation utilisera la requête authentifiée pour charger un aperçu dans la modal.</p>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">4. Télécharger / Ouvrir</h3>
+            <p>Utilisez l'icône de téléchargement pour récupérer le fichier. Certains types (Word, Excel) ne sont pas prévisualisables dans le navigateur et s'ouvriront via le téléchargement.</p>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">5. Modifier / Supprimer</h3>
+            <p>Pour modifier le nom ou la date d'expiration, cliquez sur Modifier. Pour supprimer un document, cliquez sur Supprimer et confirmez l'action.</p>
+          </section>
+
+          <div className="flex justify-end mt-5">
+            <button onClick={onClose} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Fermer</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className='flex min-h-screen bg-main dark:bg-primary overflow-y-auto transition-all duration-200 ease-in-out'>
       <Sidebar />
@@ -657,12 +704,11 @@ const Documents = () => {
 
         <button
           className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
-          onClick={() => {
-            showInfo('Aide / Guide utilisateur en cours de développement !')
-          }}
+          onClick={() => setGuideOpen(true)}
         >
           <Help style={{ fontSize: '3rem' }} />
         </button>
+        <UserGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
       </main>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import Sidebar from '../components/Sidebar'
 import ConfirmModal from '../components/ConfirmModal'
 import DocumentViewer from '../components/DocumentViewer'
@@ -14,7 +14,8 @@ import {
   PhotoCamera,
   Visibility
 } from "@mui/icons-material";
-import api from '../services/api'
+
+const API_BASE_URL = 'http://127.0.0.1:8000';
 
 const Personnels = () => {
   const [personnels, setPersonnels] = useState([]);
@@ -34,6 +35,7 @@ const Personnels = () => {
     showCreateSuccess,
     showUpdateSuccess,
   } = useNotifications();
+  const [guideOpen, setGuideOpen] = useState(false);
   const [formData, setFormData] = useState({
     nom: '',
     prenom: '',
@@ -76,8 +78,15 @@ const Personnels = () => {
   useEffect(() => {
     const loadPersonnels = async () => {
       try {
-        const res = await api.get('/api/personnels/');
-        const items = res.data;
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE_URL}/personnels/`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Erreur lors du chargement des personnels');
+        }
+        const items = await res.json();
         const mapped = items.map(p => ({
           id: p.id,
           nom: p.nom,
@@ -91,7 +100,7 @@ const Personnels = () => {
           contact: p.contact ?? '',
           genre: p.genre ?? '',
           status: p.status ?? '',
-          profileImage: p.profile_image ? `${api.defaults.baseURL}/uploads/personnels/${p.profile_image}` : null
+          profileImage: p.profile_image ? `${API_BASE_URL}/uploads/personnels/${p.profile_image}` : null
         }));
         setPersonnels(mapped);
         showFetchSuccess();
@@ -180,7 +189,7 @@ const Personnels = () => {
   const loadExistingDocuments = async (personnelId) => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`/api/personnels/${personnelId}/documents`, {
+      const res = await fetch(`${API_BASE_URL}/personnels/${personnelId}/documents`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       if (!res.ok) {
@@ -188,10 +197,16 @@ const Personnels = () => {
       }
       const docs = await res.json();
 
+      // Normaliser les URLs reçues (si l'API retourne des chemins relatifs)
+      const normalize = (doc) => ({
+        ...doc,
+        url: doc.url ? (doc.url.startsWith('http') ? doc.url : `${API_BASE_URL}${doc.url.replace(/^\/api/, '')}`) : undefined
+      });
+
       // Séparer les documents par catégorie pour l'édition
-      setExistingCvFiles(docs.cv || []);
-      setExistingDiplomeFiles(docs.diplome || []);
-      setExistingContratFiles(docs.contrat || []);
+      setExistingCvFiles((docs.cv || []).map(normalize));
+      setExistingDiplomeFiles((docs.diplome || []).map(normalize));
+      setExistingContratFiles((docs.contrat || []).map(normalize));
     } catch (error) {
       console.error('Erreur lors du chargement des documents existants:', error);
       setExistingCvFiles([]);
@@ -203,15 +218,33 @@ const Personnels = () => {
   // Fonction pour charger les documents d'un personnel
   const loadPersonnelDocuments = async (personnelId) => {
     try {
-      const res = await api.get(`/api/personnels/${personnelId}/documents`);
-      const documents = res.data;
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/personnels/${personnelId}/documents`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+      if (!res.ok) {
+        throw new Error('Erreur lors du chargement des documents');
+      }
+      const documents = await res.json();
 
-      setPersonnelDocuments(documents);
+      // Normaliser les URLs
+      const normalize = (doc) => ({
+        ...doc,
+        url: doc.url ? (doc.url.startsWith('http') ? doc.url : `${API_BASE_URL}${doc.url.replace(/^\/api/, '')}`) : undefined
+      });
+
+      setPersonnelDocuments({
+        cv: (documents.cv || []).map(normalize),
+        diplome: (documents.diplome || []).map(normalize),
+        contrat: (documents.contrat || []).map(normalize)
+      });
     } catch (error) {
       console.error('Erreur lors du chargement des documents:', error);
       setPersonnelDocuments({ cv: [], diplome: [], contrat: [] });
     }
   };
+
+
 
   // Fonction pour ouvrir le modal de détails
   const handleOpenDetails = async (personnel) => {
@@ -240,7 +273,15 @@ const Personnels = () => {
 
   const handleDeletePersonnel = async (id) => {
     try {
-      await api.delete(`/api/personnels/${id}`);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/personnels/${id}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Erreur lors de la suppression');
+      }
       setPersonnels(prev => prev.filter(p => p.id !== id));
       if (selectedPersonnel?.id === id) {
         setShowDetails(false);
@@ -362,10 +403,18 @@ const Personnels = () => {
     }
   };
 
-  // Fonction pour supprimer un CV existant
+  // Fonctions pour supprimer les documents existants
   const removeExistingCvFile = async (docId) => {
     try {
-      await api.delete(`/api/personnels/${editingPersonnel.id}/documents/${docId}`);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/personnels/${editingPersonnel.id}/documents/${docId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+
+      if (!res.ok) {
+        throw new Error('Erreur lors de la suppression du document');
+      }
 
       // Retirer de la liste locale si la suppression a réussi
       setExistingCvFiles(prev => prev.filter(doc => doc.id !== docId));
@@ -376,10 +425,17 @@ const Personnels = () => {
     }
   };
 
-  // Fonction pour supprimer un diplôme existant
   const removeExistingDiplomeFile = async (docId) => {
     try {
-      await api.delete(`/api/personnels/${editingPersonnel.id}/documents/${docId}`);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/personnels/${editingPersonnel.id}/documents/${docId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+
+      if (!res.ok) {
+        throw new Error('Erreur lors de la suppression du document');
+      }
 
       // Retirer de la liste locale si la suppression a réussi
       setExistingDiplomeFiles(prev => prev.filter(doc => doc.id !== docId));
@@ -390,10 +446,17 @@ const Personnels = () => {
     }
   };
 
-  // Fonction pour supprimer un contrat existant
   const removeExistingContratFile = async (docId) => {
     try {
-      await api.delete(`/api/personnels/${editingPersonnel.id}/documents/${docId}`);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE_URL}/personnels/${editingPersonnel.id}/documents/${docId}`, {
+        method: 'DELETE',
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
+
+      if (!res.ok) {
+        throw new Error('Erreur lors de la suppression du document');
+      }
 
       // Retirer de la liste locale si la suppression a réussi
       setExistingContratFiles(prev => prev.filter(doc => doc.id !== docId));
@@ -422,6 +485,7 @@ const Personnels = () => {
         alert('Le nom est requis');
         return;
       }
+      const token = localStorage.getItem('token');
 
       // Mode édition: utiliser FormData pour gérer les fichiers
       if (editingPersonnel) {
@@ -454,46 +518,43 @@ const Personnels = () => {
           fd.append('contrat_file', contratFile);
         }
 
-        try {
-          const res = await api.put(
-            `/api/personnels/${editingPersonnel.id}/with-files`,
-            fd,
-            {
-              headers: { 'Content-Type': 'multipart/form-data' },
-            }
-          );
+        const res = await fetch(`${API_BASE_URL}/personnels/${editingPersonnel.id}/with-files`, {
+          method: 'PUT',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: fd,
+        });
 
-          const updated = res.data;
-          const mapped = {
-            id: updated.id,
-            nom: updated.nom,
-            prenom: updated.prenom ?? '',
-            fonction: updated.fonction ?? '',
-            formation: updated.formation ?? '',
-            dateNaissance: updated.date_naissance ?? '',
-            salaire: updated.salaire_mensuel ?? '',
-            nationalite: updated.nationalite ?? '',
-            experience: updated.experience_annees ?? '',
-            contact: updated.contact ?? '',
-            genre: updated.genre ?? '',
-            status: updated.status ?? '',
-            profileImage: updated.profile_image
-              ? `/api/uploads/personnels/${updated.profile_image}`
-              : null,
-          };
-
-          setPersonnels(prev => prev.map(p => p.id === mapped.id ? mapped : p));
-          handleCloseForm();
-          showUpdateSuccess();
-          return;
-        } catch (error) {
-          console.error('Erreur lors de la mise à jour du personnel:', error);
-          showError(
-            error.response?.data?.detail ||
-              'Erreur lors de la mise à jour du personnel'
-          );
-          return;
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          const detail = err?.detail;
+          const message = Array.isArray(detail)
+            ? detail.map(d => d?.msg || JSON.stringify(d)).join(' | ')
+            : (detail || 'Erreur lors de la mise à jour du personnel');
+          throw new Error(message);
         }
+
+        const updated = await res.json();
+        const mapped = {
+          id: updated.id,
+          nom: updated.nom,
+          prenom: updated.prenom ?? '',
+          fonction: updated.fonction ?? '',
+          formation: updated.formation ?? '',
+          dateNaissance: updated.date_naissance ?? '',
+          salaire: updated.salaire_mensuel ?? '',
+          nationalite: updated.nationalite ?? '',
+          experience: updated.experience_annees ?? '',
+          contact: updated.contact ?? '',
+          genre: updated.genre ?? '',
+          status: updated.status ?? '',
+          profileImage: updated.profile_image ? `${API_BASE_URL}/uploads/personnels/${updated.profile_image}` : null,
+        };
+        setPersonnels(prev => prev.map(p => p.id === mapped.id ? mapped : p));
+        handleCloseForm();
+        showUpdateSuccess();
+        return;
       }
 
       const fd = new FormData();
@@ -515,11 +576,22 @@ const Personnels = () => {
       if (diplomeFile) fd.append('diplome_file', diplomeFile);
       if (contratFile) fd.append('contrat_file', contratFile);
 
-      const res = await api.post('/api/personnels/with-files', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const res = await fetch(`${API_BASE_URL}/personnels/with-files`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
       });
-      const created = res.data;
 
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const detail = err?.detail;
+        const message = Array.isArray(detail)
+          ? detail.map(d => d?.msg || JSON.stringify(d)).join(' | ')
+          : (detail || 'Erreur lors de la création du personnel');
+        throw new Error(message);
+      }
+
+      const created = await res.json();
       const mapped = {
         id: created.id,
         nom: created.nom,
@@ -587,6 +659,51 @@ const Personnels = () => {
       case 'en_conge': return 'En congé';
       default: return 'Non renseigné';
     }
+  };
+
+  // User guide modal (inspired from Materiels.jsx)
+  const UserGuideModal = ({ open, onClose }) => {
+    if (!open) return null;
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50 p-4">
+        <div className="bg-white dark:bg-primary w-full max-w-3xl rounded-lg shadow-lg overflow-y-auto max-h-[80vh] p-6">
+          <h2 className="text-xl font-bold mb-4 text-secondary">Guide Utilisateur – Gestion des Personnels</h2>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">1. Vue d'ensemble</h3>
+            <p>Cette page permet de créer, modifier, supprimer et consulter les personnels. Vous pouvez joindre des fichiers (CV, diplômes, contrats) et visualiser les pièces jointes.</p>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">2. Ajouter un personnel</h3>
+            <ol className="list-decimal list-inside">
+              <li>Cliquez sur <strong>Ajouter un personnel</strong>.</li>
+              <li>Remplissez les champs requis (Nom, etc.) et joignez les fichiers si nécessaire.</li>
+              <li>Cliquez sur <strong>Ajouter</strong> pour enregistrer.</li>
+            </ol>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">3. Modifier un personnel</h3>
+            <p>Cliquez sur l’icône <strong>Edit</strong> dans la ligne correspondante, modifiez les champs puis cliquez sur <strong>Modifier</strong>.</p>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">4. Supprimer un personnel</h3>
+            <p>Cliquez sur l’icône <strong>Delete</strong> et confirmez la suppression dans la fenêtre de confirmation.</p>
+          </section>
+
+          <section className="mb-4">
+            <h3 className="font-semibold mb-2">5. Pièces jointes</h3>
+            <p>Utilisez les boutons de la section Pièces jointes pour visualiser ou télécharger les fichiers. Vous pouvez aussi supprimer des documents existants lors de l'édition.</p>
+          </section>
+
+          <div className="flex justify-end mt-5">
+            <button onClick={onClose} className="px-4 py-2 bg-secondary text-white rounded hover:bg-secondary/90">Fermer</button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -1371,12 +1488,12 @@ const Personnels = () => {
         />
         <button
           className="fixed bottom-6 right-10 bg-primary text-white rounded-full shadow-lg hover:bg-secondary transition-colors duration-200 animate-bounce"
-          onClick={() => {
-            showInfo('Aide / Guide utilisateur en cours de développement !')
-          }}
+          onClick={() => setGuideOpen(true)}
         >
           <Help style={{ fontSize: '3rem' }} />
         </button>
+
+        <UserGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
       </main>
     </div>
 

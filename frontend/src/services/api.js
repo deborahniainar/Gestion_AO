@@ -146,4 +146,5 @@ export const soumissionsWorkspacesAPI = {
   saveSubtask: (lot, subId, data, appelOffre) => api.put(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}`, data, { params: { appel_offre: appelOffre || 'default' } }),
   exportFinished: (lot, appelOffre) => api.post(`/soumissions/workspaces/${encodeURIComponent(lot)}/export_finished`, null, { params: { appel_offre: appelOffre || 'default' }, responseType: 'blob' }),
   getOnlyOfficeUrl: (lot, subId, appelOffre) => api.get(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}/onlyoffice_url`, { params: { appel_offre: appelOffre || 'default' } }),
+  uploadToOnlyOffice: (lot, subId, formData, appelOffre) => api.post(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}/upload`, formData, { params: { appel_offre: appelOffre || 'default' }, headers: { 'Content-Type': 'multipart/form-data' } }),
 }
