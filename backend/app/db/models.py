@@ -227,6 +227,7 @@ class Subtask(Base):
     done = Column(Boolean, nullable=False, default=False)
     ordre = Column(Integer, nullable=True, default=0)
     content_markdown = Column(Text, nullable=True)
+    content_html = Column(Text, nullable=True)
     id_task = Column(String(64), ForeignKey("soumission_tasks.id", ondelete="CASCADE"), nullable=False, index=True)
 
     task = relationship("Task", back_populates="subtasks")
@@ -395,6 +396,7 @@ class DaoSubtask(Base):
     done = Column(Boolean, nullable=False, default=False)
     ordre = Column(Integer, nullable=True, default=0)
     content_markdown = Column(Text, nullable=True)
+    content_html = Column(Text, nullable=True)
     id_task = Column(String(64), ForeignKey("dao_tasks.id", ondelete="CASCADE"), nullable=False, index=True)
 
     task = relationship("DaoTask", back_populates="subtasks")

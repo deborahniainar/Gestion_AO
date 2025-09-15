@@ -17,8 +17,7 @@ import useNotifications from "../hooks/useNotifications";
 import { apiWithNotifications } from "../services/api";
 import { useDao } from "../contexts/DaoContext";
 import { Editor } from "@tinymce/tinymce-react";
-
-const TINYMCE_API_KEY = import.meta.env.VITE_TINYMCE_API_KEY || "";
+import { TINYMCE_API_KEY } from '../config';
 
 export default function GestionDAO() {
   const {

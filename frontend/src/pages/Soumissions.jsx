@@ -4,15 +4,13 @@ import OnlyOfficeWorkspaceModal from '../components/OnlyOfficeWorkspaceModal'
 import { NotificationService, NotificationMessages } from '../services/notifications'
 import { soumissionsWorkspacesAPI } from '../services/api'
 import api from '../services/api'
-import useNotifications from '../hooks/useNotifications'
 import {
-  CloudDownload,
   Add,
   Help,
   Description,
   Edit,
   Delete,
-  Work
+  CloudDownload
 } from "@mui/icons-material";
 
 const Soumissions = () => {
@@ -107,6 +105,7 @@ const Soumissions = () => {
           setDaoDocId(null)
         }
       } catch (e) {
+        console.error(e)
         NotificationService.error('Impossible de charger les DAOs')
         setDaos([])
         setDaoDocId(null)
@@ -129,6 +128,7 @@ const Soumissions = () => {
             if (names.length > 0) setLot(prev => (prev && names.includes(prev)) ? prev : names[0])
             else setLot('')
           } catch (err) {
+            console.error(err)
             // fall back to workspace listLots
             const res = await soumissionsWorkspacesAPI.listLots(appelOffre);
             const names = Array.isArray(res.data) ? res.data : [];
@@ -144,6 +144,7 @@ const Soumissions = () => {
           else setLot('')
         }
       } catch (e) {
+        console.error(e)
         setLotNames([]);
         setLot('')
       } finally {
@@ -161,6 +162,7 @@ const Soumissions = () => {
         const ws = await soumissionsWorkspacesAPI.getWorkspace(lot, appelOffre, { createIfMissing: true });
         setListes(Array.isArray(ws.data.listes) ? ws.data.listes : []);
       } catch (e) {
+        console.error(e)
         setListes([]);
       } finally {
         setLoadingWorkspace(false);
@@ -173,13 +175,37 @@ const Soumissions = () => {
     try {
       await soumissionsWorkspacesAPI.saveWorkspace(lot, { listes: newListes }, appelOffre);
     } catch (e) {
+      console.error(e)
       NotificationService.error('Échec sauvegarde');
     }
   };
 
-
-  const handleOnlyOfficeLogin = () => {
-    setLoginModalOpen(true);
+  // Export workspace to DOCX and download
+  const handleExportWorkspace = async () => {
+    if (!workspaceReady) return;
+    try {
+      const res = await soumissionsWorkspacesAPI.exportFinished(lot, appelOffre);
+      const contentType = res.headers['content-type'] || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      const disposition = res.headers['content-disposition'] || '';
+      let filename = `export_${appelOffre}_${lot}.docx`;
+      const m = disposition.match(/filename\*?=([^;]+)/);
+      if (m && m[1]) {
+        filename = decodeURIComponent(m[1].replace(/UTF-8''/, '').replace(/"/g, ''));
+      }
+      const blob = new Blob([res.data], { type: contentType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      NotificationService.success('Export téléchargé');
+    } catch (err) {
+      console.error(err);
+      NotificationService.error('Erreur lors de l\'export');
+    }
   };
 
   // Modals simplified
@@ -483,9 +509,7 @@ const Soumissions = () => {
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={handleOnlyOfficeLogin} className="inline-flex items-center gap-2 bg-secondary hover:bg-secondary/90 text-white text-sm px-3 py-2 rounded-md">
-                Se connecter
-              </button>
+              {/* login button removed */}
             </div>
           </div>
 
@@ -498,6 +522,14 @@ const Soumissions = () => {
             >
               <Add fontSize="small" />
               Ajouter une tâche
+            </button>
+            <button
+              onClick={handleExportWorkspace}
+              disabled={!workspaceReady}
+              className={`inline-flex items-center gap-2 text-sm px-3 py-2 rounded-md ${workspaceReady ? 'bg-white border hover:bg-gray-50 text-gray-700' : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
+            >
+              <CloudDownload fontSize="small" />
+              Exporter en DOCX
             </button>
           </div>
 
@@ -551,13 +583,6 @@ const Soumissions = () => {
                             >
                               {st.titre}
                             </span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleOpenSubtask(liste.id, st); }}
-                              className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-blue-100 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Ouvrir l'espace de travail OnlyOffice"
-                            >
-                              <Work fontSize="small" />
-                            </button>
                           </div>
                           <div className="flex items-center gap-1 ml-2">
                             <button onClick={(e) => { e.stopPropagation(); setModal({ open: true, type: 'renameSubtask', payload: { listeId: liste.id, sousTacheId: st.id }, value: st.titre }); }} className="inline-flex items-center justify-center h-7 w-7 rounded hover:bg-gray-200/70 text-gray-700" title="Modifier">

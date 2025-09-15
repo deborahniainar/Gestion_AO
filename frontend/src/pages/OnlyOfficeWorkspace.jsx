@@ -2,43 +2,36 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { soumissionsWorkspacesAPI } from '../services/api';
 import { NotificationService } from '../services/notifications';
-
-// This page embeds OnlyOffice using Docs API config + JWT (signed server-side).
-// It expects query params: lot, subId, appelOffre
+import { Editor } from '@tinymce/tinymce-react';
 
 const OnlyOfficeWorkspace = () => {
   const [searchParams] = useSearchParams();
   const lot = searchParams.get('lot');
   const subId = searchParams.get('subId');
   const appelOffre = searchParams.get('appelOffre');
-  const iframeRef = useRef(null);
+  const editorRef = useRef(null);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [title, setTitle] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     if (!lot || !subId) {
-      NotificationService.error('Paramètres manquants pour OnlyOffice');
+      NotificationService.error('Paramètres manquants');
       navigate('/soumissions');
       return;
     }
     (async () => {
       try {
-        const res = await soumissionsWorkspacesAPI.getOnlyOfficeConfig(lot, subId, appelOffre);
+        const res = await soumissionsWorkspacesAPI.getSubtask(lot, subId, appelOffre);
         const data = res.data || {};
-        const url = data.url;
-        if (url) {
-          if (iframeRef.current) {
-            iframeRef.current.src = url;
-          } else {
-            window.location.href = url;
-          }
-        } else {
-          NotificationService.error('Configuration OnlyOffice indisponible');
-          navigate('/soumissions');
+        if (data) {
+          setTitle(data.title || '');
+          if (editorRef.current) editorRef.current.setContent(data.content_html || '');
         }
-      } catch {
-        NotificationService.error("Impossible d'initialiser OnlyOffice");
+      } catch (e) {
+        console.error(e);
+        NotificationService.error('Impossible d\'initialiser l\'éditeur');
         navigate('/soumissions');
       } finally {
         if (!cancelled) setLoading(false);
@@ -47,13 +40,44 @@ const OnlyOfficeWorkspace = () => {
     return () => { cancelled = true; };
   }, [lot, subId, appelOffre, navigate]);
 
+  const handleSave = async () => {
+    try {
+      const content = editorRef.current ? editorRef.current.getContent() : '';
+      await soumissionsWorkspacesAPI.saveSubtask(lot, subId, { title, content_html: content }, appelOffre);
+      NotificationService.success('Enregistré');
+      navigate('/soumissions');
+    } catch (e) {
+      console.error(e);
+      NotificationService.error('Erreur lors de la sauvegarde');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-muted p-4">
-      <h3 className="text-lg font-semibold mb-4">Éditeur OnlyOffice</h3>
-      {loading && <p>Chargement de l'éditeur...</p>}
-      <div className="border rounded-md overflow-hidden h-[80vh]">
-        <iframe ref={iframeRef} title="OnlyOffice Editor" className="w-full h-full border-0" />
-      </div>
+      <h3 className="text-lg font-semibold mb-4">Éditeur de document (TinyMCE)</h3>
+      {loading ? <p>Chargement...</p> : (
+        <div className="border rounded-md overflow-hidden">
+          <div className="p-4 border-b flex items-center justify-between">
+            <input value={title} onChange={(e)=>setTitle(e.target.value)} className="text-lg font-bold bg-transparent border-none outline-none" />
+            <div className="flex gap-2">
+              <button onClick={handleSave} className="px-3 py-2 bg-blue-600 text-white rounded">Enregistrer</button>
+            </div>
+          </div>
+          <div>
+            <Editor
+              onInit={(evt, editor)=> editorRef.current = editor}
+              initialValue={''}
+              init={{
+                height: 600,
+                menubar: true,
+                plugins: 'advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount',
+                toolbar: 'undo redo | formatselect | bold italic backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help',
+                content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }'
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -36,6 +36,8 @@ hiddenimports += collect_submodules('dateutil')
 hiddenimports += collect_submodules('langdetect')
 hiddenimports += collect_submodules('textblob')
 hiddenimports += collect_submodules('regex')
+hiddenimports += collect_submodules('html2docx')  # include html2docx so the frozen app contains the html2docx module used by app/api/dao.py
+hiddenimports += collect_submodules('bs4')  # ensure beautifulsoup4 (bs4) is bundled for HTML fallback
 
 
 a = Analysis(
@@ -73,11 +75,3 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
-
-hiddenimports = [
-    "fastapi",
-    "uvicorn",
-    "pydantic",
-    "starlette",
-    "sqlalchemy",
-]

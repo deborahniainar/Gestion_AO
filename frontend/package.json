@@ -6,8 +6,8 @@
   "main": "electron/main.js",
   "homepage": "./",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "node init && vite",
+    "build": "node init && vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "electron": "electron electron/main.js",
@@ -29,6 +29,7 @@
     "axios": "^1.11.0",
     "jspdf": "^3.0.2",
     "jspdf-autotable": "^5.0.2",
+    "mammoth": "^1.10.0",
     "node-fetch": "^3.3.2",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
