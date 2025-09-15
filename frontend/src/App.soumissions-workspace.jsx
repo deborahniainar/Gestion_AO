@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import OnlyOfficeWorkspaceModal from './components/OnlyOfficeWorkspaceModal';
 import { Work, Description, Edit, Delete } from '@mui/icons-material';
 
@@ -36,25 +36,25 @@ const SoumissionsWorkspacePreview = () => {
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">
-          Aperçu - Espace de travail OnlyOffice pour Soumissions
+          Aperçu - Espace d'édition (TinyMCE) pour Soumissions
         </h1>
         
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">
-            Fonctionnalités de l'espace de travail
+            Fonctionnalités de l'éditeur
           </h2>
           <ul className="space-y-2 text-gray-600 mb-6">
             <li className="flex items-center gap-2">
               <Work className="h-5 w-5 text-blue-500" />
-              Interface OnlyOffice intégrée dans une modal
+              Interface TinyMCE intégrée dans une modal
             </li>
             <li className="flex items-center gap-2">
               <Description className="h-5 w-5 text-green-500" />
-              Espace de travail personnalisable pour chaque sous-tâche
+              Espace d'édition pour chaque sous-tâche
             </li>
             <li className="flex items-center gap-2">
               <Edit className="h-5 w-5 text-orange-500" />
-              Paramètres configurables (barre d'outils, commentaires, etc.)
+              Paramètres éditoriaux
             </li>
             <li className="flex items-center gap-2">
               <Delete className="h-5 w-5 text-purple-500" />
@@ -67,7 +67,7 @@ const SoumissionsWorkspacePreview = () => {
             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-200"
           >
             <Work className="h-5 w-5" />
-            Ouvrir l'espace de travail OnlyOffice
+            Ouvrir l'espace d'édition
           </button>
         </div>
 
@@ -91,7 +91,7 @@ const SoumissionsWorkspacePreview = () => {
               <button
                 onClick={handleOpenWorkspace}
                 className="inline-flex items-center justify-center h-8 w-8 rounded hover:bg-blue-100 text-blue-600 transition-colors"
-                title="Ouvrir l'espace de travail OnlyOffice"
+                title="Ouvrir l'espace d'édition"
               >
                 <Work fontSize="small" />
               </button>

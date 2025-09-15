@@ -16,6 +16,8 @@ from fastapi import Request
 import time, json, requests
 import logging
 
+from html2docx import html2docx
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dao", tags=["DAO"])
@@ -27,6 +29,7 @@ class ExtractSummaryRequest(BaseModel):
 class GenerateDocxRequest(BaseModel):
     document_id: int
     content_markdown: str | None = None
+    content_html: str | None = None
 
 class OnlyOfficeConfigRequest(BaseModel):
     file_path: str
@@ -359,7 +362,14 @@ def generate_docx(payload: GenerateDocxRequest, db: Session = Depends(get_db)):
     os.makedirs(out_dir, exist_ok=True)
     out_name = f"{uuid.uuid4().hex}.docx"
     out_path = os.path.join(out_dir, out_name)
-    _markdown_to_docx(payload.content_markdown or "", out_path)
+    # --- HTML to DOCX support ---
+    content_html = getattr(payload, 'content_html', None)
+    if content_html:
+        d = docxlib.Document()
+        html2docx(content_html, d)
+        d.save(out_path)
+    else:
+        _markdown_to_docx(payload.content_markdown or "", out_path)
     rel_path = os.path.join("dao", "generated", out_name)
     return {"file_path": rel_path, "url": f"/uploads/{rel_path}"}
 

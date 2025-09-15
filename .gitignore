@@ -16,11 +16,11 @@ frontend/dist/
 frontend/.vite/
 *.log
 logs/
-.env
-.env.*
 backend/.env
 frontend/.env
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+config.bat
+node_modules

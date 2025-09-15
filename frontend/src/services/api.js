@@ -142,9 +142,8 @@ export const soumissionsWorkspacesAPI = {
   getWorkspace: (lot, appelOffre, opts = {}) => api.get(`/soumissions/workspaces/${encodeURIComponent(lot)}`, { params: { appel_offre: appelOffre || 'default', create_if_missing: !!opts.createIfMissing } }),
   saveWorkspace: (lot, data, appelOffre) => api.put(`/soumissions/workspaces/${encodeURIComponent(lot)}`, data, { params: { appel_offre: appelOffre || 'default' } }),
   deleteWorkspace: (lot, appelOffre) => api.delete(`/soumissions/workspaces/${encodeURIComponent(lot)}`, { params: { appel_offre: appelOffre || 'default' } }),
-  getSubtask: (lot, subId, appelOffre) => api.get(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}`, { params: { appel_offre: appelOffre || 'default' } }),
+  getSubtask: (lot, subId,appelOffre) => api.get(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}`, { params: { appel_offre: appelOffre || 'default' } }),
   saveSubtask: (lot, subId, data, appelOffre) => api.put(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}`, data, { params: { appel_offre: appelOffre || 'default' } }),
+  getSubtaskDocx: (lot, subId, appelOffre) => api.get(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}/docx`, { params: { appel_offre: appelOffre || 'default' }, responseType: 'blob' }),
   exportFinished: (lot, appelOffre) => api.post(`/soumissions/workspaces/${encodeURIComponent(lot)}/export_finished`, null, { params: { appel_offre: appelOffre || 'default' }, responseType: 'blob' }),
-  getOnlyOfficeUrl: (lot, subId, appelOffre) => api.get(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}/onlyoffice_url`, { params: { appel_offre: appelOffre || 'default' } }),
-  uploadToOnlyOffice: (lot, subId, formData, appelOffre) => api.post(`/soumissions/workspaces/${encodeURIComponent(lot)}/subtasks/${encodeURIComponent(subId)}/upload`, formData, { params: { appel_offre: appelOffre || 'default' }, headers: { 'Content-Type': 'multipart/form-data' } }),
 }

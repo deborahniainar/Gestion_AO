@@ -1,6 +1,6 @@
 # Gestion AO — Plateforme intelligente de gestion des appels d'offres
 
-Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d'extraire automatiquement les informations clés, de générer une réponse structurée (documents de soumission), et de piloter l'ensemble du cycle de vie des appels d'offres, marchés, matériels, personnels et documents administratifs.
+Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d'extraire automatiquement les informations clés, de générer une réponse structurée (documents de soumission), et de piloter l'ensemble du cycle de vie des appels d'offres, matériels, personnels, prix(ventillation main d'oeuvre, matériaux et equipements, calcul auto des sous-détails de prix par articles par postes et génération auto de bordereau de prix), documents administratifs, soumission(remplissage des documents à soumettre par tâches(à faire, en cours et términé) et sous-tâche(contenant les documents à soumettre(page de garde, lettre de soumission, .....))) et tableau de bord(qui englobe toutes les activités).
 
 ## Objectif
 
@@ -17,10 +17,8 @@ Plateforme permettant de traiter un Dossier d'Appel d'Offres (DAO) en entrée, d
 
 1) Gestion des Dossiers d'Appel d'Offres (DAO)
    - Upload du DAO (PDF)
-   - Extraction intelligente (objet, date limite, montants, exigences, pièces, critères)
-   - Résumé automatique
-   - Générateur de réponse modifiable (lettre, fiches, bordereau, etc.)
-   - Assistant de remplissage (UI interactive pour personnaliser les données)
+   - Résumé automatique(à partir des mots clés saisi par l'utilisateur)
+   - Création des Lots
 
 2) Suivi des matériels
    - Inventaire, disponibilité, localisation, état
@@ -164,7 +162,7 @@ Depuis la racine du projet:
 ```bash
 # Backend (Python)
 python -m pip install --upgrade pip
-pip install -r backend/requirements.txt
+pip install -r requirements.txt
 
 # Frontend (Node.js)
 cd frontend
@@ -210,6 +208,22 @@ python -c "from app.db.base import Base; from app.db.session import engine; Base
 
 ### 2. Création de l'utilisateur par défaut
 
+```bash
+cd backend
+sqlite3 dev.db
+   INSERT INTO admins (username, password, created_at, updated_at)
+   VALUES (
+   'admin@STC',
+   '$2b$12$b/Z3YY0sccpOV/tcpFTZSessCayO3WYrePKAkXmy/dW4h8h6.m48a',
+   CURRENT_TIMESTAMP,
+   CURRENT_TIMESTAMP
+   );
+
+   -- Ajouter les champs original_name et original_filename
+   ALTER TABLE documents ADD COLUMN original_name VARCHAR(255);  
+   ALTER TABLE documents ADD COLUMN original_filename VARCHAR(255);
+```
+
 ### 3. Démarrage des services
 
 #### Backend (FastAPI)
@@ -228,3 +242,49 @@ npm run dev
 ```
 
 Le frontend sera accessible sur `http://localhost:5173` (port par défaut de Vite).
+
+### 4. Installation electron
+
+#### Frontend (electron)
+
+```bash
+cd frontend
+npm install --save-dev electron electron-builder concurrently wait-on
+```
+
+### 5. Build mode dev
+
+```bash
+cd frontend
+npm run electron:dev
+```
+
+### 6. Build mode Prod
+
+Prérequis: backend packagé en .exe(win) et .py(linux et macos) avec pyinstaller
+
+#### Backend (pyinstaller)
+
+```bash
+cd backend
+python3 -m venv venv_build
+source venv_build/bin/activate
+pip install -r requirements.txt
+pip install pyinstaller
+pyinstaller --onefile \
+  --add-data "app:app" \
+  run_backend.py
+pyinstaller run_backend.spec
+#Lancement du backend packegé(test)
+./dist/run_backend       #Linux
+./dist/run_backend.exe   #Win
+```
+
+#### Frontend (Electron)
+
+```bash
+cd frontend
+npm run build
+npm run electron:dist-win      #Windows
+npm run electron:dist-linux    #Linux/MacOS
+```

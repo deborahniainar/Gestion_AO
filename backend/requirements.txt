@@ -20,7 +20,9 @@ passlib[bcrypt]
 requests
 Pillow
 openai>=1.37.0
-python-dotenv              # pour charger les variables d'environnement
+html2docx
+beautifulsoup4  # used as a fallback to extract text from HTML when html2docx is not available
+python-dotenv            # pour charger les variables d'environnement
 
 nltk                     # Traitement du langage naturel
 python-dateutil          # Utilitaires pour les dates

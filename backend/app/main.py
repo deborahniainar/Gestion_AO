@@ -13,6 +13,27 @@ from .db.session import engine
 from .dependencies import get_current_admin
 app = FastAPI(title="Gestion AO")
 
+# CORS configuration: apply early so middleware runs for error responses too.
+# In development you can set CORS_ALLOW_ALL=1 to allow all origins (convenient for local testing).
+CORS_ALLOW_ALL = os.getenv("CORS_ALLOW_ALL", "1") == "1"
+if CORS_ALLOW_ALL:
+    cors_origins = ["*"]
+else:
+    cors_origins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 for r in api_routers:
     # Appliquer l'authentification par défaut sauf pour le routeur d'auth
     if getattr(r, "prefix", None) == "/auth":
@@ -25,19 +46,6 @@ for r in api_routers:
 def on_startup() -> None:
     Base.metadata.create_all(bind=engine)
 
-# CORS pour le front en dev
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Fichiers statiques: servir les uploads sous /uploads
 uploads_dir = os.path.join(os.getcwd(), "files", "uploads")

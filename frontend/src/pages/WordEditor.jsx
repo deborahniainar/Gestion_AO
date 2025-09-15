@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Editor } from "@tinymce/tinymce-react";
 import { apiWithNotifications, soumissionsWorkspacesAPI } from "../services/api";
-
-const TINYMCE_API_KEY = import.meta.env.VITE_TINYMCE_API_KEY || "";
+import { TINYMCE_API_KEY } from '../config';
 
 export default function WordEditor() {
   const editorRef = useRef(null);

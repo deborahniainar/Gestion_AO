@@ -10,6 +10,9 @@ from ..db.session import get_db
 import uuid
 from jose import jwt
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/soumissions/workspaces", tags=["Soumissions - Workspaces"])
@@ -145,7 +148,7 @@ def get_subtask_content(lot: str, sub_id: str, appel_offre: str = Query("default
     sub = db.query(models.Subtask).filter(models.Subtask.id == sub_id).first()
     if not sub or not sub.task or not sub.task.lot or sub.task.lot.titre != lot_title or sub.task.lot.appel_offre != ao:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sous-tâche introuvable")
-    return {"title": sub.titre or "", "content_markdown": sub.content_markdown or ""}
+    return {"title": sub.titre or "", "content_markdown": sub.content_markdown or "", "content_html": getattr(sub, 'content_html', None) or None}
 
 
 @router.put("/{lot}/subtasks/{sub_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -169,6 +172,14 @@ def save_subtask_content(lot: str, sub_id: str, payload: Dict[str, Any], appel_o
             db.commit()
             db.refresh(default_task)
         sub = models.Subtask(id=sub_id, titre=payload.get("title") or "", content_markdown=payload.get("content_markdown") or "", id_task=default_task.id)
+        # store content_html if provided (new TinyMCE flow)
+        if payload.get('content_html') is not None:
+            try:
+                content_val = payload.get('content_html') or ''
+                setattr(sub, 'content_html', content_val)
+                logger.info("Created subtask %s: saved content_html length=%d", sub_id, len(content_val))
+            except Exception as exc:
+                logger.exception("Failed to set content_html for new subtask %s: %s", sub_id, exc)
         db.add(sub)
         db.commit()
         return None
@@ -177,6 +188,14 @@ def save_subtask_content(lot: str, sub_id: str, payload: Dict[str, Any], appel_o
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Sous-tâche ne correspond pas au lot indiqué")
     sub.titre = payload.get("title") or sub.titre
     sub.content_markdown = payload.get("content_markdown") or sub.content_markdown
+    # support content_html field for TinyMCE edits
+    if payload.get('content_html') is not None:
+        try:
+            content_val = payload.get('content_html') or ''
+            setattr(sub, 'content_html', content_val)
+            logger.info("Updated subtask %s: saved content_html length=%d", sub_id, len(content_val))
+        except Exception:
+            logger.exception("Failed to set content_html for subtask %s", sub_id)
     db.add(sub)
     db.commit()
     return None
@@ -217,8 +236,11 @@ def export_finished(lot: str, appel_offre: str = Query("default"), db: Session =
     buf.seek(0)
     from urllib.parse import quote
     filename = f"export_{quote(ao)}_{quote(lot_title)}.docx"
+    # Add explicit CORS headers in the response to ensure browsers accept the download
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={
-        "Content-Disposition": f"attachment; filename={filename}"
+        "Content-Disposition": f"attachment; filename={filename}",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Expose-Headers": "Content-Disposition"
     })
 
 
@@ -230,17 +252,49 @@ def get_subtask_docx(lot: str, sub_id: str, appel_offre: str = Query("default"),
     if not sub or not sub.task or not sub.task.lot or sub.task.lot.titre != lot_title or sub.task.lot.appel_offre != ao:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sous-tâche sans contenu")
     title = sub.titre or "document"
-    content = (sub.content_markdown or "").strip()
+    # Prefer HTML content (TinyMCE) when available, otherwise fall back to markdown
+    html_content = (getattr(sub, 'content_html', None) or "").strip()
+    markdown_content = (sub.content_markdown or "").strip()
+    logger.info("Exporting subtask %s: content_html length=%d, content_markdown length=%d", sub_id, len(html_content), len(markdown_content))
     doc = DocxDocument()
     doc.add_heading(title, level=1)
-    for line in content.splitlines():
-        doc.add_paragraph(line)
+    if html_content:
+        # convert HTML -> DOCX using html2docx if available, try to detect and use correct API
+        try:
+            from html2docx import html2docx
+            logger.info("Using html2docx to convert HTML for subtask %s", sub_id)
+            try:
+                # html2docx can write into a python-docx Document instance
+                html2docx(html_content, doc)
+            except TypeError:
+                # older/newer API: html2docx may return a Document
+                maybe_doc = html2docx(html_content)
+                if maybe_doc is not None:
+                    doc = maybe_doc
+        except Exception:
+            # fallback: strip tags and add plaintext paragraphs
+            from bs4 import BeautifulSoup
+            try:
+                soup = BeautifulSoup(html_content, 'html.parser')
+                text = soup.get_text('\n')
+                for line in text.splitlines():
+                    if line.strip():
+                        doc.add_paragraph(line)
+            except Exception:
+                # last resort: add raw HTML as text
+                doc.add_paragraph(html_content)
+    else:
+        for line in markdown_content.splitlines():
+            doc.add_paragraph(line)
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
     filename = f"subtask_{sub_id}.docx"
+    # Ensure CORS headers are present on this streaming response as well
     return StreamingResponse(buf, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", headers={
-        "Content-Disposition": f"attachment; filename={filename}"
+        "Content-Disposition": f"attachment; filename={filename}",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Expose-Headers": "Content-Disposition"
     })
 
 
